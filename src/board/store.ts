@@ -1,8 +1,8 @@
 import type { Dirent } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { z } from "@fcalell/plugin-api/schema";
 import { parse as parseYaml } from "yaml";
-import { z } from "zod";
 import {
 	parseBrief,
 	serializeEpic,

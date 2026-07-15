@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@fcalell/plugin-api/schema";
 
 export const STATUSES = [
 	"backlog",

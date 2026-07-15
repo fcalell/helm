@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { z } from "zod";
+import { z } from "@fcalell/plugin-api/schema";
 
 const managedRepoSchema = z.object({
 	path: z.string().min(1),
