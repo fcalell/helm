@@ -15,6 +15,11 @@ Backlog → Refining → Ready → Running → Review → Done
 
 - Columns are statuses, not free-form lanes. **Drag-and-drop only performs legal transitions**;
   illegal drops snap back with the reason (e.g. "no acceptance criteria yet").
+- Legal transitions: `backlog → refining` · `refining → backlog | ready` ·
+  `ready → refining | running` · `running → needs-input | review` · `needs-input → running` ·
+  `review → done | running | ready` (the three exits, [review](./review.md)) ·
+  `blocked → backlog | refining | ready` · any status but `done` → `blocked`. The ready gate
+  guards every move into Ready except `review → ready`: discard re-parks an already-gated brief.
 - **Agent events move cards on their own**: a finished run flips Running → Review via the Stop
   hook backstop, a mid-run `ask_user` call flips Running → Needs input
   ([claude-integration](../../architecture/claude-integration.md) §Board tools, §Hooks).

@@ -33,7 +33,7 @@ depends: []           # sibling story ids
 branch: helm/012-01-sync-engine
 sessions: { refine: <uuid> }
 runs:                 # one entry per attempt; each keeps its own implement session
-  - { n: 1, session: <uuid>, started: 2026-07-15T09:12:00Z, outcome: review, tokens: 184k, minutes: 22 }
+  - { n: 1, session: <uuid>, started: 2026-07-15T09:12:00Z, outcome: review, tokens: 184000, minutes: 22 }
 ---
 # Sync engine
 ## Goal
@@ -42,6 +42,15 @@ runs:                 # one entry per attempt; each keeps its own implement sess
 ## Out of scope
 ## Open questions
 ```
+
+Acceptance criteria and Open questions are `- [ ]` checklists: a checked criterion is done, a
+checked question is resolved, and unresolved questions are what the ready gate counts
+([define-refine](../product/features/define-refine.md) §Ready gate). The orchestrator writes
+frontmatter in fixed key order (id · status · depends · branch · sessions · runs) with one
+flow-styled run per line, so a rewrite diffs as exactly the lines that changed.
+
+`epic.md` has the same shape: frontmatter holds `sessions: { define: <uuid> }` (the epic chat);
+the body is `# Title`, the goal, and the breakdown rationale.
 
 ## Mutation rules
 

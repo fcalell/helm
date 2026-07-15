@@ -38,8 +38,8 @@ Entry: `n` → title + a rough paragraph, as messy as the user likes.
 ## Refining a story
 
 Entry: open a Backlog card, `r`. The session is seeded with the epic conversation's conclusions,
-the card, and the brief template (goal · approach · files likely touched · acceptance criteria ·
-out of scope · open questions).
+the card, and the brief template (goal · approach · acceptance criteria · out of scope · open
+questions).
 
 1. **Claude drives, the user steers.** It investigates the code (tool calls render as collapsed
    one-liners, expandable, never noise), then proposes brief sections one at a time as widgets.

@@ -34,7 +34,10 @@ Node/TypeScript orchestrator (the only server process)
   around in Helm: a `plugin-node` target (long-running Node entry via `@hono/node-server`, static
   asset serving, a background-services slot for the watcher and queue) and a typed WebSocket
   surface. A PWA option follows with the mobile surface (v2).
-- **Helm-side libraries**: chokidar for the `.helm/` watcher; `yaml` plus a hand-rolled fence
+- **No build step.** Node ≥ 24 runs the orchestrator's TypeScript directly (type stripping);
+  `tsconfig` enforces `erasableSyntaxOnly`, and `tsc --noEmit` + Biome are the `pnpm check` gate.
+- **Helm-side libraries**: chokidar for the `.helm/` watcher (v4 dropped glob support: watch the
+  directory, filter paths in the handler); `yaml` plus a hand-rolled fence
   splitter (Zod-validated, fixed key order for stable git diffs) for story files; git by shelling
   out to the binary (worktrees and rebase plumbing are first-class there); CodeMirror merge view
   for the review diff. Managed repos are registered in a config file (path + main branch), never

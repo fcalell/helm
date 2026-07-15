@@ -6,9 +6,9 @@ in git worktrees, and reviewed against their own acceptance criteria. It wraps t
 authenticated `claude` CLI, so it runs on a Claude Max subscription with no API billing. **UI and
 code are English.**
 
-**Pre-product stage.** The spec lives in `.knowledge/`; the only code is the stream-json spike
-(`spikes/stream-json/`, throwaway reference scripts). The next milestone is board storage
-(`.knowledge/product/roadmap.md`).
+**Pre-product stage.** The spec lives in `.knowledge/`; code so far is the board-storage module
+(`src/board/`) and the stream-json spike (`spikes/stream-json/`, throwaway reference scripts). The
+next milestone is the orchestrator API (`.knowledge/product/roadmap.md`).
 
 @.knowledge/index.md
 
@@ -72,7 +72,8 @@ needs.
 ## Where things are
 
 - **Today**: `.knowledge/` (product + architecture spec), `.claude/playbooks/` (authoring rules),
-  `spikes/` (throwaway reference scripts, one folder per spike).
+  `src/board/` (the `.helm/` storage + watcher module), `spikes/` (throwaway reference scripts,
+  one folder per spike).
 - **Planned shape** (detail in `.knowledge/architecture/overview.md`): a Node/TypeScript
   orchestrator that spawns headless `claude` sessions and exposes HTTP + WebSocket; a web UI (PWA)
   as its first client; boards stored as markdown under each target repo's `.helm/`. No database.

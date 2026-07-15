@@ -19,14 +19,12 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
 
 ## Next steps (ordered)
 
-1. **Board storage + watcher**: `.helm/` read/write, frontmatter schema, file watcher pushing
-   changes over WebSocket.
-2. **Orchestrator API + minimal web board**: columns, cards, drawer shell. Prerequisite stack
-   work lands first in `../stack`: `plugin-node` and the WebSocket surface
-   ([overview](../architecture/overview.md) §Shape).
-3. **Define/refine chats**: the in-process MCP board tools + proposal widgets
+1. **Orchestrator API + minimal web board**: columns, cards, drawer shell; board watcher events
+   pushed over WebSocket. Prerequisite stack work lands first in `../stack`: `plugin-node` and
+   the WebSocket surface ([overview](../architecture/overview.md) §Shape).
+2. **Define/refine chats**: the in-process MCP board tools + proposal widgets
    ([define-refine](./features/define-refine.md)).
-4. **Runs + review**: worktree lifecycle, activity timeline, diff view, the three review exits.
+3. **Runs + review**: worktree lifecycle, activity timeline, diff view, the three review exits.
 
 ## v2
 

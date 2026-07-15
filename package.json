@@ -1,0 +1,23 @@
+{
+	"name": "helm",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=24"
+	},
+	"scripts": {
+		"check": "tsc --noEmit && biome check --write --unsafe"
+	},
+	"dependencies": {
+		"chokidar": "^5.0.0",
+		"yaml": "^2.9.0",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.4",
+		"@fcalell/biome-config": "link:../stack/packages/biome-config",
+		"@fcalell/typescript-config": "link:../stack/packages/typescript-config",
+		"@types/node": "^24.0.0",
+		"typescript": "^5.9.3"
+	}
+}

@@ -1,0 +1,15 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"extends": "@fcalell/typescript-config/base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"declaration": false,
+		"declarationMap": false,
+		"allowImportingTsExtensions": true,
+		"erasableSyntaxOnly": true,
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"types": ["node"]
+	},
+	"include": ["src"]
+}
