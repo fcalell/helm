@@ -20,6 +20,7 @@ contents.** Entries are durable present-tense *what/why* reference, what the cod
 ## Architecture
 
 - [overview](./architecture/overview.md): getting your bearings: the orchestrator shape, API-first layering, stack intent, top-level constraints
+- [api](./architecture/api.md): adding or changing an orchestrator procedure, the WS protocol, or an API error code
 - [claude-integration](./architecture/claude-integration.md): anything touching the `claude` CLI: headless flags, auth, sessions/resume, transcripts, the MCP board tools, or the subscription/ToS constraint
 - [board-storage](./architecture/board-storage.md): the `.helm/` on-disk board format, story frontmatter, or the files-as-truth rules
 - [deployment](./architecture/deployment.md): hosting on the homelab, network exposure, security posture, or server-side Claude auth
