@@ -14,15 +14,18 @@ configured.
   (identity checked at the edge before a packet reaches the host).
 - **Never a public port-forward with app-level password auth.** Not a corner worth cutting for an
   RCE panel.
-- Even inside the tailnet, the UI keeps a **session cookie** (one shared secret): a lost phone
-  must not be an open board.
+- App-level auth arrives with the mobile surface (v2): a **session cookie** behind one shared
+  secret, so a lost phone is not an open board. v1 has no auth; it runs on the dev laptop bound to
+  localhost, and Tailscale is the only gate once hosted.
 
 ## Privilege containment
 
 The orchestrator runs as a dedicated low-privilege user, or in a container mounting only: the
 target repos, the `claude` binary + its config dir, and the worktrees directory. A misbehaving
 run with a permissive preset is contained to what Helm legitimately touches. Outbound egress stays
-open (the CLI needs Anthropic's API; notifications need ntfy/push endpoints).
+open (the CLI needs Anthropic's API; notifications need ntfy/push endpoints). The mounted CLI
+config is the one accepted hole: a run with Bash and open egress can read the OAuth token, so a
+rogue run risks the Claude account, never the host.
 
 ## Claude auth on the server
 

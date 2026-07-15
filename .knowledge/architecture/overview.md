@@ -5,7 +5,7 @@ CLI carries the user's Max subscription auth, which is the constraint the whole 
 ([vision](../product/vision.md), mechanics in [claude-integration](./claude-integration.md)).
 
 ```
-PWA: React board + chat panes + diff viewer
+PWA: SolidJS board + chat panes + diff viewer
         │ HTTP + WebSocket
 Node/TypeScript orchestrator (the only server process)
   ├─ spawns `claude -p --output-format stream-json --resume …` per chat turn / run
@@ -22,18 +22,34 @@ Node/TypeScript orchestrator (the only server process)
 - **No database.** State is the `.helm/` markdown files in each target repo
   ([board-storage](./board-storage.md)) plus Claude Code's own session transcripts. The
   orchestrator holds only ephemeral runtime state (live processes, queue, WS subscriptions) and
-  rebuilds it from disk on restart.
+  rebuilds it from disk on restart, reconciling as it goes: a Running card with no live process
+  (crash, kill, missed hook) resumes its session or parks in Blocked.
 - **One machine.** Orchestrator, `claude` CLI, target repos, and worktrees are colocated; remote
   access is a network concern, not an architecture concern ([deployment](./deployment.md)).
-- **Stack intent**: Node + TypeScript, React for the UI. Library choices (server framework,
-  bundler, WS) are made at the first code milestone against current docs, then recorded here.
+- **Stack**: Node + TypeScript, pnpm. Helm is a consumer of `@fcalell/stack`, the author's
+  plugin-driven framework in the sibling `../stack` repo, consumed via `link:` dependencies while
+  both evolve: `plugin-api` (Hono + oRPC procedures, typed client, Zod), `plugin-solid` +
+  `plugin-solid-ui` (SolidJS, Kobalte + Tailwind v4 components, TanStack solid-query),
+  `plugin-vite`. Capabilities Helm needs that the stack lacks are built in the stack, never worked
+  around in Helm: a `plugin-node` target (long-running Node entry via `@hono/node-server`, static
+  asset serving, a background-services slot for the watcher and queue) and a typed WebSocket
+  surface. A PWA option follows with the mobile surface (v2).
+- **Helm-side libraries**: chokidar for the `.helm/` watcher; `yaml` plus a hand-rolled fence
+  splitter (Zod-validated, fixed key order for stable git diffs) for story files; git by shelling
+  out to the binary (worktrees and rebase plumbing are first-class there); CodeMirror merge view
+  for the review diff. Managed repos are registered in a config file (path + main branch), never
+  auto-discovered.
+- **No test suite in Helm.** Stack changes land in `../stack` and follow that repo's testing
+  rules.
 
 ## Top-level constraints
 
 - **Concurrency is rate-limit-bound, not CPU-bound.** The Max 5-hour window + weekly cap are a
   pool shared with the user's interactive sessions; the queue exists to protect that pool
   ([runs](../product/features/runs.md) §Queue).
-- **Chat never mutates board files; accepted proposals do.** The UI writing files on accept is the
-  single mutation path from conversation ([define-refine](../product/features/define-refine.md)).
+- **The orchestrator is the only writer of `.helm/`.** Chat mutates nothing until a proposal is
+  accepted ([define-refine](../product/features/define-refine.md)); runs update their card through
+  board tools; hooks POST events instead of editing files
+  ([board-storage](./board-storage.md) §Mutation rules).
 - **The UI is remote-code-execution on the host** by nature (runs execute shell commands).
   Exposure and privilege rules in [deployment](./deployment.md) are load-bearing, not hygiene.

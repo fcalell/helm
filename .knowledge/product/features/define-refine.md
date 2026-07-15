@@ -10,7 +10,10 @@ Both chat kinds are real Claude Code sessions in the target repo, resumed by ID 
 with a **read-only tool allowlist** (Read/Grep/Glob + the board tools, no Edit/Bash): safe, fast,
 and cheap against the shared rate-limit pool
 ([claude-integration](../../architecture/claude-integration.md)). Session IDs live in card
-frontmatter, so a conversation survives restarts and weeks of pause.
+frontmatter, so a conversation survives restarts and weeks of pause; the server raises
+`cleanupPeriodDays` (Claude Code deletes idle transcripts after ~30 days), and a resume that fails
+anyway starts a fresh session seeded from the card
+([claude-integration](../../architecture/claude-integration.md) §Invocation model).
 
 ## Proposal widgets
 

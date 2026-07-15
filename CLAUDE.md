@@ -75,3 +75,6 @@ needs.
 - **Planned shape** (detail in `.knowledge/architecture/overview.md`): a Node/TypeScript
   orchestrator that spawns headless `claude` sessions and exposes HTTP + WebSocket; a web UI (PWA)
   as its first client; boards stored as markdown under each target repo's `.helm/`. No database.
+  Built as a `@fcalell/stack` consumer (SolidJS UI); the stack lives in the sibling `../stack`
+  repo and gets improved as Helm needs (`plugin-node`, WebSockets). **No tests in this repo**;
+  stack changes follow `../stack`'s own rules.

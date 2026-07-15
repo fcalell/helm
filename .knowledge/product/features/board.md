@@ -15,9 +15,9 @@ Backlog → Refining → Ready → Running → Review → Done
 
 - Columns are statuses, not free-form lanes. **Drag-and-drop only performs legal transitions**;
   illegal drops snap back with the reason (e.g. "no acceptance criteria yet").
-- **Agent events move cards on their own**: a finished run flips Running → Review, a mid-run
-  question flips Running → Needs input, via hooks writing frontmatter
-  ([claude-integration](../../architecture/claude-integration.md) §Hooks).
+- **Agent events move cards on their own**: a finished run flips Running → Review via the Stop
+  hook backstop, a mid-run `ask_user` call flips Running → Needs input
+  ([claude-integration](../../architecture/claude-integration.md) §Board tools, §Hooks).
 - The **ready gate** is the one hard transition: a story cannot enter Ready with empty acceptance
   criteria or unresolved open questions ([define-refine](./define-refine.md) §Ready gate).
 

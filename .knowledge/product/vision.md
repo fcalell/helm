@@ -41,8 +41,10 @@ an unbounded fan-out, and shows rate-limit headroom as a first-class UI signal.
 ## Ambition
 
 **Personal-first, shareable later.** Built for the author's homelab and repos; real dogfood before
-polish. Kept clean enough to open-source: an instance-per-user tool stays within the subscription
-rules, and API-key auth is a trivial later addition for non-Max users.
+polish. Kept clean enough to open-source. Anthropic's legal page permits personal headless CLI use
+but bars third-party orchestrators from routing Max credentials, so a public release ships API-key
+auth as its distribution mode
+([claude-integration](../architecture/claude-integration.md) §Why the CLI, not the Agent SDK).
 
 ## Non-goals (v1)
 
