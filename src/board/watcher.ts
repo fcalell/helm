@@ -1,39 +1,23 @@
 import { join, relative, sep } from "node:path";
 import { watch } from "chokidar";
-import type { Status } from "./schema.ts";
+import type {
+	Board,
+	BoardEvent,
+	Epic,
+	IllegalTransition,
+	Story,
+} from "./schema.ts";
 import {
-	type Board,
 	EPIC_DIR_RE,
-	type Epic,
 	invalidFrom,
 	loadBoard,
 	readEpicFile,
 	readStoryFile,
 	STORY_FILE_RE,
-	type Story,
 } from "./store.ts";
 import { canTransition } from "./transitions.ts";
 
-export interface IllegalTransition {
-	from: Status;
-	to: Status;
-	reason: string;
-}
-
-export type BoardEvent =
-	| { kind: "epic-added"; epic: Epic }
-	| { kind: "epic-changed"; epic: Epic }
-	| { kind: "epic-removed"; path: string; id: string }
-	| { kind: "story-added"; story: Story }
-	| {
-			kind: "story-changed";
-			story: Story;
-			illegalTransition?: IllegalTransition;
-	  }
-	| { kind: "story-removed"; path: string; id: string }
-	| { kind: "file-invalid"; path: string; message: string }
-	| { kind: "invalid-cleared"; path: string }
-	| { kind: "watch-error"; message: string };
+export type { BoardEvent, IllegalTransition } from "./schema.ts";
 
 export interface BoardWatcher {
 	snapshot(): Board;

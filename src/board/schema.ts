@@ -42,3 +42,97 @@ export const epicFrontmatterSchema = z.strictObject({
 	sessions: z.strictObject({ define: z.uuid().optional() }).default({}),
 });
 export type EpicFrontmatter = z.infer<typeof epicFrontmatterSchema>;
+
+export const BRIEF_SECTIONS = [
+	"Goal",
+	"Approach",
+	"Acceptance criteria",
+	"Out of scope",
+	"Open questions",
+] as const;
+export type BriefSection = (typeof BRIEF_SECTIONS)[number];
+
+export const checklistItemSchema = z.object({
+	text: z.string(),
+	checked: z.boolean(),
+});
+export type ChecklistItem = z.infer<typeof checklistItemSchema>;
+
+export const briefSchema = z.object({
+	title: z.string(),
+	sections: z.record(z.string(), z.string()),
+	criteria: z.array(checklistItemSchema),
+	openQuestions: z.array(checklistItemSchema),
+});
+export type Brief = z.infer<typeof briefSchema>;
+
+export const storySchema = z.object({
+	id: storyIdSchema,
+	epicId: z.string(),
+	path: z.string(),
+	frontmatter: storyFrontmatterSchema,
+	brief: briefSchema,
+	body: z.string(),
+	raw: z.string(),
+});
+export type Story = z.infer<typeof storySchema>;
+
+export const epicSchema = z.object({
+	id: z.string(),
+	slug: z.string(),
+	path: z.string(),
+	frontmatter: epicFrontmatterSchema,
+	title: z.string(),
+	body: z.string(),
+	raw: z.string(),
+});
+export type Epic = z.infer<typeof epicSchema>;
+
+export const invalidFileSchema = z.object({
+	path: z.string(),
+	message: z.string(),
+});
+export type InvalidFile = z.infer<typeof invalidFileSchema>;
+
+export const boardSchema = z.object({
+	epics: z.array(epicSchema),
+	stories: z.array(storySchema),
+	invalid: z.array(invalidFileSchema),
+});
+export type Board = z.infer<typeof boardSchema>;
+
+export const illegalTransitionSchema = z.object({
+	from: statusSchema,
+	to: statusSchema,
+	reason: z.string(),
+});
+export type IllegalTransition = z.infer<typeof illegalTransitionSchema>;
+
+export const boardEventSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("epic-added"), epic: epicSchema }),
+	z.object({ kind: z.literal("epic-changed"), epic: epicSchema }),
+	z.object({
+		kind: z.literal("epic-removed"),
+		path: z.string(),
+		id: z.string(),
+	}),
+	z.object({ kind: z.literal("story-added"), story: storySchema }),
+	z.object({
+		kind: z.literal("story-changed"),
+		story: storySchema,
+		illegalTransition: illegalTransitionSchema.optional(),
+	}),
+	z.object({
+		kind: z.literal("story-removed"),
+		path: z.string(),
+		id: z.string(),
+	}),
+	z.object({
+		kind: z.literal("file-invalid"),
+		path: z.string(),
+		message: z.string(),
+	}),
+	z.object({ kind: z.literal("invalid-cleared"), path: z.string() }),
+	z.object({ kind: z.literal("watch-error"), message: z.string() }),
+]);
+export type BoardEvent = z.infer<typeof boardEventSchema>;

@@ -1,26 +1,10 @@
 import { Document, isMap, isSeq } from "yaml";
-import type { EpicFrontmatter, StoryFrontmatter } from "./schema.ts";
-
-export const BRIEF_SECTIONS = [
-	"Goal",
-	"Approach",
-	"Acceptance criteria",
-	"Out of scope",
-	"Open questions",
-] as const;
-export type BriefSection = (typeof BRIEF_SECTIONS)[number];
-
-export interface ChecklistItem {
-	text: string;
-	checked: boolean;
-}
-
-export interface Brief {
-	title: string;
-	sections: Partial<Record<string, string>>;
-	criteria: ChecklistItem[];
-	openQuestions: ChecklistItem[];
-}
+import type {
+	Brief,
+	ChecklistItem,
+	EpicFrontmatter,
+	StoryFrontmatter,
+} from "./schema.ts";
 
 export interface SplitFile {
 	head: string;
@@ -51,7 +35,7 @@ export function parseChecklist(text: string): ChecklistItem[] {
 
 export function parseBrief(body: string): Brief {
 	let title = "";
-	const sections: Partial<Record<string, string>> = {};
+	const sections: Record<string, string> = {};
 	let heading: string | undefined;
 	let buffer: string[] = [];
 	const flush = (): void => {

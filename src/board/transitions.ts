@@ -1,5 +1,4 @@
-import { BRIEF_SECTIONS, type Brief } from "./markdown.ts";
-import type { Status } from "./schema.ts";
+import { BRIEF_SECTIONS, type Brief, type Status } from "./schema.ts";
 
 export const LEGAL_TRANSITIONS = {
 	backlog: ["refining", "blocked"],

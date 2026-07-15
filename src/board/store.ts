@@ -4,52 +4,24 @@ import { basename, dirname, join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import {
-	type Brief,
 	parseBrief,
 	serializeEpic,
 	serializeStory,
 	splitFrontmatter,
 } from "./markdown.ts";
 import {
-	type EpicFrontmatter,
+	type Board,
+	type Epic,
 	epicFrontmatterSchema,
-	type StoryFrontmatter,
+	type InvalidFile,
+	type Story,
 	storyFrontmatterSchema,
 } from "./schema.ts";
 
 export const EPIC_DIR_RE = /^(\d{3})-([a-z0-9-]+)$/;
 export const STORY_FILE_RE = /^(\d{2})-([a-z0-9-]+)\.md$/;
 
-export interface Story {
-	id: string;
-	epicId: string;
-	path: string;
-	frontmatter: StoryFrontmatter;
-	brief: Brief;
-	body: string;
-	raw: string;
-}
-
-export interface Epic {
-	id: string;
-	slug: string;
-	path: string;
-	frontmatter: EpicFrontmatter;
-	title: string;
-	body: string;
-	raw: string;
-}
-
-export interface InvalidFile {
-	path: string;
-	message: string;
-}
-
-export interface Board {
-	epics: Epic[];
-	stories: Story[];
-	invalid: InvalidFile[];
-}
+export type { Board, Epic, InvalidFile, Story } from "./schema.ts";
 
 export class InvalidBoardFileError extends Error {
 	readonly path: string;
