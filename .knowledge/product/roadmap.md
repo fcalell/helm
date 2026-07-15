@@ -19,23 +19,14 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
 
 ## Next steps (ordered)
 
-1. **Stream-json spike**: the riskiest assumption. In `spikes/stream-json/` (throwaway scripts,
-   committed for reference): spawn `claude -p --output-format stream-json`, parse events, resume
-   the session with an answer, resume again with review feedback; exercise one MCP board-tool call
-   and one `--permission-prompt-tool` round-trip. The full loop on a toy repo, on Max auth. No UI.
-   Also answer the lifecycle unknowns: kill mid-tool-call then resume; whether the Stop hook fires
-   on SIGTERM; how long a `--permission-prompt-tool` call can block (`MCP_TOOL_TIMEOUT`); resume
-   after transcript cleanup; resume from a deleted-and-recreated worktree path; a streamable-HTTP
-   MCP server under `-p`. Findings land in
-   [claude-integration](../architecture/claude-integration.md).
-2. **Board storage + watcher**: `.helm/` read/write, frontmatter schema, file watcher pushing
+1. **Board storage + watcher**: `.helm/` read/write, frontmatter schema, file watcher pushing
    changes over WebSocket.
-3. **Orchestrator API + minimal web board**: columns, cards, drawer shell. Prerequisite stack
+2. **Orchestrator API + minimal web board**: columns, cards, drawer shell. Prerequisite stack
    work lands first in `../stack`: `plugin-node` and the WebSocket surface
    ([overview](../architecture/overview.md) §Shape).
-4. **Define/refine chats**: the in-process MCP board tools + proposal widgets
+3. **Define/refine chats**: the in-process MCP board tools + proposal widgets
    ([define-refine](./features/define-refine.md)).
-5. **Runs + review**: worktree lifecycle, activity timeline, diff view, the three review exits.
+4. **Runs + review**: worktree lifecycle, activity timeline, diff view, the three review exits.
 
 ## v2
 

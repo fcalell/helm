@@ -32,12 +32,15 @@ to one-liners, file edits as inline mini-diffs. A steering box injects a user me
 running session ("stop, use the existing retry queue"); pause and stop are always available.
 Interrupting is cheap by design: a headless process accepts no mid-run input, so the orchestrator
 kills it and resumes the session with the steering message, and the session picks up where it left
-off.
+off. The steering message always states that the previous action was interrupted: the resumed
+model believes an interrupted tool call never ran, while its side effects may have partially
+landed ([claude-integration](../../architecture/claude-integration.md) §Invocation model).
 
 ## Queue & rate limits
 
 Runs above the **concurrency cap** (1 in v1, default 2 once parallel runs land) queue in Ready
-order. The board header shows a meter for the Max 5-hour window and weekly budget; the meter is a
+order. The board header shows a meter for the Max 5-hour window and weekly budget; the window's
+reset clock comes from the `rate_limit_event` every session emits, while the token side is a
 lower-bound estimate, since no API reports headroom and interactive use on other machines is
 invisible ([claude-integration](../../architecture/claude-integration.md) §Rate limits). Limit
 errors are the authoritative signal: the queue **auto-pauses** on one instead of burning the
