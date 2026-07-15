@@ -19,12 +19,12 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
 
 ## Next steps (ordered)
 
-1. **Orchestrator API + minimal web board**: columns, cards, drawer shell; board watcher events
-   pushed over WebSocket. Prerequisite stack work lands first in `../stack`: `plugin-node` and
-   the WebSocket surface ([overview](../architecture/overview.md) §Shape).
-2. **Define/refine chats**: the in-process MCP board tools + proposal widgets
-   ([define-refine](./features/define-refine.md)).
-3. **Runs + review**: worktree lifecycle, activity timeline, diff view, the three review exits.
+1. **Define/refine chats**: the in-process MCP board tools + proposal widgets
+   ([define-refine](./features/define-refine.md)); brings the `n` (new story) and `r` (refine)
+   keys and story creation from the UI (today boards are populated by hand-edited files).
+2. **Runs + review**: worktree lifecycle, activity timeline, diff view, the three review exits;
+   brings the live rate-limit meter and queue occupancy (the header shows placeholders) and the
+   `r` run key. The command palette (`⌘k`) lands with whichever step wants it first.
 
 ## v2
 
