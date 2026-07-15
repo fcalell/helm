@@ -1,0 +1,14 @@
+/* Running cards are the only thing on the board that animates. */
+@keyframes helm-card-pulse {
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-ring) 55%, transparent);
+	}
+	50% {
+		box-shadow: 0 0 0 4px color-mix(in oklch, var(--color-ring) 0%, transparent);
+	}
+}
+
+.helm-card-pulse {
+	animation: helm-card-pulse 1.8s var(--ease-ui) infinite;
+}

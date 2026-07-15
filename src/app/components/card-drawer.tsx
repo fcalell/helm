@@ -1,0 +1,156 @@
+import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
+import { Checkbox } from "@fcalell/plugin-solid-ui/components/checkbox";
+import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
+import { Sheet } from "@fcalell/plugin-solid-ui/components/sheet";
+import { Tabs } from "@fcalell/plugin-solid-ui/components/tabs";
+import { For, Show } from "solid-js";
+import type { Status, Story } from "../../board/schema.ts";
+import { STATUS_LABELS } from "../lib/board-store.ts";
+
+interface CardDrawerProps {
+	story: Story | undefined;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}
+
+const PROSE_SECTIONS = ["Goal", "Approach", "Out of scope"] as const;
+
+function defaultTab(status: Status): string {
+	if (status === "refining") return "chat";
+	if (status === "running") return "activity";
+	if (status === "review") return "diff";
+	return "brief";
+}
+
+function BriefTab(props: { story: Story }) {
+	return (
+		<div class="flex flex-col gap-4 text-sm">
+			<For each={PROSE_SECTIONS}>
+				{(section) => (
+					<div>
+						<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+							{section}
+						</h3>
+						<p class="mt-1 text-foreground">
+							{props.story.brief.sections[section]?.trim() || "Not set"}
+						</p>
+					</div>
+				)}
+			</For>
+			<div>
+				<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+					Acceptance criteria
+				</h3>
+				<Show
+					when={props.story.brief.criteria.length > 0}
+					fallback={<p class="mt-1 text-muted-foreground">None yet</p>}
+				>
+					<ul class="mt-2 flex flex-col gap-2">
+						<For each={props.story.brief.criteria}>
+							{(item) => (
+								<li>
+									<Checkbox checked={item.checked} disabled label={item.text} />
+								</li>
+							)}
+						</For>
+					</ul>
+				</Show>
+			</div>
+			<div>
+				<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+					Open questions
+				</h3>
+				<Show
+					when={props.story.brief.openQuestions.length > 0}
+					fallback={<p class="mt-1 text-muted-foreground">None yet</p>}
+				>
+					<ul class="mt-2 flex flex-col gap-2">
+						<For each={props.story.brief.openQuestions}>
+							{(item) => (
+								<li>
+									<Checkbox checked={item.checked} disabled label={item.text} />
+								</li>
+							)}
+						</For>
+					</ul>
+				</Show>
+			</div>
+		</div>
+	);
+}
+
+export function CardDrawer(props: CardDrawerProps) {
+	return (
+		<Sheet open={props.open} onOpenChange={props.onOpenChange}>
+			<Show when={props.story} keyed>
+				{(story) => (
+					<Sheet.Content position="right" size="xl">
+						<Sheet.Header>
+							<div class="flex items-center gap-2">
+								<Sheet.Title>
+									{story.id} · {story.brief.title || story.id}
+								</Sheet.Title>
+								<Badge>{STATUS_LABELS[story.frontmatter.status]}</Badge>
+							</div>
+						</Sheet.Header>
+						{/* Uncontrolled on purpose: the keyed Show remounts this
+						    subtree per story, so defaultValue re-evaluates exactly
+						    when the status-driven default should apply. Controlled
+						    value freezes the renderer (solid-ui Tabs bug). */}
+						<Tabs
+							defaultValue={defaultTab(story.frontmatter.status)}
+							class="mt-4"
+							tabs={[
+								{
+									value: "brief",
+									label: "Brief",
+									content: <BriefTab story={story} />,
+								},
+								{
+									value: "chat",
+									label: "Chat",
+									content: (
+										<EmptyState
+											title="Chat"
+											description="Arrives with define and refine chats"
+										/>
+									),
+								},
+								{
+									value: "activity",
+									label: "Activity",
+									content: (
+										<EmptyState
+											title="Activity"
+											description="Arrives with runs"
+										/>
+									),
+								},
+								{
+									value: "diff",
+									label: "Diff",
+									content: (
+										<EmptyState
+											title="Diff"
+											description="Arrives with review"
+										/>
+									),
+								},
+								{
+									value: "history",
+									label: "History",
+									content: (
+										<EmptyState
+											title="History"
+											description="Arrives with runs"
+										/>
+									),
+								},
+							]}
+						/>
+					</Sheet.Content>
+				)}
+			</Show>
+		</Sheet>
+	);
+}
