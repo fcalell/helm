@@ -44,7 +44,10 @@ Node/TypeScript orchestrator (the only server process)
   directory, filter paths in the handler); `yaml` plus a hand-rolled fence
   splitter (Zod-validated, fixed key order for stable git diffs) for story files; git by shelling
   out to the binary (worktrees and rebase plumbing are first-class there); CodeMirror merge view
-  for the review diff. Managed repos are registered in `helm.config.json` (path + main branch),
+  for the review diff; solid-dnd (`@thisbeyond/solid-dnd`) for board drag-and-drop, whose
+  `use:draggable`/`use:droppable` directives only bind to native DOM elements, so a custom
+  component that forwards `ref` and rest props wires `draggable.ref` and `draggable.dragActivators`
+  as plain props instead. Managed repos are registered in `helm.config.json` (path + main branch),
   never auto-discovered; the file holds machine-specific absolute paths, so it is gitignored and
   `helm.config.example.json` is the committed template. v1 reads exactly one repo.
 - **No test suite in Helm.** Stack changes land in `../stack` and follow that repo's testing

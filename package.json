@@ -18,6 +18,7 @@
 		"@fcalell/plugin-solid-ui": "link:../stack/plugins/solid-ui",
 		"@fcalell/plugin-vite": "link:../stack/plugins/vite",
 		"@solidjs/router": "^0.16.1",
+		"@thisbeyond/solid-dnd": "^0.7.5",
 		"chokidar": "^5.0.0",
 		"solid-js": "^1.9.9",
 		"tailwindcss": "^4.1.11",

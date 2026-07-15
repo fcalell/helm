@@ -1,7 +1,9 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
+import { createDroppable } from "@thisbeyond/solid-dnd";
 import { For, Show } from "solid-js";
 import type { Epic, Status, Story } from "../../board/schema.ts";
 import { STATUS_LABELS } from "../lib/board-store.ts";
+import { dropId } from "../lib/dnd.ts";
 import { StoryCard } from "./story-card.tsx";
 
 interface BoardColumnProps {
@@ -12,11 +14,15 @@ interface BoardColumnProps {
 	onSelect: (id: string) => void;
 	onOpen: (id: string) => void;
 	heightClass?: string;
+	laneId?: string;
 }
 
 export function BoardColumn(props: BoardColumnProps) {
+	const droppable = createDroppable(dropId(props.status, props.laneId));
+
 	return (
 		<div
+			ref={droppable.ref}
 			class={`flex w-72 shrink-0 flex-col rounded-lg border border-border bg-card/40 ${props.heightClass ?? "h-full"}`}
 		>
 			<div class="flex items-center justify-between border-b border-border px-3 py-2">

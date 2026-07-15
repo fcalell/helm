@@ -2,6 +2,7 @@ import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Tooltip } from "@fcalell/plugin-solid-ui/components/tooltip";
 import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
+import { createDraggable } from "@thisbeyond/solid-dnd";
 import { Show } from "solid-js";
 import type { Epic, Story } from "../../board/schema.ts";
 
@@ -13,7 +14,7 @@ interface StoryCardProps {
 	onOpen: () => void;
 }
 
-export function StoryCard(props: StoryCardProps) {
+function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 	const epicLabel = () =>
 		props.epics[props.story.epicId]?.slug ?? props.story.epicId;
 	const criteria = () => props.story.brief.criteria;
@@ -21,24 +22,10 @@ export function StoryCard(props: StoryCardProps) {
 	const openQuestions = () =>
 		props.story.brief.openQuestions.filter((item) => !item.checked).length;
 	const depends = () => props.story.frontmatter.depends;
-	const isRunning = () => props.story.frontmatter.status === "running";
 	const isRefining = () => props.story.frontmatter.status === "refining";
 
 	return (
-		<Card
-			data-story-id={props.story.id}
-			role="button"
-			tabIndex={0}
-			onClick={() => {
-				props.onSelect();
-				props.onOpen();
-			}}
-			class={cn(
-				"cursor-pointer gap-2 p-3 transition-shadow duration-base ease-ui",
-				props.selected && "ring-2 ring-ring",
-				isRunning() && "helm-card-pulse",
-			)}
-		>
+		<>
 			<p class="text-sm font-semibold text-foreground">
 				{props.story.brief.title || props.story.id}
 			</p>
@@ -61,6 +48,51 @@ export function StoryCard(props: StoryCardProps) {
 					<span>{`${openQuestions()} open questions`}</span>
 				</Show>
 			</div>
+		</>
+	);
+}
+
+// The DragOverlay clone. Deliberately not draggable: a second
+// createDraggable with the same id inside the overlay corrupts solid-dnd's
+// collision geometry (drops resolve one column off).
+export function StoryCardOverlay(props: {
+	story: Story;
+	epics: Record<string, Epic>;
+}) {
+	return (
+		<Card class="gap-2 p-3 shadow-lg">
+			<CardContents story={props.story} epics={props.epics} />
+		</Card>
+	);
+}
+
+export function StoryCard(props: StoryCardProps) {
+	const isRunning = () => props.story.frontmatter.status === "running";
+
+	// Card is a custom component (forwards ref/rest to its root div), so the
+	// compiler-only `use:draggable` directive form doesn't apply here; wiring
+	// the ref and activators as plain props gets the same behavior.
+	const draggable = createDraggable(props.story.id);
+
+	return (
+		<Card
+			ref={draggable.ref}
+			{...draggable.dragActivators}
+			data-story-id={props.story.id}
+			role="button"
+			tabIndex={0}
+			onClick={() => {
+				props.onSelect();
+				props.onOpen();
+			}}
+			class={cn(
+				"cursor-pointer gap-2 p-3 transition-shadow duration-base ease-ui",
+				props.selected && "ring-2 ring-ring",
+				isRunning() && "helm-card-pulse",
+				draggable.isActiveDraggable && "opacity-40",
+			)}
+		>
+			<CardContents story={props.story} epics={props.epics} />
 		</Card>
 	);
 }

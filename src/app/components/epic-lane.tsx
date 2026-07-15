@@ -37,6 +37,7 @@ export function EpicLane(props: EpicLaneProps) {
 							onSelect={props.onSelect}
 							onOpen={props.onOpen}
 							heightClass="h-80"
+							laneId={props.epicId}
 						/>
 					)}
 				</For>
