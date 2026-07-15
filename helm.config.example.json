@@ -1,0 +1,8 @@
+{
+	"repos": [
+		{
+			"path": "/absolute/path/to/target-repo",
+			"mainBranch": "main"
+		}
+	]
+}

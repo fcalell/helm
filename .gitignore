@@ -2,3 +2,4 @@ node_modules/
 dist/
 .claude/settings.local.json
 .stack/
+helm.config.json
