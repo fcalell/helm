@@ -30,12 +30,16 @@ Node/TypeScript orchestrator (the only server process)
   plugin-driven framework in the sibling `../stack` repo, consumed via `link:` dependencies while
   both evolve: `plugin-api` (Hono + oRPC procedures, typed client, Zod), `plugin-solid` +
   `plugin-solid-ui` (SolidJS, Kobalte + Tailwind v4 components, TanStack solid-query),
-  `plugin-vite`. Capabilities Helm needs that the stack lacks are built in the stack, never worked
-  around in Helm: a `plugin-node` target (long-running Node entry via `@hono/node-server`, static
-  asset serving, a background-services slot for the watcher and queue) and a typed WebSocket
-  surface. A PWA option follows with the mobile surface (v2).
-- **No build step.** Node ≥ 24 runs the orchestrator's TypeScript directly (type stripping);
-  `tsconfig` enforces `erasableSyntaxOnly`, and `tsc --noEmit` + Biome are the `pnpm check` gate.
+  `plugin-vite`, and `plugin-node` (the long-running Node target via `@hono/node-server`: serves
+  the API worker, the built SPA, background services registered from `src/server/services/`, and
+  the typed WebSocket surface, all on one port; dev is same-origin through a vite proxy).
+  Capabilities Helm needs that the stack lacks are built in the stack, never worked around in
+  Helm. A PWA option follows with the mobile surface (v2).
+- **No build step.** Node ≥ 24 runs the orchestrator's TypeScript directly (type stripping); node
+  itself rejects non-strippable syntax at boot, and `tsc --noEmit` + Biome are the `pnpm check`
+  gate. (`erasableSyntaxOnly` can't live in the tsconfig: the program includes linked stack
+  sources whose CLI-side code is legitimately non-erasable.) Local imports carry explicit `.ts`
+  extensions; the SPA is the one built artifact (`stack build` → `dist/client`).
 - **Helm-side libraries**: chokidar for the `.helm/` watcher (v4 dropped glob support: watch the
   directory, filter paths in the handler); `yaml` plus a hand-rolled fence
   splitter (Zod-validated, fixed key order for stable git diffs) for story files; git by shelling

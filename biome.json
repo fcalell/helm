@@ -2,6 +2,12 @@
 	"$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
 	"extends": ["@fcalell/biome-config/shared.json"],
 	"files": {
-		"includes": ["**/*", "!**/node_modules", "!**/dist", "!**/spikes"]
+		"includes": [
+			"**/*",
+			"!**/node_modules",
+			"!**/dist",
+			"!**/spikes",
+			"!**/.stack"
+		]
 	}
 }

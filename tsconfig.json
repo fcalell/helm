@@ -1,15 +1,10 @@
 {
 	"$schema": "https://json.schemastore.org/tsconfig",
-	"extends": "@fcalell/typescript-config/base.json",
+	"extends": "@fcalell/typescript-config/solid-vite.json",
 	"compilerOptions": {
-		"noEmit": true,
-		"declaration": false,
-		"declarationMap": false,
-		"allowImportingTsExtensions": true,
-		"erasableSyntaxOnly": true,
-		"module": "nodenext",
-		"moduleResolution": "nodenext",
-		"types": ["node"]
+		"paths": {
+			"virtual:stack-procedure": ["./.stack/procedure.ts"]
+		}
 	},
-	"include": ["src"]
+	"include": ["src", ".stack", "stack.config.ts"]
 }
