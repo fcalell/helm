@@ -7,9 +7,10 @@ authenticated `claude` CLI, so it runs on a Claude Max subscription with no API 
 code are English.**
 
 **Pre-product stage.** The spec lives in `.knowledge/`; code so far is the board-storage module
-(`src/board/`), the orchestrator (API routes in `src/worker/`, board service in `src/server/`),
-the web board UI (`src/app/`), and the stream-json spike (`spikes/stream-json/`, throwaway
-reference scripts). The next milestone is define/refine chats (`.knowledge/product/roadmap.md`).
+(`src/board/`), the session-runner module (`src/sessions/`), the orchestrator (API routes in
+`src/worker/`, services in `src/server/`), the web board UI (`src/app/`), and the stream-json
+spike (`spikes/stream-json/`, throwaway reference scripts). The next milestone is define/refine
+chats (`.knowledge/product/roadmap.md`).
 
 @.knowledge/index.md
 
@@ -73,11 +74,12 @@ needs.
 ## Where things are
 
 - **Today**: `.knowledge/` (product + architecture spec), `.claude/playbooks/` (authoring rules),
-  `src/board/` (the `.helm/` storage + watcher module), `src/worker/` (oRPC routes,
-  `.knowledge/architecture/api.md`), `src/server/` (managed-repo config + the board service that
-  watches and broadcasts over WS), `src/shared/` (the WS channel contract), `src/app/` (the
-  SolidJS board UI), `helm.config.json` (gitignored machine paths; committed example), `spikes/`
-  (throwaway reference scripts, one folder per spike).
+  `src/board/` (the `.helm/` storage + watcher module), `src/sessions/` (the kind registry +
+  headless `claude` runner, `.knowledge/architecture/session-kinds.md`), `src/worker/` (oRPC
+  routes, `.knowledge/architecture/api.md`), `src/server/` (managed-repo config + the board and
+  session services that broadcast over WS), `src/shared/` (the WS channel contract), `src/app/`
+  (the SolidJS board UI), `helm.config.json` (gitignored machine paths; committed example),
+  `spikes/` (throwaway reference scripts, one folder per spike).
 - **Planned shape** (detail in `.knowledge/architecture/overview.md`): a Node/TypeScript
   orchestrator that spawns headless `claude` sessions and exposes HTTP + WebSocket; a web UI (PWA)
   as its first client; boards stored as markdown under each target repo's `.helm/`. No database.

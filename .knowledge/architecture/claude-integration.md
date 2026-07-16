@@ -43,10 +43,15 @@ One `claude -p` process per chat turn or run segment:
 - `--append-system-prompt`: injects the brief template / run contract per session kind.
 - `--model`: the per-kind model, so read-only chats stay cheap and implementation runs on the
   frontier model ([session-kinds](./session-kinds.md)).
-- Reasoning effort accompanies the model per kind ([session-kinds](./session-kinds.md)). The CLI
-  exposes effort as a session setting (`/effort`, since v2.1.205); how a headless spawn sets it
-  (a settings key, a config pass-through, or a flag) is unverified, so spike it before building
-  the kind registry.
+- `--effort <level>`: the per-kind reasoning effort (`low` · `medium` · `high` · `xhigh` ·
+  `max`), verified against CLI 2.1.177. A valid level is accepted silently; an unknown value
+  warns on stderr and falls back to the default. Effort is not echoed in `system/init`.
+- `--include-partial-messages`: adds `stream_event` events wrapping the raw API stream
+  (`message_start`, `content_block_delta` with text/thinking deltas, `message_stop`, …), so a UI
+  renders assistant output incrementally (verified 2.1.177).
+- `--permission-mode`: passed explicitly on every spawn. The mode otherwise comes from the user's
+  own config, and a laxer setting there (`auto`) would execute tools outside the kind's
+  allowlist.
 - Working directory: the target repo (chats) or the story's worktree (runs).
 
 Transcripts live at `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`; JSONL format is internal

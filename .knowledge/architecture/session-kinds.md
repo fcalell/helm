@@ -62,7 +62,7 @@ registry:
 medium · high · xhigh · max; the top levels vary by model): the tier sets the capability ceiling,
 effort sets how much of it a session spends per turn. max is excluded outright; xhigh is excluded
 for its latency and context-window burn everywhere except as `run`'s escalation lever (below).
-How a headless spawn sets effort is unverified: spike it before building the registry
+A headless spawn sets effort with the `--effort` flag
 ([claude-integration](./claude-integration.md) §Invocation model). Below the cap, each kind sits
 at the cheapest point that clears its quality bar, weighed by four factors: what checks the
 output downstream, the kind's token volume, how steep the effort payoff is (Fable climbs with
