@@ -1,0 +1,170 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { createInterface } from "node:readline";
+import {
+	parseInitEvent,
+	type SessionEvent,
+	type SessionInit,
+	sessionEventSchema,
+} from "./events.ts";
+import { type SessionKind, spawnableRow } from "./kinds.ts";
+
+export interface SpawnSessionOptions {
+	kind: SessionKind;
+	cwd: string;
+	prompt: string;
+	// Session id to resume; omit to start a fresh session.
+	resume?: string;
+	onEvent?: (event: SessionEvent) => void;
+}
+
+export interface SessionOutcome {
+	sessionId: string | undefined;
+	exitCode: number | null;
+	signal: NodeJS.Signals | null;
+	// A resume whose transcript is gone: exit 1 + the CLI's loud stderr line.
+	stale: boolean;
+	stderr: string;
+}
+
+export interface SessionProcess {
+	// Resolves with `system/init`; rejects (SessionSpawnError) if the process
+	// dies first, which is how a stale resume surfaces.
+	started: Promise<SessionInit>;
+	done: Promise<SessionOutcome>;
+	kill(): void;
+}
+
+export class SessionSpawnError extends Error {
+	readonly stale: boolean;
+	readonly exitCode: number | null;
+	readonly stderr: string;
+
+	constructor(outcome: SessionOutcome) {
+		const detail = outcome.stderr.trim().split("\n").at(-1) ?? "";
+		super(
+			outcome.stale
+				? `stale session: ${detail}`
+				: `claude exited (code ${outcome.exitCode}, signal ${outcome.signal}) before system/init: ${detail}`,
+		);
+		this.name = "SessionSpawnError";
+		this.stale = outcome.stale;
+		this.exitCode = outcome.exitCode;
+		this.stderr = outcome.stderr;
+	}
+}
+
+const STALE_STDERR = "No conversation found with session ID";
+
+// ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN outrank subscription auth, and the
+// nested-session markers make the child CLI believe it runs inside another
+// Claude Code session; CLAUDE_CODE_OAUTH_TOKEN must survive for headless
+// hosts.
+const STRIPPED_ENV = new Set([
+	"ANTHROPIC_API_KEY",
+	"ANTHROPIC_AUTH_TOKEN",
+	"CLAUDECODE",
+	"CLAUDE_CODE_ENTRYPOINT",
+]);
+
+function sessionEnv(): Record<string, string> {
+	const env: Record<string, string> = {};
+	for (const [key, value] of Object.entries(process.env)) {
+		if (value === undefined || STRIPPED_ENV.has(key)) continue;
+		env[key] = value;
+	}
+	return env;
+}
+
+export function spawnSessionProcess(
+	options: SpawnSessionOptions,
+): SessionProcess {
+	const row = spawnableRow(options.kind);
+	const args = [
+		"-p",
+		options.prompt,
+		// stream-json requires --verbose under -p.
+		"--output-format",
+		"stream-json",
+		"--verbose",
+		"--include-partial-messages",
+		"--model",
+		row.model,
+		"--effort",
+		row.effort,
+		// Explicit: the user's own config may default to a laxer mode (`auto`),
+		// which would execute tools outside the kind's allowlist.
+		"--permission-mode",
+		"default",
+		"--allowedTools",
+		row.tools.join(","),
+		"--append-system-prompt",
+		row.systemPrompt,
+		// Without it the user's global MCP servers load into every session.
+		"--strict-mcp-config",
+	];
+	if (options.resume !== undefined) args.push("--resume", options.resume);
+
+	const child = spawn("claude", args, {
+		cwd: options.cwd,
+		env: sessionEnv(),
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+
+	let stderr = "";
+	child.stderr.on("data", (chunk: Buffer) => {
+		stderr += chunk.toString();
+	});
+
+	let init: SessionInit | undefined;
+	const {
+		promise: started,
+		resolve: resolveStarted,
+		reject: rejectStarted,
+	} = Promise.withResolvers<SessionInit>();
+	// A caller may only await `done` (e.g. after kill); the rejection must not
+	// escape as an unhandled one.
+	started.catch(() => {});
+
+	const lines = createInterface({ input: child.stdout });
+	lines.on("line", (line) => {
+		if (line.trim() === "") return;
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(line);
+		} catch {
+			return;
+		}
+		const event = sessionEventSchema.safeParse(parsed);
+		if (!event.success) return;
+		if (init === undefined) {
+			init = parseInitEvent(event.data);
+			if (init !== undefined) resolveStarted(init);
+		}
+		options.onEvent?.(event.data);
+	});
+
+	const done = (async (): Promise<SessionOutcome> => {
+		const [exitCode, signal] = (await once(child, "close")) as [
+			number | null,
+			NodeJS.Signals | null,
+		];
+		const outcome: SessionOutcome = {
+			sessionId: init?.sessionId,
+			exitCode,
+			signal,
+			stale: exitCode === 1 && stderr.includes(STALE_STDERR),
+			stderr,
+		};
+		if (init === undefined) rejectStarted(new SessionSpawnError(outcome));
+		return outcome;
+	})();
+
+	return {
+		started,
+		done,
+		kill: () => {
+			child.kill("SIGTERM");
+		},
+	};
+}

@@ -10,19 +10,7 @@ import {
 } from "../../board/store.ts";
 import { canTransition } from "../../board/transitions.ts";
 import { boardSnapshot } from "../../server/services/board.ts";
-
-// Serialize read-validate-write so concurrent moves can't validate against
-// each other's stale disk state. Single-repo for v1.
-// TODO: key by repo when multi-repo boards land (roadmap).
-let writeQueue: Promise<unknown> = Promise.resolve();
-function enqueueWrite<T>(task: () => Promise<T>): Promise<T> {
-	const result = writeQueue.then(task);
-	writeQueue = result.then(
-		() => undefined,
-		() => undefined,
-	);
-	return result;
-}
+import { enqueueWrite } from "../../server/write-queue.ts";
 
 export const story = {
 	move: procedure()

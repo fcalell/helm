@@ -12,9 +12,11 @@ import {
 import {
 	type Board,
 	type Epic,
+	type EpicFrontmatter,
 	epicFrontmatterSchema,
 	type InvalidFile,
 	type Story,
+	type StoryFrontmatter,
 	storyFrontmatterSchema,
 } from "./schema.ts";
 
@@ -363,4 +365,40 @@ export async function writeEpic(
 		serializeEpic(epic.frontmatter, epic.body),
 		"utf8",
 	);
+}
+
+// Session ids attach through a fresh read-modify-write so a hand edit made
+// since the last snapshot survives; callers serialize through the write
+// queue like every other board write.
+export async function attachStorySession(
+	path: string,
+	epicId: string,
+	kind: keyof StoryFrontmatter["sessions"],
+	sessionId: string,
+): Promise<void> {
+	const story = await readStoryFile(path, epicId);
+	await writeStory({
+		path,
+		frontmatter: {
+			...story.frontmatter,
+			sessions: { ...story.frontmatter.sessions, [kind]: sessionId },
+		},
+		body: story.body,
+	});
+}
+
+export async function attachEpicSession(
+	path: string,
+	kind: keyof EpicFrontmatter["sessions"],
+	sessionId: string,
+): Promise<void> {
+	const epic = await readEpicFile(path);
+	await writeEpic({
+		path,
+		frontmatter: {
+			...epic.frontmatter,
+			sessions: { ...epic.frontmatter.sessions, [kind]: sessionId },
+		},
+		body: epic.body,
+	});
 }

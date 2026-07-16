@@ -18,6 +18,10 @@ export const storyIdSchema = z
 	.string()
 	.regex(/^\d{3}-\d{2}$/, "story ids are zero-padded <epic>-<story> pairs");
 
+export const epicIdSchema = z
+	.string()
+	.regex(/^\d{3}$/, "epic ids are zero-padded three-digit ordinals");
+
 export const runSchema = z.strictObject({
 	n: z.number().int().positive(),
 	session: z.uuid(),
