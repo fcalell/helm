@@ -1,5 +1,9 @@
 node_modules/
 dist/
+
+# nix / direnv
+.direnv/
+
 .claude/settings.local.json
 .stack/
 helm.config.json
