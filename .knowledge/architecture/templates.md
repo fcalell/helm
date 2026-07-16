@@ -9,11 +9,12 @@ the kind's prompt says "fill this template", the template is the output shape
 
 ## Two kinds of template
 
-- **Generation templates** shape a repeatedly-produced artifact: the brief, an epic, a story card, a
-  shaping doc, the adversary report, the review report. Each output is stamped from the current
-  version and lands in `.helm/` as a filled artifact; the template itself is never copied into the
-  repo. A generation template improves freely, and the next artifact picks up the improvement with no
-  migration.
+- **Generation templates** shape a repeatedly-produced artifact: the brief, an epic, a story card,
+  a shaping doc. Each output is stamped from the current version and lands in `.helm/` as a filled
+  artifact; the template itself is never copied into the repo. A generation template improves
+  freely, and the next artifact picks up the improvement with no migration. The adversary and
+  review stages produce widgets and frontmatter verdicts, never documents
+  ([define-refine](../product/features/define-refine.md) §Ready gate).
 - **Scaffold templates** produce a one-time repo file at onboarding: `.helm/agents/index.md` (Helm's
   rules entry point), its glossary and rule docs, the `.helm/knowledge/` base, and the `.helm/board/`
   structure, plus the single `@.helm/agents/index.md` import added to the repo's root `CLAUDE.md`.

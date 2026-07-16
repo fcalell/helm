@@ -27,6 +27,10 @@ Helm stays a single fixed workflow; the kinds are its stages, never user-authore
 a question to the user and end its turn (§Interaction). Read-only means the CLI's Read/Grep/Glob
 plus the kind's board tools, with no Edit or Bash except where a row adds it.
 
+Chat kinds (`init`, `shape`, `define`, `refine`) spawn on the user's message and bypass the run
+queue; every other kind dispatches through it
+([runs](../product/features/runs.md) §Queue & rate limits).
+
 ## Model per kind
 
 Each kind names a model, passed as `--model`; the rate-limit pool is shared with interactive use,

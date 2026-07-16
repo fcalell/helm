@@ -70,8 +70,9 @@ has no interactive `/compact`, so the orchestrator watches window usage from the
 `result` event totals and, near the limit, ends the turn and writes a **handoff**: the run squeezed
 to its resumable core (what is in flight and why, and what is left to do), referencing the brief,
 the diff, and settled decisions by path instead of restating them, with secrets redacted. The run
-resumes from that handoff plus the brief reloaded from the card, and is told its earlier tool output
-was summarized, the same caution a steering resume carries (§Invocation model). Compaction is
+resumes from that handoff plus the brief reloaded from its spawn snapshot (a mid-run hand edit
+never rewrites the contract, [runs](../product/features/runs.md)), and is told its earlier tool
+output was summarized, the same caution a steering resume carries (§Invocation model). Compaction is
 designed, not yet spike-verified: re-verify the CLI's headless context behavior before building it.
 
 ## Board tools (in-process MCP)
@@ -87,9 +88,9 @@ Tool calls become UI proposal widgets; **accepting a widget is what writes the b
 tool call itself mutates nothing. This is how structure is extracted from conversation without
 parsing prose ([define-refine](../product/features/define-refine.md) §Proposal widgets).
 
-Run sessions get `update_card`, which applies body edits (checking off criteria, noting decisions)
-so the agent never writes `.helm/` files itself ([board-storage](./board-storage.md) §Mutation
-rules).
+Run sessions get `update_card`, which applies body edits (noting decisions and progress; criteria
+checkboxes belong to review, [review](../product/features/review.md) §Self-grading) so the agent
+never writes `.helm/` files itself ([board-storage](./board-storage.md) §Mutation rules).
 
 `ask_user` is available to every session kind, not runs alone. It records a question and tells the
 agent to end its turn; the answer resumes the session, and a pending question is what distinguishes

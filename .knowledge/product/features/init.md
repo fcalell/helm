@@ -19,6 +19,8 @@ investigates, proposals render as widgets, and accepting a widget writes the fil
   imports them, so chats and runs speak the repo's language concisely.
 - `.helm/knowledge/`, the repo's knowledge base (what/why docs) with its own navigation index, pulled
   on demand rather than loaded every session.
+- The per-repo run config: the Auto-preset allowlist override and the repo's test commands,
+  proposed from the detected stack ([runs](./runs.md) §Permission presets).
 - `helm.config.json` registration (path and main branch) when the repo joins the hosted
   multi-repo daemon; `helm` run inside a repo needs none
   ([overview](../../architecture/overview.md) §Shape).

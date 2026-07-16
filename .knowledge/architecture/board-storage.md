@@ -36,7 +36,8 @@ that checkout's branch swaps the board out from under the orchestrator.
 ```
 
 IDs are `<epic>-<story>` ordinal pairs (`012-01`), stable forever; slugs can be renamed, IDs
-can't.
+can't. A deleted epic or story retires its ordinal: new entries mint the next number, so a
+reference in git history stays unambiguous.
 
 ## Classification
 
@@ -71,23 +72,38 @@ id: 012-01
 status: review        # backlog|refining|ready|running|needs-input|review|done|blocked
 depends: []           # sibling story ids
 branch: helm/012-01-sync-engine
+gate: { passed: 2026-07-14T18:03:00Z, brief: <hash>, overrides: ["<flag>: <reason>"] }
 sessions: { refine: <uuid> }
-runs:                 # one entry per attempt; each keeps its own implement session
-  - { n: 1, session: <uuid>, started: 2026-07-15T09:12:00Z, outcome: review, tokens: 184000, minutes: 22 }
+runs:                 # one entry per implement session; request-changes follow-ups extend it
+  - { n: 1, session: <uuid>, brief: <hash>, started: 2026-07-15T09:12:00Z, outcome: review, grades: 5/6, tokens: 184000, minutes: 22 }
 ---
 # Sync engine
 ## Goal
 ## Approach
+## Blast radius
 ## Acceptance criteria
 ## Out of scope
 ## Open questions
 ```
 
-Acceptance criteria and Open questions are `- [ ]` checklists: a checked criterion is done, a
+Acceptance criteria and Open questions are `- [ ]` checklists. A checked criterion is verified:
+the review session checks one only when automated evidence proves it (a test it ran and passed),
+the human checks the rest at review ([review](../product/features/review.md) §Self-grading). A
 checked question is resolved, and unresolved questions are what the ready gate counts
-([define-refine](../product/features/define-refine.md) §Ready gate). The orchestrator writes
-frontmatter in fixed key order (id · status · depends · branch · sessions · runs) with one
-flow-styled run per line, so a rewrite diffs as exactly the lines that changed.
+([define-refine](../product/features/define-refine.md) §Ready gate).
+
+`gate` records the adversary pass: timestamp, the hash of the brief body it binds to, and the
+dismissed flags with their override reasons; any brief edit stales it
+([define-refine](../product/features/define-refine.md) §Ready gate). A run entry records the
+brief hash the run was spawned with (the contract review grades against,
+[runs](../product/features/runs.md)) and, once graded, the self-grade tally the Review card
+shows. One entry spans one implement session: request-changes follow-ups accumulate onto it, and
+a new entry starts when discard retires the session
+([review](../product/features/review.md) §Three exits).
+
+The orchestrator writes frontmatter in fixed key order (id · status · depends · branch · gate ·
+sessions · runs) with one flow-styled run per line, so a rewrite diffs as exactly the lines that
+changed.
 
 `epic.md` has the same shape: frontmatter holds `sessions: { define: <uuid> }` (the epic chat);
 the body is `# Title`, the goal, and the breakdown rationale. A shaping thread under
@@ -106,12 +122,16 @@ writes new epics, so it is a source of cards rather than a card.
   ([claude-integration](./claude-integration.md) §Hooks).
 - **Chat never writes board files.** Accepting a proposal widget is the single mutation path from
   conversation ([define-refine](../product/features/define-refine.md) §Proposal widgets).
-- The implementing agent updates its **own** card's body (checking off criteria, noting a
-  decision) through the `update_card` tool, never by editing files, and never touches status;
+- The implementing agent notes decisions and progress on its **own** card's body through the
+  `update_card` tool, never by editing files. It never touches acceptance-criteria checkboxes
+  (those belong to review, [review](../product/features/review.md) §Self-grading) or status;
   status flows through run events.
 - **Hand edits stay legal** (files are the truth) but the watcher validates them: malformed
   frontmatter or an illegal status transition is surfaced in the UI and never acted on (no run
   spawns from a hand-typed `running`).
+- **Deletion is the terminal move.** Dropping a story, archiving a finished epic, or clearing a
+  spent shaping thread deletes the file or folder after an explicit confirmation; git history is
+  the archive, so no archive directory and no `dropped` status exist.
 
 ## Worktrees
 

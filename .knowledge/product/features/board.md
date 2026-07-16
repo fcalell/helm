@@ -19,19 +19,27 @@ Backlog → Refining → Ready → Running → Review → Done
   `ready → refining | running` · `running → needs-input | review` · `needs-input → running` ·
   `review → done | running | ready` (the three exits, [review](./review.md)) ·
   `blocked → backlog | refining | ready` · any status but `done` → `blocked`. The ready gate
-  guards every move into Ready except `review → ready`: discard re-parks an already-gated brief.
+  guards every move into Ready; a still-valid verdict passes for free, so discard's
+  `review → ready` re-parks without a fresh adversary run
+  ([define-refine](./define-refine.md) §Ready gate).
 - **Agent events move cards on their own**: a finished run flips Running → Review via the Stop
   hook backstop, a mid-run `ask_user` call flips Running → Needs input
   ([claude-integration](../../architecture/claude-integration.md) §Board tools, §Hooks).
 - The **ready gate** is the one hard transition: a story cannot enter Ready while the adversary
   review holds an unresolved critical flaw, acceptance criteria are empty, or open questions remain
   ([define-refine](./define-refine.md) §Ready gate).
+- Two waits render as **sub-state badges**, never statuses: Refining shows a gating indicator
+  while the adversary runs ([define-refine](./define-refine.md) §Ready gate), Review shows a
+  rebasing indicator while a conflict session resolves ([review](./review.md) §Two axes).
+- Work leaves the board by **deletion**: dropping a story or archiving a finished epic is an
+  explicit, confirmed delete, and git history is the archive
+  ([board-storage](../../architecture/board-storage.md) §Mutation rules).
 
 ## Card anatomy
 
 Title · epic tag · status · acceptance-criteria count · dependency hint ("needs #12.2"). Stage
-extras: Refining shows open-question count; Ready shows estimated blast radius (files/LOC guess, an
-eyeball risk signal before running); Running shows a live one-line activity summary; Review shows
+extras: Refining shows open-question count; Ready shows the brief's blast-radius estimate (filled during
+refinement, an eyeball risk signal before running); Running shows a live one-line activity summary; Review shows
 the self-grade tally (5/6 ✓) and diff stats; Done shows time + token cost of its runs.
 
 Glanceability laws: **running cards animate; nothing else does** (the board answers "what is alive

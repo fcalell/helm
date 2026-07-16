@@ -10,8 +10,8 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
 
 - **Shape** a feature in a roadmap chat that proposes epics and draft story cards, accepted onto the
   board ([define-refine](./features/define-refine.md) §Shaping the roadmap).
-- **Refine** a story into a brief (goal · approach · acceptance criteria · out of scope · open
-  questions) through the proposal-widget chat; the **adversary review** blocks Ready until a cold
+- **Refine** a story into a brief (goal · approach · blast radius · acceptance criteria · out of
+  scope · open questions) through the proposal-widget chat; the **adversary review** blocks Ready until a cold
   reader finds no critical flaw and the ready gate sees no unresolved question.
 - **Run** the story headless in its own git worktree (single run at a time), with the live activity
   timeline streaming in the drawer.
@@ -57,7 +57,7 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
 - **Rules & knowledge library**: curate each managed repo's Helm rules and knowledge docs (all under
   `.helm/`) from a UI surface (view, chat-curate, light edit; [board](./features/board.md) §Screen
   layout), and share best practices across repos. A Helm-owned central library holds the shared rules
-  and the generation templates that shape briefs, cards, and reports
+  and the generation templates that shape briefs, cards, and shaping docs
   ([templates](../architecture/templates.md)); each repo imports them under `.helm/`, pulled in by the
   repo's `.helm/agents/index.md` (`@import` or symlink, both CLI-native), keeping domain-specific
   rules local. Promoting a repo-local rule to the library applies it everywhere, and reclassifying a

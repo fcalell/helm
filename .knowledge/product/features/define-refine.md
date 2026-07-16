@@ -81,8 +81,8 @@ Entry: `n` → title + a rough paragraph, as messy as the user likes.
 ## Refining a story
 
 Entry: open a Backlog card, `r`. The session is seeded with the epic conversation's conclusions,
-the card, and the brief template (goal · approach · acceptance criteria · out of scope · open
-questions), the canonical generation template for a brief
+the card, and the brief template (goal · approach · blast radius · acceptance criteria · out of
+scope · open questions), the canonical generation template for a brief
 ([templates](../../architecture/templates.md)).
 
 1. **Claude drives, the user steers.** It investigates the code (tool calls render as collapsed
@@ -100,11 +100,23 @@ questions), the canonical generation template for a brief
 complete: all sections set, no unresolved open questions ([board](./board.md) §Status state
 machine). The adversary is a cold session (`adversary` kind,
 [session-kinds](../../architecture/session-kinds.md)) that reads the finished brief with no chat
-history and attacks it, naming where an implementer would stumble. Each critical finding renders as
-a widget through `flag_risk`; accepting one files it as an open question, which blocks the gate
-until the brief resolves it, and dismissing one records an override reason. A cold reader catches
-what the author and the refine chat talked themselves past, so the gate blocks by default with a
-deliberate override, not an advisory note.
+history and attacks it, naming where an implementer would stumble. It dispatches through the run
+queue and takes minutes; the card stays in Refining behind a gating indicator until the verdict
+lands ([board](./board.md) §Status state machine).
+
+Each critical finding renders as a widget through `flag_risk`; accepting one files it as an open
+question, which blocks the gate until the brief resolves it, and dismissing one records an override
+reason. A cold reader catches what the author and the refine chat talked themselves past, so the
+gate blocks by default with a deliberate override, not an advisory note.
+
+**The verdict persists in frontmatter and binds to the brief.** A pass writes the story's `gate`
+block: timestamp, a hash of the brief body at pass time, and the dismissed flags with their
+override reasons ([board-storage](../../architecture/board-storage.md) §Story file). The flags are
+the adversary's whole output; no report file exists. The hash is the validity rule: any brief
+edit, hand edits included, stales the verdict, and the next move into Ready runs a fresh adversary
+pass, while an unchanged brief re-enters Ready on the recorded verdict for free (a restart, or
+discard's `review → ready`). A verdict that lands after a mid-flight brief edit fails the same
+hash check and is discarded.
 
 ## Slash shortcuts
 

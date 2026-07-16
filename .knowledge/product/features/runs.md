@@ -5,6 +5,13 @@ git worktree + branch (`helm/<epic>-<story>-<slug>`), then spawns the session wi
 brief as the prompt and the story's permission preset attached. Everything a run needs is in the
 brief; a run that has to ask basic scoping questions is a refinement failure, not a run problem.
 
+The brief is **snapshotted at spawn**: the run entry records the brief-body hash
+([board-storage](../../architecture/board-storage.md) §Story file), compaction reseeds from the
+snapshot ([claude-integration](../../architecture/claude-integration.md) §Context management), and
+review grades against it ([review](./review.md) §Self-grading). Editing the brief mid-run stays
+legal, but it surfaces as a notice and takes effect on the next attempt; steering is the way to
+redirect a live run (§Activity timeline & steering).
+
 ## Permission presets
 
 Set per story, before the run:
@@ -12,6 +19,13 @@ Set per story, before the run:
 - **Guarded** (default): file edits auto-approved, Bash and anything destructive prompts.
 - **Auto**: allowlisted tools run free, nothing prompts.
 - **Manual**: everything prompts.
+
+The Auto allowlist is data: Helm ships the canonical list (file edits, the repo's test/lint/build
+commands, read-only git) and a repo overrides or extends it under `.helm/`, the same
+shared-with-local-override model templates use ([templates](../../architecture/templates.md)).
+Init proposes the repo's own test commands into it ([init](./init.md)), and the review kind's
+test-command Bash reads the same per-repo list
+([session-kinds](../../architecture/session-kinds.md)).
 
 Permission prompts surface as **approve/deny buttons on the card** (and as notifications), never
 lost in a terminal.
@@ -48,6 +62,11 @@ user's interactive headroom, and resumes when the window rolls. A run interrupte
 pauses rather than fails: its card stays Running and the session auto-resumes with the queue.
 Rationale: the rate-limit pool is shared with interactive use
 ([vision](../vision.md) §The constraint that shapes everything).
+
+Interactive chat turns bypass the queue: a human never waits behind a run. Every other kind
+(`research`, `adversary`, `review`, `conflict`) dispatches through it with the runs
+([session-kinds](../../architecture/session-kinds.md)). An auto-pause also disables chat sends
+and shows the reset clock, since a send during a limit only burns a failing request.
 
 ## Run lifecycle
 
