@@ -12,7 +12,7 @@ Node/TypeScript orchestrator (the only server process)
   ├─ in-process MCP server exposing board tools to chat sessions
   ├─ git: worktree + branch lifecycle per story, merge/PR on approve
   ├─ queue: concurrency cap + rate-limit accounting
-  └─ watches .helm/**/*.md in target repos; pushes changes over WS
+  └─ watches .helm/board/**/*.md in target repos; pushes changes over WS
 ```
 
 ## Shape

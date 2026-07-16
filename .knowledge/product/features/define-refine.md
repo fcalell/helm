@@ -42,7 +42,7 @@ argue scope until it holds together. `propose_epics` renders each proposed epic 
 per-epic accept/edit/reject; accepting writes a new epic folder
 ([board-storage](../../architecture/board-storage.md)), and a shaping proposal can carry draft
 stories so one agreement lands a whole epic with its first cards. The shaping thread persists under
-`.helm/shaping/` and resumes with full memory, so a roadmap conversation survives across sessions
+`.helm/board/shaping/` and resumes with full memory, so a roadmap conversation survives across sessions
 ([session-kinds](../../architecture/session-kinds.md)).
 
 **Decisions are the artifact.** A foggy feature isn't ready to break into epics until its open

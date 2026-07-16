@@ -1,8 +1,8 @@
 # Board storage: markdown in the target repo
 
 A board is a `.helm/` directory inside the repo it manages. Everything Helm writes into a repo lives
-under `.helm/`: the board, the repo's Helm rules (`.helm/CLAUDE.md`), its glossary, and any template
-overrides. The one footprint outside `.helm/` is a single line in the repo's root `CLAUDE.md`,
+under `.helm/`: the board (`.helm/board/`), the repo's Helm rules (`.helm/CLAUDE.md`), its glossary,
+and any template overrides. The one footprint outside `.helm/` is a single line in the repo's root `CLAUDE.md`,
 `@.helm/CLAUDE.md`, which pulls Helm's rules into every Claude Code session (native `@`-import,
 [claude-integration](./claude-integration.md)). Removing Helm is deleting `.helm/` and that one line;
 an update touches only `.helm/`.
@@ -21,13 +21,14 @@ that checkout's branch swaps the board out from under the orchestrator.
   glossary.md            # ubiquitous-language glossary; imported by .helm/CLAUDE.md
   rules/                 # additional Helm-managed rule docs; imported by .helm/CLAUDE.md
   templates/             # per-repo generation-template overrides
-  shaping/
-    offline-sync.md      # a roadmap thread: shape-chat session id + agreed notes
-  epics/
-    012-offline-sync/
-      epic.md            # goal, epic-chat session id, breakdown rationale
-      01-sync-engine.md  # one story = one file
-      02-conflict-ui.md
+  board/                 # orchestrator runtime state: watched, worktree-excluded
+    shaping/
+      offline-sync.md    # a roadmap thread: shape-chat session id + agreed notes
+    epics/
+      012-offline-sync/
+        epic.md          # goal, epic-chat session id, breakdown rationale
+        01-sync-engine.md  # one story = one file
+        02-conflict-ui.md
 ```
 
 IDs are `<epic>-<story>` ordinal pairs (`012-01`), stable forever; slugs can be renamed, IDs
@@ -35,11 +36,11 @@ can't.
 
 ## Classification
 
-One classifier decides what each path under `.helm/` is; the loader and the watcher both consume
-it, so a fresh load and a live edit never disagree. Only `shaping/` and `epics/` hold board content
-and the classifier reads only those; the rest of `.helm/` (`CLAUDE.md`, `glossary.md`, `rules/`,
-`templates/`) is Helm's rules and templates, not board content, and the board watcher leaves it
-alone. The policy, at every depth:
+One classifier decides what each path under `.helm/board/` is; the loader and the watcher both
+consume it, so a fresh load and a live edit never disagree. All board content lives under
+`.helm/board/`, which holds two directories, `shaping/` and `epics/`; the rest of `.helm/`
+(`CLAUDE.md`, `glossary.md`, `rules/`, `templates/`) is Helm's rules and templates, outside the
+board and watched by nothing. The policy, at every depth:
 
 - Dotfiles are ignored.
 - Under `shaping/`, only `<slug>.md` shaping threads are valid; every other entry is invalid. A
@@ -85,8 +86,9 @@ frontmatter in fixed key order (id · status · depends · branch · sessions ·
 flow-styled run per line, so a rewrite diffs as exactly the lines that changed.
 
 `epic.md` has the same shape: frontmatter holds `sessions: { define: <uuid> }` (the epic chat);
-the body is `# Title`, the goal, and the breakdown rationale. A shaping thread under `.helm/shaping/`
-holds `sessions: { shape: <uuid> }`, the agreed roadmap notes, and a Decisions checklist (the
+the body is `# Title`, the goal, and the breakdown rationale. A shaping thread under
+`.helm/board/shaping/` holds `sessions: { shape: <uuid> }`, the agreed roadmap notes, and a Decisions
+checklist (the
 feature-level open questions the breakdown waits on,
 [define-refine](../product/features/define-refine.md) §Shaping the roadmap); accepting its proposals
 writes new epics, so it is a source of cards rather than a card.
@@ -114,8 +116,8 @@ Worktrees live outside the repo working tree, under an orchestrator-owned direct
 approve/discard ([review](../product/features/review.md) §Three exits). The story branch is the
 durable artifact; the worktree is disposable.
 
-Worktrees are created with a sparse checkout that excludes the board state (`.helm/epics/`,
-`.helm/shaping/`): a story branch never carries board changes, so story files can't conflict at
+Worktrees are created with a sparse checkout that excludes the board state (`.helm/board/`): a story
+branch never carries board changes, so story files can't conflict at
 rebase or merge and ephemeral state (a `running` status) never enters git history through a run. The
 rest of `.helm/` stays in the worktree, so a run still loads the repo's Helm rules through the root
 `CLAUDE.md` import. The run reads its brief from the prompt and updates its card through board tools
