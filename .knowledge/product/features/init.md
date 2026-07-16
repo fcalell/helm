@@ -25,9 +25,9 @@ investigates, proposals render as widgets, and accepting a widget writes the fil
 
 ## How it works
 
-1. **Explore first.** The `init` kind reads the repo and detects its stack and existing conventions
-   ([session-kinds](../../architecture/session-kinds.md)), so the proposals fit the repo instead of a
-   generic scaffold.
+1. **Explore first.** The `init` kind reads the repo and detects its stack, conventions, and any
+   agent rules already in place ([session-kinds](../../architecture/session-kinds.md)), so the
+   proposals fit the repo (§Migrating an existing repo) instead of a generic scaffold.
 2. **Propose from templates.** Each file is proposed through `propose_scaffold` as a widget with
    accept/edit/reject; nothing is written until accepted, the single mutation path from a proposal
    Helm keeps everywhere ([define-refine](./define-refine.md) §Proposal widgets).
@@ -35,3 +35,24 @@ investigates, proposals render as widgets, and accepting a widget writes the fil
    curated after init through the rules & knowledge library, so a repo tracks improving best practices
    without re-running init
    ([roadmap](../roadmap.md) §Later).
+
+## Migrating an existing repo
+
+Dropped into a repo that already has agent rules (a root `CLAUDE.md`, `.claude/rules/`, `AGENTS.md`, a
+`CONTEXT.md`, `docs/`), init reconciles instead of duplicating. It avoids two failures: restating
+rules that already load (the root `CLAUDE.md` auto-loads, so a copy under `.helm/agents/` would load
+them twice) and growing the context every run inherits.
+
+- **Reference, never restate.** `.helm/agents/index.md` adds only Helm's board rules and points at
+  the existing rules as the repo's canonical set, never copying loaded content. This alone keeps init
+  non-duplicating, and it is the whole behavior if the user accepts nothing more.
+- **Consolidate on offer.** Init proposes folding the existing sprawl into `.helm/`: deduped rules
+  under `.helm/agents/`, and the move that pays off, reference material (rationale, background,
+  rarely-needed detail) shifted off the always-loaded path into `.helm/knowledge/`, pulled on demand.
+  The root `CLAUDE.md` slims to its essentials plus the import, so per-session context shrinks.
+- **Reversible and opt-in.** Every move is a proposal widget (accept/edit/reject per file) that lands
+  in git; nothing is auto-deleted, and declining leaves init purely additive.
+- **A visible number.** Init reports the standing context (the tokens that load every session) before
+  and after, so the trade is measured, not guessed.
+
+Re-running init on a repo that already has `.helm/` fills gaps rather than migrating again.
