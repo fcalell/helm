@@ -57,7 +57,13 @@ begins.
 
 One screen: board + a right-hand **drawer**, never a page navigation away. Selecting a card opens
 the drawer on tabs **Brief | Chat | Activity | Diff | History**; the default tab follows status
-(Refining → Chat, Running → Activity, Review → Diff). The header carries the target repo/branch, the
-rate-limit meter, and queue occupancy. Keyboard-first: `j/k` move, `enter` opens, `n` new story,
+(Refining → Chat, Running → Activity, Review → Diff). Repo-level surfaces sit beside the board,
+reached from the header or command palette rather than a card drawer: the shaping chat (§Shaping) and
+a **rules & knowledge surface** for viewing, chat-curating, and lightly editing the repo's
+`.helm/agents/` rules and `.helm/knowledge/` docs, Helm's own markdown and never the repo's code
+([roadmap](../roadmap.md) §Later). The header carries the target repo/branch, the rate-limit meter,
+queue occupancy, and a **standing-context meter** (the tokens that load every session,
+[init](./init.md) §Migrating an existing repo). Keyboard-first: `j/k` move, `enter` opens, `n` new
+story,
 `e` epic view, `r` run/refine per status, `⌘k` command palette. Narrow screens collapse to the
 mobile surface ([mobile](./mobile.md)).

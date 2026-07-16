@@ -53,6 +53,8 @@ them twice) and growing the context every run inherits.
 - **Reversible and opt-in.** Every move is a proposal widget (accept/edit/reject per file) that lands
   in git; nothing is auto-deleted, and declining leaves init purely additive.
 - **A visible number.** Init reports the standing context (the tokens that load every session) before
-  and after, so the trade is measured, not guessed.
+  and after, so the trade is measured, not guessed. That standing-context meter is a permanent
+  read-only view in the UI ([board](./board.md) §Screen layout), the first slice of managing rules and
+  knowledge from Helm.
 
 Re-running init on a repo that already has `.helm/` fills gaps rather than migrating again.

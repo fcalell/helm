@@ -55,13 +55,16 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
 - An MCP board server, so any external Claude Code session can add/update cards.
 - Multi-repo boards.
 - **Rules & knowledge library**: curate each managed repo's Helm rules and knowledge docs (all under
-  `.helm/`) from Helm, and share best practices across repos. A Helm-owned central
-  library holds the shared rules and the generation templates that shape briefs, cards, and reports
+  `.helm/`) from a UI surface (view, chat-curate, light edit; [board](./features/board.md) §Screen
+  layout), and share best practices across repos. A Helm-owned central library holds the shared rules
+  and the generation templates that shape briefs, cards, and reports
   ([templates](../architecture/templates.md)); each repo imports them under `.helm/`, pulled in by the
   repo's `.helm/agents/index.md` (`@import` or symlink, both CLI-native), keeping domain-specific
-  rules local. Promoting a repo-local rule to the library applies it everywhere. Builds on the CLI's
-  native `@`-import (root `CLAUDE.md` → `.helm/agents/index.md` → shared library files), so Helm
-  composes rule files rather than injecting prompts. Depends on multi-repo boards.
+  rules local. Promoting a repo-local rule to the library applies it everywhere, and reclassifying a
+  doc moves it between always-loaded `agents/` and on-demand `knowledge/`. Builds on the CLI's native
+  `@`-import (root `CLAUDE.md` → `.helm/agents/index.md` → shared library files), so Helm composes
+  rule files rather than injecting prompts. Depends on multi-repo boards; the read-only
+  standing-context meter lands earlier with init.
 - Run templates (bugfix vs feature presets: permission preset + brief template + review depth).
 - Public open-source release (instance-per-user, installed as a global CLI; ships API-key auth,
   the mode Anthropic's ToS requires for distribution, [vision](./vision.md) §Ambition).
