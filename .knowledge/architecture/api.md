@@ -9,15 +9,27 @@ group; `stack generate` regenerates the barrel that wires them into the router.
 | Procedure    | Behavior                                                                     |
 | ------------ | ----------------------------------------------------------------------------- |
 | `board.get`  | Returns the full `Board` snapshot (epics, stories, invalid files).            |
-| `story.move` | Validates a transition with `canTransition`, writes the new status, and returns the updated `Story`. |
+| `story.move` | Re-reads the story from disk (the snapshot only resolves id → path), validates the transition with `canTransition`, writes the new status, and returns nothing; the `board` channel's snapshot is the authority. Serialized through a per-repo write queue. |
 | `repo.get`   | Returns the managed repo's `{ path, name, mainBranch, branch }`; `branch` reads the checkout's current git branch. |
 
 ## WS protocol
 
-One channel, `board` (`src/shared/channels.ts`). On every (re)subscribe the server sends a full
-board snapshot, then relays the watcher's `BoardEvent`s verbatim. A reconnect replaces the client's board state entirely, so a missed delta is irrelevant
-by construction: the next snapshot supersedes it. Mutations never travel over WS; a client calls a
-procedure (`story.move`) and observes the resulting `story-changed` event on the channel.
+One channel, `board` (`src/shared/channels.ts`), carrying two server messages:
+
+- `snapshot` — the full `Board`. Sent on every (re)subscribe and rebroadcast on any change, with a
+  trailing 100ms debounce. The client applies it wholesale (with a pending-move overlay, below), so
+  a missed one is irrelevant: the next supersedes it. `board.get` and `onSubscribe` serve the same
+  `watcher.snapshot()`, so RPC and WS snapshots agree by construction.
+- `notice` — `{ kind: "illegal-transition" | "watch-error", message }`, for reasons a snapshot
+  cannot carry (a toast). An illegal hand edit is still applied (files are the truth) and reported.
+
+There are no per-entity deltas: every change rebroadcasts the whole board. Mutations never travel
+over WS; a client calls a procedure (`story.move`) and observes the resulting snapshot.
+
+Optimistic moves carry a **pending-move overlay** on the client: `moveStory` records `id → target`
+and every incoming snapshot is applied with pending statuses overlaid, so a snapshot the watcher
+built before the write (it trails disk by the ~250ms `awaitWriteFinish` window) cannot bounce the
+dragged card. An entry clears when a snapshot confirms the target or when its RPC rejects.
 
 ## Errors
 
@@ -29,8 +41,9 @@ Registry:
 
 | Code                 | Meaning                                       | `data`                  |
 | -------------------- | ---------------------------------------------- | ------------------------ |
-| `NOT_FOUND`          | Unknown story id.                              | none                    |
+| `NOT_FOUND`          | Unknown story id, or its file vanished before the write (ENOENT on the fresh read). | none |
 | `ILLEGAL_TRANSITION` | `canTransition` rejected the move (HTTP 409).  | `{ from, to, reason }`  |
+| `INVALID_FILE`       | The story file on disk is malformed at write time — a hand edit broke it (HTTP 409). | none |
 
 Input validation failures surface as oRPC's built-in `BAD_REQUEST` before a handler runs.
 Unexpected (non-`ApiError`) throws reach the client as `INTERNAL_SERVER_ERROR`; the UI shows a

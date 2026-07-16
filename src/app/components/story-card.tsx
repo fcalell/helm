@@ -85,6 +85,13 @@ export function StoryCard(props: StoryCardProps) {
 				props.onSelect();
 				props.onOpen();
 			}}
+			onKeyDown={(event) => {
+				if (event.key !== "Enter" && event.key !== " ") return;
+				// Space would otherwise scroll the board.
+				if (event.key === " ") event.preventDefault();
+				props.onSelect();
+				props.onOpen();
+			}}
 			class={cn(
 				"cursor-pointer gap-2 p-3 transition-shadow duration-base ease-ui",
 				props.selected && "ring-2 ring-ring",

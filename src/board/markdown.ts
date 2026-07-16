@@ -11,11 +11,23 @@ export interface SplitFile {
 	body: string;
 }
 
+const OPEN_FENCE_RE = /^---[ \t]*\r?\n/;
+// A closing `---` line, at the start of the head (empty frontmatter), after a
+// newline, or at EOF without a trailing newline.
+const CLOSE_FENCE_RE = /(^|\r?\n)---[ \t]*(?:\r?\n|$)/;
+
 export function splitFrontmatter(raw: string): SplitFile | undefined {
-	if (!raw.startsWith("---\n")) return undefined;
-	const close = raw.indexOf("\n---\n", 3);
-	if (close === -1) return undefined;
-	return { head: raw.slice(4, close + 1), body: raw.slice(close + 5) };
+	const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+	const open = OPEN_FENCE_RE.exec(text);
+	if (open === null) return undefined;
+	const rest = text.slice(open[0].length);
+	const close = CLOSE_FENCE_RE.exec(rest);
+	if (close === null) return undefined;
+	const lead = close[1] ?? "";
+	return {
+		head: rest.slice(0, close.index + lead.length),
+		body: rest.slice(close.index + close[0].length),
+	};
 }
 
 const HEADING_RE = /^(#{1,2})\s+(.*)$/;

@@ -1,13 +1,7 @@
 import { createWsClient } from "@fcalell/plugin-node/client";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createStore, reconcile } from "solid-js/store";
-import type {
-	Board,
-	BoardEvent,
-	Epic,
-	Status,
-	Story,
-} from "../../board/schema.ts";
+import type { Board, Epic, Notice, Status, Story } from "../../board/schema.ts";
 import { canTransition } from "../../board/transitions.ts";
 import { boardChannel } from "../../shared/channels.ts";
 import { api } from "./api.ts";
@@ -45,50 +39,38 @@ function byId<T extends { id: string }>(items: T[]): Record<string, T> {
 	return record;
 }
 
-function omit<T>(record: Record<string, T>, key: string): Record<string, T> {
-	const { [key]: _removed, ...rest } = record;
-	return rest;
-}
+// In-flight optimistic moves, `id -> target status`. Every snapshot is applied
+// with these overlaid so a snapshot the watcher built before an in-flight
+// write (it trails disk by the ~250ms awaitWriteFinish window) cannot bounce
+// the dragged card back. An entry clears when a snapshot confirms it reached
+// the target, or when its RPC rejects (the optimism is reverted).
+const pendingMoves = new Map<string, Status>();
+let lastBoard: Board | null = null;
 
 function applySnapshot(board: Board): void {
+	lastBoard = board;
+	const stories = byId(board.stories);
+	for (const [id, to] of pendingMoves) {
+		const story = stories[id];
+		if (story === undefined) continue;
+		if (story.frontmatter.status === to) {
+			pendingMoves.delete(id);
+			continue;
+		}
+		stories[id] = {
+			...story,
+			frontmatter: { ...story.frontmatter, status: to },
+		};
+	}
 	setStore("epics", reconcile(byId(board.epics)));
-	setStore("stories", reconcile(byId(board.stories)));
+	setStore("stories", reconcile(stories));
 	const invalid: Record<string, string> = {};
 	for (const file of board.invalid) invalid[file.path] = file.message;
 	setStore("invalid", reconcile(invalid));
 }
 
-function applyEvent(event: BoardEvent): void {
-	switch (event.kind) {
-		case "epic-added":
-		case "epic-changed":
-			setStore("epics", event.epic.id, event.epic);
-			return;
-		case "epic-removed":
-			setStore("epics", reconcile(omit(store.epics, event.id)));
-			return;
-		case "story-added":
-			setStore("stories", event.story.id, event.story);
-			return;
-		case "story-changed":
-			setStore("stories", event.story.id, event.story);
-			if (event.illegalTransition) {
-				toast.error(`Illegal hand edit: ${event.illegalTransition.reason}`);
-			}
-			return;
-		case "story-removed":
-			setStore("stories", reconcile(omit(store.stories, event.id)));
-			return;
-		case "file-invalid":
-			setStore("invalid", event.path, event.message);
-			return;
-		case "invalid-cleared":
-			setStore("invalid", reconcile(omit(store.invalid, event.path)));
-			return;
-		case "watch-error":
-			toast.error(event.message);
-			return;
-	}
+function applyNotice(notice: Notice): void {
+	toast.error(notice.message);
 }
 
 let started = false;
@@ -102,7 +84,7 @@ export function connectBoard(): void {
 	client.subscribe(boardChannel, {
 		onMessage: {
 			snapshot: applySnapshot,
-			event: applyEvent,
+			notice: applyNotice,
 		},
 		onStatus: (status) => setStore("connected", status === "open"),
 	});
@@ -118,10 +100,11 @@ export function moveStory(id: string, to: Status): void {
 		return;
 	}
 
-	const previousStatus = story.frontmatter.status;
+	pendingMoves.set(id, to);
 	setStore("stories", id, "frontmatter", "status", to);
 	api.story.move({ id, to }).catch((error: unknown) => {
-		setStore("stories", id, "frontmatter", "status", previousStatus);
+		pendingMoves.delete(id);
+		if (lastBoard) applySnapshot(lastBoard);
 		toast.error(
 			error instanceof Error ? error.message : "failed to move story",
 		);

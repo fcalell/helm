@@ -1,23 +1,33 @@
-import { join, relative, sep } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import { watch } from "chokidar";
-import type {
-	Board,
-	BoardEvent,
-	Epic,
-	IllegalTransition,
-	Story,
-} from "./schema.ts";
+import type { Board, Epic, Notice, Story } from "./schema.ts";
 import {
+	addToIndex,
+	boardDir,
+	classify,
+	duplicateEpicMessage,
+	duplicateStoryMessage,
 	EPIC_DIR_RE,
+	epicFilePath,
+	type IdIndex,
 	invalidFrom,
-	loadBoard,
+	isENOENT,
 	readEpicFile,
 	readStoryFile,
-	STORY_FILE_RE,
+	removeFromIndex,
+	scanBoard,
+	storyOrdinal,
 } from "./store.ts";
 import { canTransition } from "./transitions.ts";
 
-export type { BoardEvent, IllegalTransition } from "./schema.ts";
+export type { Notice } from "./schema.ts";
+
+export interface WatchCallbacks {
+	// The board changed; rebuild and rebroadcast a snapshot.
+	onChange(): void;
+	// A reason a snapshot cannot carry (toast).
+	onNotice(notice: Notice): void;
+}
 
 export interface BoardWatcher {
 	snapshot(): Board;
@@ -28,149 +38,221 @@ export interface BoardWatcher {
 // still observed; callers ensure `.helm/` itself exists (ensureBoard).
 export async function watchBoard(
 	repoPath: string,
-	onEvent: (event: BoardEvent) => void,
+	callbacks: WatchCallbacks,
 ): Promise<BoardWatcher> {
 	const root = join(repoPath, ".helm");
+	const epicsDir = boardDir(repoPath);
 	const epics = new Map<string, Epic>();
 	const stories = new Map<string, Story>();
 	const invalid = new Map<string, string>();
+	const epicDirIds: IdIndex = new Map();
+	const storyIds: IdIndex = new Map();
 	let started = false;
+	let changed = false;
 
-	const emit = (event: BoardEvent): void => {
-		if (started) onEvent(event);
+	const setEpic = (path: string, epic: Epic): void => {
+		if (epics.get(path)?.raw === epic.raw) return;
+		epics.set(path, epic);
+		changed = true;
 	};
-
+	const deleteEpic = (path: string): void => {
+		if (epics.delete(path)) changed = true;
+	};
+	const setStory = (path: string, story: Story): void => {
+		if (stories.get(path)?.raw === story.raw) return;
+		stories.set(path, story);
+		changed = true;
+	};
+	const deleteStory = (path: string): void => {
+		if (stories.delete(path)) changed = true;
+	};
 	const markInvalid = (path: string, message: string): void => {
 		if (invalid.get(path) === message) return;
 		invalid.set(path, message);
-		emit({ kind: "file-invalid", path, message });
+		changed = true;
 	};
-
 	const clearInvalid = (path: string): void => {
-		if (invalid.delete(path)) emit({ kind: "invalid-cleared", path });
+		if (invalid.delete(path)) changed = true;
 	};
 
-	const handleEpicFile = async (path: string): Promise<void> => {
+	const readEpic = async (path: string): Promise<void> => {
+		const epicId = EPIC_DIR_RE.exec(basename(dirname(path)))?.[1];
+		if (epicId !== undefined && (epicDirIds.get(epicId)?.size ?? 0) > 1) {
+			deleteEpic(path);
+			return;
+		}
 		try {
-			const epic = await readEpicFile(path);
-			const previous = epics.get(path);
-			if (previous?.raw === epic.raw) return;
-			epics.set(path, epic);
+			setEpic(path, await readEpicFile(path));
 			clearInvalid(path);
-			emit(
-				previous === undefined
-					? { kind: "epic-added", epic }
-					: { kind: "epic-changed", epic },
-			);
 		} catch (error) {
-			epics.delete(path);
-			markInvalid(path, invalidFrom(path, error).message);
+			deleteEpic(path);
+			if (isENOENT(error)) clearInvalid(path);
+			else markInvalid(path, invalidFrom(path, error).message);
 		}
 	};
 
-	const handleStoryFile = async (
-		path: string,
-		epicId: string,
-	): Promise<void> => {
+	const readStory = async (path: string, epicId: string): Promise<void> => {
+		const ordinal = storyOrdinal(path);
+		if (ordinal === undefined) return;
+		if ((storyIds.get(`${epicId}-${ordinal}`)?.size ?? 0) > 1) {
+			deleteStory(path);
+			return;
+		}
 		try {
 			const story = await readStoryFile(path, epicId);
 			const previous = stories.get(path);
-			if (previous?.raw === story.raw) return;
-			stories.set(path, story);
-			clearInvalid(path);
-			if (previous === undefined) {
-				emit({ kind: "story-added", story });
-				return;
-			}
-			let illegalTransition: IllegalTransition | undefined;
-			const from = previous.frontmatter.status;
-			const to = story.frontmatter.status;
-			if (from !== to) {
+			if (
+				previous !== undefined &&
+				previous.frontmatter.status !== story.frontmatter.status
+			) {
+				const from = previous.frontmatter.status;
+				const to = story.frontmatter.status;
 				const check = canTransition(from, to, story.brief);
-				if (!check.ok) illegalTransition = { from, to, reason: check.reason };
+				if (!check.ok) {
+					callbacks.onNotice({
+						kind: "illegal-transition",
+						message: `Illegal hand edit: ${check.reason}`,
+					});
+				}
 			}
-			emit({ kind: "story-changed", story, illegalTransition });
+			setStory(path, story);
+			clearInvalid(path);
 		} catch (error) {
-			stories.delete(path);
-			markInvalid(path, invalidFrom(path, error).message);
+			deleteStory(path);
+			if (isENOENT(error)) clearInvalid(path);
+			else markInvalid(path, invalidFrom(path, error).message);
 		}
 	};
 
-	const handleAddOrChange = async (path: string): Promise<void> => {
-		if (!path.endsWith(".md")) return;
-		const parts = relative(root, path).split(sep);
-		if (parts[0] !== "epics") return;
-		if (parts.length === 2) {
-			markInvalid(
-				path,
-				"unexpected file: boards contain only epic directories",
-			);
+	// Re-derive every holder of an id after its membership changed: duplicates
+	// are all invalidated, a lone survivor is re-read and rehabilitated.
+	const refreshEpicId = async (epicId: string): Promise<void> => {
+		const dirs = [...(epicDirIds.get(epicId) ?? [])];
+		if (dirs.length > 1) {
+			for (const dir of dirs) {
+				deleteEpic(epicFilePath(dir));
+				markInvalid(dir, duplicateEpicMessage(epicId));
+			}
 			return;
 		}
-		const epicDir = parts[1];
-		const fileName = parts[2];
-		if (parts.length !== 3 || epicDir === undefined || fileName === undefined) {
-			return;
-		}
-		const epicId = EPIC_DIR_RE.exec(epicDir)?.[1];
-		if (epicId === undefined) return;
-		if (fileName === "epic.md") {
-			await handleEpicFile(path);
-			return;
-		}
-		if (!STORY_FILE_RE.test(fileName)) {
-			markInvalid(path, "story files are named <NN>-<slug>.md");
-			return;
-		}
-		await handleStoryFile(path, epicId);
-	};
-
-	const handleAddDir = (path: string): void => {
-		const parts = relative(root, path).split(sep);
-		if (
-			parts.length === 2 &&
-			parts[0] === "epics" &&
-			parts[1] !== undefined &&
-			!EPIC_DIR_RE.test(parts[1])
-		) {
-			markInvalid(path, "epic directories are named <NNN>-<slug>");
+		const survivor = dirs[0];
+		if (survivor !== undefined) {
+			clearInvalid(survivor);
+			await readEpic(epicFilePath(survivor));
 		}
 	};
 
-	const handleUnlink = (path: string): void => {
+	const refreshStoryId = async (storyId: string): Promise<void> => {
+		const paths = [...(storyIds.get(storyId) ?? [])];
+		if (paths.length > 1) {
+			for (const path of paths) {
+				deleteStory(path);
+				markInvalid(path, duplicateStoryMessage(storyId));
+			}
+			return;
+		}
+		const survivor = paths[0];
+		if (survivor !== undefined) {
+			clearInvalid(survivor);
+			const epicId = storyId.split("-")[0];
+			if (epicId !== undefined) await readStory(survivor, epicId);
+		}
+	};
+
+	const handleFile = async (path: string): Promise<void> => {
+		const c = classify(epicsDir, path, "file");
+		if (c.type === "ignored") return;
+		if (c.type === "invalid") {
+			markInvalid(path, c.message);
+			return;
+		}
+		if (c.type === "epic") {
+			await readEpic(path);
+			return;
+		}
+		if (c.type === "story") {
+			const ordinal = storyOrdinal(path);
+			if (ordinal === undefined) return;
+			const storyId = `${c.epicId}-${ordinal}`;
+			addToIndex(storyIds, storyId, path);
+			if ((storyIds.get(storyId)?.size ?? 0) > 1) await refreshStoryId(storyId);
+			else await readStory(path, c.epicId);
+		}
+	};
+
+	const handleAddDir = async (path: string): Promise<void> => {
+		const c = classify(epicsDir, path, "dir");
+		if (c.type === "invalid") {
+			markInvalid(path, c.message);
+			return;
+		}
+		if (c.type === "epicDir") {
+			addToIndex(epicDirIds, c.epicId, path);
+			await refreshEpicId(c.epicId);
+		}
+	};
+
+	const handleUnlink = async (path: string): Promise<void> => {
 		clearInvalid(path);
 		const story = stories.get(path);
 		if (story !== undefined) {
-			stories.delete(path);
-			emit({ kind: "story-removed", path, id: story.id });
+			removeFromIndex(storyIds, story.id, path);
+			deleteStory(path);
+			await refreshStoryId(story.id);
 			return;
 		}
-		const epic = epics.get(path);
-		if (epic !== undefined) {
-			epics.delete(path);
-			emit({ kind: "epic-removed", path, id: epic.id });
+		// A duplicate-invalidated story is not in the map but still indexed.
+		const epicId = EPIC_DIR_RE.exec(basename(dirname(path)))?.[1];
+		const ordinal = storyOrdinal(path);
+		if (epicId !== undefined && ordinal !== undefined) {
+			const storyId = `${epicId}-${ordinal}`;
+			if (storyIds.get(storyId)?.has(path)) {
+				removeFromIndex(storyIds, storyId, path);
+				await refreshStoryId(storyId);
+				return;
+			}
 		}
+		deleteEpic(path);
 	};
 
-	const handleUnlinkDir = (dirPath: string): void => {
+	const handleUnlinkDir = async (dirPath: string): Promise<void> => {
 		const prefix = dirPath + sep;
 		clearInvalid(dirPath);
 		for (const path of [...invalid.keys()]) {
 			if (path.startsWith(prefix)) clearInvalid(path);
 		}
-		for (const path of [...stories.keys()]) {
-			if (path.startsWith(prefix)) handleUnlink(path);
-		}
 		for (const path of [...epics.keys()]) {
-			if (path.startsWith(prefix)) handleUnlink(path);
+			if (path.startsWith(prefix)) deleteEpic(path);
 		}
+		const affectedStoryIds = new Set<string>();
+		for (const [storyId, paths] of storyIds) {
+			for (const path of [...paths]) {
+				if (!path.startsWith(prefix)) continue;
+				removeFromIndex(storyIds, storyId, path);
+				deleteStory(path);
+				clearInvalid(path);
+				affectedStoryIds.add(storyId);
+			}
+		}
+		const epicId = EPIC_DIR_RE.exec(basename(dirPath))?.[1];
+		if (epicId !== undefined && epicDirIds.get(epicId)?.has(dirPath)) {
+			removeFromIndex(epicDirIds, epicId, dirPath);
+			await refreshEpicId(epicId);
+		}
+		for (const storyId of affectedStoryIds) await refreshStoryId(storyId);
 	};
 
 	let queue: Promise<void> = Promise.resolve();
 	const enqueue = (task: () => Promise<void> | void): void => {
-		queue = queue.then(task).catch((error: unknown) => {
-			const message = error instanceof Error ? error.message : String(error);
-			emit({ kind: "watch-error", message });
+		queue = queue.then(async () => {
+			changed = false;
+			try {
+				await task();
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				if (started) callbacks.onNotice({ kind: "watch-error", message });
+			}
+			if (changed && started) callbacks.onChange();
 		});
 	};
 
@@ -178,14 +260,14 @@ export async function watchBoard(
 		ignoreInitial: true,
 		awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
 	});
-	watcher.on("add", (path) => enqueue(() => handleAddOrChange(path)));
-	watcher.on("change", (path) => enqueue(() => handleAddOrChange(path)));
+	watcher.on("add", (path) => enqueue(() => handleFile(path)));
+	watcher.on("change", (path) => enqueue(() => handleFile(path)));
 	watcher.on("unlink", (path) => enqueue(() => handleUnlink(path)));
 	watcher.on("addDir", (path) => enqueue(() => handleAddDir(path)));
 	watcher.on("unlinkDir", (path) => enqueue(() => handleUnlinkDir(path)));
 	watcher.on("error", (error) => {
 		const message = error instanceof Error ? error.message : String(error);
-		emit({ kind: "watch-error", message });
+		if (started) callbacks.onNotice({ kind: "watch-error", message });
 	});
 
 	await new Promise<void>((resolve, reject) => {
@@ -194,13 +276,29 @@ export async function watchBoard(
 			reject(error instanceof Error ? error : new Error(String(error))),
 		);
 	});
-	enqueue(async () => {
-		const board = await loadBoard(repoPath);
-		for (const epic of board.epics) epics.set(epic.path, epic);
-		for (const story of board.stories) stories.set(story.path, story);
-		for (const file of board.invalid) invalid.set(file.path, file.message);
+
+	// Seed through the queue so filesystem events that arrive during the scan
+	// serialize behind it instead of racing the map writes. A failed initial
+	// scan (e.g. EACCES) rejects `watchBoard` rather than serving an empty
+	// board; close chokidar before rejecting.
+	let seedError: unknown;
+	queue = queue.then(async () => {
+		try {
+			const scan = await scanBoard(repoPath);
+			for (const [path, epic] of scan.epics) epics.set(path, epic);
+			for (const [path, story] of scan.stories) stories.set(path, story);
+			for (const [path, message] of scan.invalid) invalid.set(path, message);
+			for (const [id, paths] of scan.epicDirIds) epicDirIds.set(id, paths);
+			for (const [id, paths] of scan.storyIds) storyIds.set(id, paths);
+		} catch (error) {
+			seedError = error;
+		}
 	});
 	await queue;
+	if (seedError !== undefined) {
+		await watcher.close();
+		throw seedError;
+	}
 	started = true;
 
 	const byPath = <T extends { path: string }>(a: T, b: T): number =>

@@ -21,6 +21,22 @@ that checkout's branch swaps the board out from under the orchestrator.
 IDs are `<epic>-<story>` ordinal pairs (`012-01`), stable forever; slugs can be renamed, IDs
 can't.
 
+## Classification
+
+One classifier decides what each path under `.helm/epics/` is; the loader and the watcher both
+consume it, so a fresh load and a live edit never disagree. The policy, at every depth:
+
+- Dotfiles are ignored.
+- Epic directories are `<NNN>-<slug>/`; every other entry directly under `epics/` is invalid.
+- Inside an epic directory only `epic.md` and story files `<NN>-<slug>.md` are valid; every other
+  entry (a stray file, an editor dropping like `01-x.md~`, a subdirectory) is invalid.
+- Ordinals are unique: two directories parsing to the same epic number, or two files to the same
+  story number in one epic, are **all** invalid — no winner is elected, so a restart shows what was
+  live. Deleting the collision rehabilitates the survivor.
+
+An invalid path is dropped from the board (its content is never guessed at) and listed in the
+invalid banner while the file exists.
+
 ## Story file
 
 Frontmatter is machine state; the body is the brief, in the fixed template order.

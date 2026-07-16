@@ -1,9 +1,12 @@
-import { defineService } from "@fcalell/plugin-node/server";
+import { type ChannelHandle, defineService } from "@fcalell/plugin-node/server";
 import type { Board } from "../../board/schema.ts";
 import { ensureBoard } from "../../board/store.ts";
 import { type BoardWatcher, watchBoard } from "../../board/watcher.ts";
 import { boardChannel } from "../../shared/channels.ts";
 import { loadManagedRepo, type ManagedRepo } from "../config.ts";
+
+// Collapse a burst of filesystem events into one broadcast.
+const BROADCAST_DEBOUNCE_MS = 100;
 
 let watcher: BoardWatcher | null = null;
 let repo: ManagedRepo | null = null;
@@ -24,17 +27,33 @@ export default defineService({
 	name: "board",
 	start: async (ctx) => {
 		repo = await loadManagedRepo();
-		const handle = ctx.ws.channel(boardChannel, {
+		await ensureBoard(repo.path);
+
+		// Declared before the watcher so its callbacks close over it; the
+		// synchronous continuation after `watchBoard` assigns it before any
+		// event callback (gated on the watcher being started) can fire.
+		let handle: ChannelHandle<(typeof boardChannel)["server"]> | undefined;
+		let broadcastTimer: ReturnType<typeof setTimeout> | undefined;
+		const scheduleBroadcast = (): void => {
+			if (broadcastTimer !== undefined) clearTimeout(broadcastTimer);
+			broadcastTimer = setTimeout(() => {
+				broadcastTimer = undefined;
+				handle?.broadcast("snapshot", boardSnapshot());
+			}, BROADCAST_DEBOUNCE_MS);
+		};
+
+		watcher = await watchBoard(repo.path, {
+			onChange: scheduleBroadcast,
+			onNotice: (notice) => handle?.broadcast("notice", notice),
+		});
+		handle = ctx.ws.channel(boardChannel, {
 			onSubscribe: (conn) => {
 				conn.send("snapshot", boardSnapshot());
 			},
 		});
-		await ensureBoard(repo.path);
-		watcher = await watchBoard(repo.path, (event) => {
-			handle.broadcast("event", event);
-		});
 		ctx.log.info(`board: watching ${repo.path}`);
 		return async () => {
+			if (broadcastTimer !== undefined) clearTimeout(broadcastTimer);
 			await watcher?.close();
 			watcher = null;
 			repo = null;

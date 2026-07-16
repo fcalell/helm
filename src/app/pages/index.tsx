@@ -57,6 +57,7 @@ export default function Home() {
 
 	function handleKeydown(event: KeyboardEvent): void {
 		if (isTypingTarget(event.target)) return;
+		if (event.metaKey || event.ctrlKey || event.altKey) return;
 
 		if (event.key === "e") {
 			setEpicView((value) => !value);

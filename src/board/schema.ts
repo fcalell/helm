@@ -101,38 +101,11 @@ export const boardSchema = z.object({
 });
 export type Board = z.infer<typeof boardSchema>;
 
-export const illegalTransitionSchema = z.object({
-	from: statusSchema,
-	to: statusSchema,
-	reason: z.string(),
+// A reason a snapshot cannot carry: shown as a toast. `illegal-transition` is
+// an illegal hand edit the watcher accepted (files are the truth) but flags;
+// `watch-error` is a filesystem/watcher failure.
+export const noticeSchema = z.object({
+	kind: z.enum(["illegal-transition", "watch-error"]),
+	message: z.string(),
 });
-export type IllegalTransition = z.infer<typeof illegalTransitionSchema>;
-
-export const boardEventSchema = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("epic-added"), epic: epicSchema }),
-	z.object({ kind: z.literal("epic-changed"), epic: epicSchema }),
-	z.object({
-		kind: z.literal("epic-removed"),
-		path: z.string(),
-		id: z.string(),
-	}),
-	z.object({ kind: z.literal("story-added"), story: storySchema }),
-	z.object({
-		kind: z.literal("story-changed"),
-		story: storySchema,
-		illegalTransition: illegalTransitionSchema.optional(),
-	}),
-	z.object({
-		kind: z.literal("story-removed"),
-		path: z.string(),
-		id: z.string(),
-	}),
-	z.object({
-		kind: z.literal("file-invalid"),
-		path: z.string(),
-		message: z.string(),
-	}),
-	z.object({ kind: z.literal("invalid-cleared"), path: z.string() }),
-	z.object({ kind: z.literal("watch-error"), message: z.string() }),
-]);
-export type BoardEvent = z.infer<typeof boardEventSchema>;
+export type Notice = z.infer<typeof noticeSchema>;
