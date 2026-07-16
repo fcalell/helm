@@ -63,5 +63,5 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
   `.claude/rules/` → `CLAUDE.md`), so Helm composes rule files rather than injecting prompts.
   Depends on multi-repo boards.
 - Run templates (bugfix vs feature presets: permission preset + brief template + review depth).
-- Public open-source release (instance-per-user; ships API-key auth, the mode Anthropic's ToS
-  requires for distribution, [vision](./vision.md) §Ambition).
+- Public open-source release (instance-per-user, installed as a global CLI; ships API-key auth,
+  the mode Anthropic's ToS requires for distribution, [vision](./vision.md) §Ambition).

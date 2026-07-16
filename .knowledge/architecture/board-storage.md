@@ -74,8 +74,10 @@ flow-styled run per line, so a rewrite diffs as exactly the lines that changed.
 
 `epic.md` has the same shape: frontmatter holds `sessions: { define: <uuid> }` (the epic chat);
 the body is `# Title`, the goal, and the breakdown rationale. A shaping thread under `.helm/shaping/`
-holds `sessions: { shape: <uuid> }` and the agreed roadmap notes; accepting its proposals writes new
-epics, so it is a source of cards rather than a card.
+holds `sessions: { shape: <uuid> }`, the agreed roadmap notes, and a Decisions checklist (the
+feature-level open questions the breakdown waits on,
+[define-refine](../product/features/define-refine.md) §Shaping the roadmap); accepting its proposals
+writes new epics, so it is a source of cards rather than a card.
 
 ## Mutation rules
 

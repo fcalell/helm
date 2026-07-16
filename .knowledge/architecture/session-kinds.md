@@ -14,7 +14,8 @@ Helm stays a single fixed workflow; the kinds are its stages, never user-authore
 | Kind        | Stage                                   | Tools                                          | Model  | Context               |
 | ----------- | --------------------------------------- | ---------------------------------------------- | ------ | --------------------- |
 | `init`      | onboard a repo: propose scaffolding      | read-only + `propose_scaffold`                  | Sonnet | reseed on stale       |
-| `shape`     | Shaping: roadmap/feature chat → epics    | read-only + `propose_epics` / `propose_stories` | Haiku  | reseed on stale       |
+| `shape`     | Shaping: roadmap/feature chat → epics    | read-only + `propose_epics` / `propose_stories` / `raise_decision` | Haiku | reseed on stale |
+| `research`  | resolve a shaping decision by investigation | read-only                                    | Haiku  | always cold           |
 | `define`    | epic → stories                           | read-only + `propose_stories`                   | Haiku  | reseed on stale       |
 | `refine`    | story → brief                            | read-only + `update_brief` / `resolve_question` | Sonnet | reseed on stale       |
 | `adversary` | ready gate: attack the brief             | read-only + `flag_risk`                         | Opus   | always cold           |
@@ -30,7 +31,7 @@ plus the kind's board tools, with no Edit or Bash except where a row adds it.
 
 Each kind names a model, passed as `--model`; the rate-limit pool is shared with interactive use,
 so the cheapest model that does the job is the default ([vision](../product/vision.md) §The
-constraint that shapes everything). Read-only exploration and proposal chats (`shape`, `define`)
+constraint that shapes everything). Read-only exploration and proposal chats (`shape`, `define`, `research`)
 run on Haiku. Brief refinement, grading, conflict resolution, and onboarding (`refine`, `review`,
 `conflict`, `init`) run on Sonnet, where judgement matters over a small context. The two kinds that set quality run on
 Opus: `adversary`, which has to find the flaw a weaker model misses, and `run`, which writes the
@@ -47,7 +48,7 @@ Three policies cover every kind:
   ([claude-integration](./claude-integration.md) §Invocation model). The user loses transcript
   scroll-back, never the artifact: the brief is the product
   ([define-refine](../product/features/define-refine.md)).
-- **always cold** (`adversary`, `review`, `conflict`). These kinds never resume. Each starts fresh
+- **always cold** (`adversary`, `research`, `review`, `conflict`). These kinds never resume. Each starts fresh
   and reads the finished artifact with no chat history, which is the point of the adversary pass: a
   cold reader catches what the author and the refine chat talked themselves past.
 - **compact under pressure** (`run`). A run is the one session long enough to exhaust its context

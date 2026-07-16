@@ -16,8 +16,9 @@ investigates, proposals render as widgets, and accepting a widget writes the fil
   implementation detail), loaded every session (a `.claude/rules/` entry) so chats and runs speak the
   repo's language concisely.
 - `.claude/rules/` entries for the practices the repo should follow.
-- `helm.config.json` registration: path and main branch
-  ([overview](../../architecture/overview.md)).
+- `helm.config.json` registration (path and main branch) when the repo joins the hosted
+  multi-repo daemon; `helm` run inside a repo needs none
+  ([overview](../../architecture/overview.md) §Shape).
 
 ## How it works
 

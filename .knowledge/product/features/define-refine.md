@@ -18,8 +18,8 @@ anyway starts a fresh session seeded from the card
 ## Proposal widgets
 
 Structure comes from tools, not from parsing prose. Chat sessions get an in-process MCP server with
-board tools that vary by session kind (`propose_epics`, `propose_stories`, `update_brief`,
-`resolve_question`, `flag_risk`, [session-kinds](../../architecture/session-kinds.md)); the UI
+board tools that vary by session kind (`propose_epics`, `propose_stories`, `raise_decision`,
+`update_brief`, `resolve_question`, `flag_risk`, [session-kinds](../../architecture/session-kinds.md)); the UI
 renders each tool call as a widget with **accept / edit / reject**. Accepting is what writes the
 file; an edit or a rejection with a reason goes back as the next resumed message. Claude never
 free-writes board files during chat.
@@ -44,6 +44,24 @@ per-epic accept/edit/reject; accepting writes a new epic folder
 stories so one agreement lands a whole epic with its first cards. The shaping thread persists under
 `.helm/shaping/` and resumes with full memory, so a roadmap conversation survives across sessions
 ([session-kinds](../../architecture/session-kinds.md)).
+
+**Decisions are the artifact.** A foggy feature isn't ready to break into epics until its open
+decisions are settled, and those decisions have no card to live on yet. Shaping's artifact under
+construction is therefore a Decisions checklist in the shaping file, the feature-level counterpart of
+the brief's Open questions: each unsettled call is an item, and resolving one checks it off and folds
+the answer into the agreed notes. The user watches the list shrink instead of rereading the chat, the
+rule every phase follows. `propose_epics` unlocks only once no decision is left open, so a breakdown
+never runs ahead of the thinking behind it; a clear feature raises no decisions and breaks down
+straight away.
+
+**Human and research decisions.** Each decision is tagged by who can settle it. A human decision is a
+product or priority call only the user can make; it surfaces through grilling (§Grilling) and waits
+for the answer. A research decision is a factual question an agent can answer by reading the code
+("does the current auth layer already support token refresh?"); shaping dispatches it as a background
+`research` session ([session-kinds](../../architecture/session-kinds.md)) through the run queue
+instead of asking the user, and folds the finding back as the resolution. The user is asked only what
+genuinely needs them, while the answerable questions resolve in parallel against the shared
+rate-limit pool ([runs](./runs.md) §Queue & rate limits).
 
 ## Defining an epic
 

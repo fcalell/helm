@@ -26,6 +26,14 @@ Node/TypeScript orchestrator (the only server process)
   (crash, kill, missed hook) resumes its session or parks in Blocked.
 - **One machine.** Orchestrator, `claude` CLI, target repos, and worktrees are colocated; remote
   access is a network concern, not an architecture concern ([deployment](./deployment.md)).
+- **One instance, invoked globally.** Helm installs once as a global CLI, never as a dependency of
+  a target repo: a repo's whole contract with Helm is git plus `.helm/`, so any language qualifies;
+  a per-repo install would also split the single queue that protects the shared Max rate-limit
+  pool into uncoordinated instances, and turn the one always-on process the phone surface needs
+  into one server per repo. Running `helm` inside a repo serves that repo with zero config; the
+  hosted daemon registers repos in `helm.config.json` (path + main branch; machine-specific
+  absolute paths, so gitignored, with `helm.config.example.json` the committed template), never
+  auto-discovered. v1 reads exactly one repo.
 - **Stack**: Node + TypeScript, pnpm. Helm is a consumer of `@fcalell/stack`, the author's
   plugin-driven framework in the sibling `../stack` repo, consumed via `link:` dependencies while
   both evolve: `plugin-api` (Hono + oRPC procedures, typed client, Zod), `plugin-solid` +
@@ -47,9 +55,7 @@ Node/TypeScript orchestrator (the only server process)
   for the review diff; solid-dnd (`@thisbeyond/solid-dnd`) for board drag-and-drop, whose
   `use:draggable`/`use:droppable` directives only bind to native DOM elements, so a custom
   component that forwards `ref` and rest props wires `draggable.ref` and `draggable.dragActivators`
-  as plain props instead. Managed repos are registered in `helm.config.json` (path + main branch),
-  never auto-discovered; the file holds machine-specific absolute paths, so it is gitignored and
-  `helm.config.example.json` is the committed template. v1 reads exactly one repo.
+  as plain props instead.
 - **No test suite in Helm.** Stack changes land in `../stack` and follow that repo's testing
   rules.
 

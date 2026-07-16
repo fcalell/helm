@@ -49,6 +49,8 @@ polish. Kept clean enough to open-source. Anthropic's legal page permits persona
 but bars third-party orchestrators from routing Max credentials, so a public release ships API-key
 auth as its distribution mode
 ([claude-integration](../architecture/claude-integration.md) §Why the CLI, not the Agent SDK).
+Distribution is a global CLI install (`helm` inside a repo serves that repo), never a per-repo
+dependency ([overview](../architecture/overview.md) §Shape).
 
 ## Non-goals (v1)
 

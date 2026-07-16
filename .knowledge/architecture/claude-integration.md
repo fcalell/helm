@@ -78,7 +78,8 @@ designed, not yet spike-verified: re-verify the CLI's headless context behavior 
 Chat sessions receive an MCP server hosted by the orchestrator (official MCP SDK, streamable HTTP
 on localhost, mounted on the orchestrator's own Hono app), passed via `--mcp-config`. The tools
 vary by session kind ([session-kinds](./session-kinds.md)): `shape` proposes epics
-(`propose_epics`) and stories (`propose_stories`), `define` proposes stories, `refine` builds the
+(`propose_epics`) and stories (`propose_stories`) and raises feature-level decisions
+(`raise_decision`), `define` proposes stories, `refine` builds the
 brief (`update_brief`, `resolve_question`), `adversary` raises blocking flaws (`flag_risk`), and
 `init` proposes repo scaffolding (`propose_scaffold`).
 Tool calls become UI proposal widgets; **accepting a widget is what writes the board file**, the
