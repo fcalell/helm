@@ -34,13 +34,14 @@ export interface BoardWatcher {
 	close(): Promise<void>;
 }
 
-// The watched root is `.helm/` (not `epics/`) so creating `epics/` later is
-// still observed; callers ensure `.helm/` itself exists (ensureBoard).
+// The watched root is `.helm/board/` (not `epics/`) so creating `epics/`
+// later is still observed; callers ensure it exists (ensureBoard). The rest
+// of `.helm/` (agents/, knowledge/, templates/) is outside the watch.
 export async function watchBoard(
 	repoPath: string,
 	callbacks: WatchCallbacks,
 ): Promise<BoardWatcher> {
-	const root = join(repoPath, ".helm");
+	const root = join(repoPath, ".helm", "board");
 	const epicsDir = boardDir(repoPath);
 	const epics = new Map<string, Epic>();
 	const stories = new Map<string, Story>();

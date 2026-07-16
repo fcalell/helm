@@ -21,18 +21,32 @@ export const storyIdSchema = z
 export const runSchema = z.strictObject({
 	n: z.number().int().positive(),
 	session: z.uuid(),
+	brief: z.string(),
 	started: z.iso.datetime(),
 	outcome: z.enum(["review", "blocked"]).optional(),
+	grades: z
+		.string()
+		.regex(/^\d+\/\d+$/)
+		.optional(),
 	tokens: z.number().nonnegative().optional(),
 	minutes: z.number().nonnegative().optional(),
 });
 export type Run = z.infer<typeof runSchema>;
 
+export const gateSchema = z.strictObject({
+	passed: z.iso.datetime(),
+	brief: z.string(),
+	overrides: z.array(z.string()).default([]),
+});
+export type Gate = z.infer<typeof gateSchema>;
+
 export const storyFrontmatterSchema = z.strictObject({
 	id: storyIdSchema,
 	status: statusSchema,
 	depends: z.array(storyIdSchema).default([]),
+	size: z.literal("trivial").optional(),
 	branch: z.string().optional(),
+	gate: gateSchema.optional(),
 	sessions: z.strictObject({ refine: z.uuid().optional() }).default({}),
 	runs: z.array(runSchema).default([]),
 });
@@ -46,6 +60,7 @@ export type EpicFrontmatter = z.infer<typeof epicFrontmatterSchema>;
 export const BRIEF_SECTIONS = [
 	"Goal",
 	"Approach",
+	"Blast radius",
 	"Acceptance criteria",
 	"Out of scope",
 	"Open questions",

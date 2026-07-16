@@ -64,8 +64,8 @@ export function invalidFrom(path: string, error: unknown): InvalidFile {
 	};
 }
 
-// What a single path under `.helm/epics/` is. `kind` is the filesystem entry
-// kind because the path alone cannot distinguish a directory named
+// What a single path under `.helm/board/epics/` is. `kind` is the filesystem
+// entry kind because the path alone cannot distinguish a directory named
 // `01-foo.md/` from a story file. F4's duplicate-ordinal check sits in the
 // scan layer above this (`scanBoard`, the watcher), which sees every path.
 export type PathClass =
@@ -216,7 +216,7 @@ export async function readEpicFile(path: string): Promise<Epic> {
 }
 
 export function boardDir(repoPath: string): string {
-	return join(repoPath, ".helm", "epics");
+	return join(repoPath, ".helm", "board", "epics");
 }
 
 export function epicFilePath(epicDir: string): string {

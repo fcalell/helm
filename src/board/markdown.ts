@@ -83,6 +83,8 @@ function stringifyFrontmatter(ordered: Record<string, unknown>): string {
 	const doc = new Document(ordered);
 	const sessions = doc.get("sessions", true);
 	if (isMap(sessions)) sessions.flow = true;
+	const gate = doc.get("gate", true);
+	if (isMap(gate)) gate.flow = true;
 	const depends = doc.get("depends", true);
 	if (isSeq(depends)) depends.flow = true;
 	const runs = doc.get("runs", true);
@@ -99,9 +101,12 @@ export function serializeStory(
 	frontmatter: StoryFrontmatter,
 	body: string,
 ): string {
-	const { id, status, depends, branch, sessions, runs } = frontmatter;
+	const { id, status, depends, size, branch, gate, sessions, runs } =
+		frontmatter;
 	const ordered: Record<string, unknown> = { id, status, depends };
+	if (size !== undefined) ordered.size = size;
 	if (branch !== undefined) ordered.branch = branch;
+	if (gate !== undefined) ordered.gate = gate;
 	ordered.sessions = sessions;
 	ordered.runs = runs;
 	return `---\n${stringifyFrontmatter(ordered)}---\n${body}`;
