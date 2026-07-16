@@ -23,8 +23,8 @@ decision about what the machine could not prove, not a re-read of the whole diff
 
 Review answers two independent questions and keeps them apart. The **spec axis** is the self-grade
 above: does the diff satisfy the brief's acceptance criteria? The **standards axis** asks the
-orthogonal question: does the diff follow the repo's own rules (`CLAUDE.md`, `.claude/rules/`) plus a
-baseline of common code smells, whatever the brief said? Each axis runs as its own cold session
+orthogonal question: does the diff follow the repo's own rules (its root `CLAUDE.md` and the rules
+Helm keeps under `.helm/`) plus a baseline of common code smells, whatever the brief said? Each axis runs as its own cold session
 ([session-kinds](../../architecture/session-kinds.md)) so neither pollutes the other, and the two
 verdicts are reported side by side, never blended into one score. A change can meet every criterion
 and still violate the repo's conventions, so a single verdict would let one hide the other.

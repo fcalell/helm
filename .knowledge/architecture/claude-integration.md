@@ -33,9 +33,10 @@ One `claude -p` process per chat turn or run segment:
   reboots.
 - `--strict-mcp-config`: without it every headless run loads the user's global MCP servers
   (spike-verified); skills and settings load regardless, so runs are not hermetic. The target
-  repo's `CLAUDE.md` and `.claude/rules/` (plus user-global `~/.claude`) auto-load the same way, so
-  a managed repo's standing rules already shape every Helm run; curating them is a planned feature
-  ([roadmap](../product/roadmap.md) §Later, Rules & knowledge library).
+  repo's root `CLAUDE.md` auto-loads and, through its `@.helm/CLAUDE.md` import, pulls in Helm's
+  rules (plus user-global `~/.claude`), so a managed repo's standing rules already shape every Helm
+  run; curating them is a planned feature ([roadmap](../product/roadmap.md) §Later, Rules & knowledge
+  library).
 - `--permission-mode` + `--allowedTools`: implement the per-story permission presets
   ([runs](../product/features/runs.md)); define/refine chats get the read-only allowlist
   (Read/Grep/Glob + board tools).

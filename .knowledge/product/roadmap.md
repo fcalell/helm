@@ -42,8 +42,9 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
 - **Needs-input** forms end-to-end (mid-run question → notification → answer resumes).
 - Criteria **self-grading** pass before human review ([review](./features/review.md)).
 - Notifications: web push (PWA) with ntfy fallback ([mobile](./features/mobile.md)).
-- **Guided init**: onboard a repo by exploring it and proposing `.helm/`, `CLAUDE.md`,
-  `.claude/rules/`, and config from scaffold templates ([init](./features/init.md)).
+- **Guided init**: onboard a repo by exploring it and proposing its `.helm/` board and rules
+  (`.helm/CLAUDE.md`, glossary, `.helm/rules/`) from scaffold templates, wired in by one import in
+  the repo's root `CLAUDE.md` ([init](./features/init.md)).
 - PR mode (approve opens a PR via `gh` instead of merging).
 - Mobile PWA surface (built as a stack PWA option) + session-cookie auth + Tailscale deployment
   hardening ([deployment](../architecture/deployment.md)).
@@ -53,15 +54,14 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
 - Dependency-aware queue (story B waits on A).
 - An MCP board server, so any external Claude Code session can add/update cards.
 - Multi-repo boards.
-- **Rules & knowledge library**: curate each managed repo's `CLAUDE.md`, `.claude/rules/`, and
-  `.knowledge/`-style docs from Helm, and share best practices across repos. A Helm-owned central
+- **Rules & knowledge library**: curate each managed repo's Helm rules and knowledge docs (all under
+  `.helm/`) from Helm, and share best practices across repos. A Helm-owned central
   library holds the shared rules and the generation templates that shape briefs, cards, and reports
-  ([templates](../architecture/templates.md)); each repo imports them into its `.claude/rules/`
-  (`@import` or
-  symlink, both CLI-native), keeping domain-specific rules local. Promoting a repo-local rule to the
-  library applies it everywhere. Builds on the CLI's native memory hierarchy (`~/.claude` → project
-  `.claude/rules/` → `CLAUDE.md`), so Helm composes rule files rather than injecting prompts.
-  Depends on multi-repo boards.
+  ([templates](../architecture/templates.md)); each repo imports them under `.helm/`, pulled in by the
+  repo's `.helm/CLAUDE.md` (`@import` or symlink, both CLI-native), keeping domain-specific rules
+  local. Promoting a repo-local rule to the library applies it everywhere. Builds on the CLI's native
+  `@`-import (root `CLAUDE.md` → `.helm/CLAUDE.md` → shared library files), so Helm composes rule
+  files rather than injecting prompts. Depends on multi-repo boards.
 - Run templates (bugfix vs feature presets: permission preset + brief template + review depth).
 - Public open-source release (instance-per-user, installed as a global CLI; ships API-key auth,
   the mode Anthropic's ToS requires for distribution, [vision](./vision.md) §Ambition).
