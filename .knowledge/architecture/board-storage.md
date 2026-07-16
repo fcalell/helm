@@ -71,6 +71,7 @@ Frontmatter is machine state; the body is the brief, in the fixed template order
 id: 012-01
 status: review        # backlog|refining|ready|running|needs-input|review|done|blocked
 depends: []           # sibling story ids
+size: trivial         # refine's size hint, optional; absent = standard
 branch: helm/012-01-sync-engine
 gate: { passed: 2026-07-14T18:03:00Z, brief: <hash>, overrides: ["<flag>: <reason>"] }
 sessions: { refine: <uuid> }
@@ -92,6 +93,10 @@ the human checks the rest at review ([review](../product/features/review.md) §S
 checked question is resolved, and unresolved questions are what the ready gate counts
 ([define-refine](../product/features/define-refine.md) §Ready gate).
 
+`size` is refine's size hint, stamped while the brief is written; a `trivial` value drops the
+story's run to medium effort and nothing else reads it
+([session-kinds](./session-kinds.md) §Model per kind).
+
 `gate` records the adversary pass: timestamp, the hash of the brief body it binds to, and the
 dismissed flags with their override reasons; any brief edit stales it
 ([define-refine](../product/features/define-refine.md) §Ready gate). A run entry records the
@@ -101,9 +106,9 @@ shows. One entry spans one implement session: request-changes follow-ups accumul
 a new entry starts when discard retires the session
 ([review](../product/features/review.md) §Three exits).
 
-The orchestrator writes frontmatter in fixed key order (id · status · depends · branch · gate ·
-sessions · runs) with one flow-styled run per line, so a rewrite diffs as exactly the lines that
-changed.
+The orchestrator writes frontmatter in fixed key order (id · status · depends · size · branch ·
+gate · sessions · runs) with one flow-styled run per line, so a rewrite diffs as exactly the lines
+that changed.
 
 `epic.md` has the same shape: frontmatter holds `sessions: { define: <uuid> }` (the epic chat);
 the body is `# Title`, the goal, and the breakdown rationale. A shaping thread under

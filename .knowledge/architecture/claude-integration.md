@@ -43,6 +43,10 @@ One `claude -p` process per chat turn or run segment:
 - `--append-system-prompt`: injects the brief template / run contract per session kind.
 - `--model`: the per-kind model, so read-only chats stay cheap and implementation runs on the
   frontier model ([session-kinds](./session-kinds.md)).
+- Reasoning effort accompanies the model per kind ([session-kinds](./session-kinds.md)). The CLI
+  exposes effort as a session setting (`/effort`, since v2.1.205); how a headless spawn sets it
+  (a settings key, a config pass-through, or a flag) is unverified, so spike it before building
+  the kind registry.
 - Working directory: the target repo (chats) or the story's worktree (runs).
 
 Transcripts live at `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`; JSONL format is internal
@@ -82,7 +86,9 @@ on localhost, mounted on the orchestrator's own Hono app), passed via `--mcp-con
 vary by session kind ([session-kinds](./session-kinds.md)): `shape` proposes epics
 (`propose_epics`) and stories (`propose_stories`) and raises feature-level decisions
 (`raise_decision`), `define` proposes stories, `refine` builds the
-brief (`update_brief`, `resolve_question`), `adversary` raises blocking flaws (`flag_risk`), and
+brief (`update_brief`, `resolve_question`) and contests gate flags (`contest_flag`,
+[define-refine](../product/features/define-refine.md) §Ready gate), `adversary` raises blocking
+flaws (`flag_risk`), and
 `init` proposes repo scaffolding (`propose_scaffold`).
 Tool calls become UI proposal widgets; **accepting a widget is what writes the board file**, the
 tool call itself mutates nothing. This is how structure is extracted from conversation without

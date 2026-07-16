@@ -11,17 +11,17 @@ Helm stays a single fixed workflow; the kinds are its stages, never user-authore
 
 ## Registry
 
-| Kind        | Stage                                   | Tools                                          | Model  | Context               |
-| ----------- | --------------------------------------- | ---------------------------------------------- | ------ | --------------------- |
-| `init`      | onboard a repo: propose scaffolding      | read-only + `propose_scaffold`                  | Sonnet | reseed on stale       |
-| `shape`     | Shaping: roadmap/feature chat → epics    | read-only + `propose_epics` / `propose_stories` / `raise_decision` | Haiku | reseed on stale |
-| `research`  | resolve a shaping decision by investigation | read-only                                    | Haiku  | always cold           |
-| `define`    | epic → stories                           | read-only + `propose_stories`                   | Haiku  | reseed on stale       |
-| `refine`    | story → brief                            | read-only + `update_brief` / `resolve_question` | Sonnet | reseed on stale       |
-| `adversary` | ready gate: attack the brief             | read-only + `flag_risk`                         | Opus   | always cold           |
-| `run`       | implement a Ready story                  | permission preset + `update_card`               | Opus   | compact under pressure |
-| `review`    | grade + test a finished run              | read-only + test-command Bash                   | Sonnet | cold                  |
-| `conflict`  | rebase conflict resolution               | worktree tools                                  | Sonnet | cold                  |
+| Kind        | Stage                                   | Tools                                          | Model  | Effort | Context               |
+| ----------- | --------------------------------------- | ---------------------------------------------- | ------ | ------ | --------------------- |
+| `init`      | onboard a repo: propose scaffolding      | read-only + `propose_scaffold`                  | Fable  | high   | reseed on stale       |
+| `shape`     | Shaping: roadmap/feature chat → epics    | read-only + `propose_epics` / `propose_stories` / `raise_decision` | Fable | high | reseed on stale |
+| `research`  | resolve a shaping decision by investigation | read-only                                    | Sonnet | high   | always cold           |
+| `define`    | epic → stories                           | read-only + `propose_stories`                   | Fable  | medium | reseed on stale       |
+| `refine`    | story → brief                            | read-only + `update_brief` / `resolve_question` (+ `contest_flag` during a gate round) | Fable  | medium | reseed on stale       |
+| `adversary` | ready gate: attack the brief             | read-only + `flag_risk`                         | Fable  | high   | always cold           |
+| `run`       | implement a Ready story                  | permission preset + `update_card`               | Fable  | high (adaptive) | compact under pressure |
+| `review`    | grade + test a finished run              | read-only + test-command Bash                   | Sonnet | high   | cold                  |
+| `conflict`  | rebase conflict resolution               | worktree tools                                  | Fable  | high   | cold                  |
 
 `ask_user` is available to every kind, not runs alone: it is the one primitive for a session to put
 a question to the user and end its turn (§Interaction). Read-only means the CLI's Read/Grep/Glob
@@ -35,12 +35,69 @@ queue; every other kind dispatches through it
 
 Each kind names a model, passed as `--model`; the rate-limit pool is shared with interactive use,
 so the cheapest model that does the job is the default ([vision](../product/vision.md) §The
-constraint that shapes everything). Read-only exploration and proposal chats (`shape`, `define`, `research`)
-run on Haiku. Brief refinement, grading, conflict resolution, and onboarding (`refine`, `review`,
-`conflict`, `init`) run on Sonnet, where judgement matters over a small context. The two kinds that set quality run on
-Opus: `adversary`, which has to find the flaw a weaker model misses, and `run`, which writes the
-code. Model family names are stable; the exact ids are config, re-verified against current docs
-before a release since the CLI moves fast ([claude-integration](./claude-integration.md)).
+constraint that shapes everything). **Sonnet is the floor**: Haiku is never assigned, because a
+weak proposal or a missed fact costs more rework than the tier saves. Two models cover the
+registry:
+
+- **Sonnet** (`research`, `review`): extraction and verification against something that exists:
+  narrow factual code lookups, and criteria grading against test evidence for the human who
+  approves. Each output is re-checked downstream or mechanically checkable, so the floor does the
+  job. Review is re-tiered when v2 self-grading makes it autonomous
+  ([roadmap](../product/roadmap.md)).
+- **Fable** (`shape`, `define`, `refine`, `adversary`, `run`, `conflict`, `init`): every kind
+  that synthesizes structure or attacks it, plus `conflict`: a rebase that applies cleanly can
+  still drop one side's intent, no later gate re-reads the merge itself (review grades the
+  story's criteria, not the other branch's), and the kind is rare enough that the tier costs
+  nothing. Opus is absent by dominance, not oversight: published effort-curve benchmarks put
+  Fable at *low* effort above Opus at its highest setting on agentic coding, at roughly half the
+  per-task cost, because Opus barely improves with added effort while Fable climbs steeply. Any
+  budget that affords Opus therefore affords a better Fable point. The curves are agentic-coding
+  benchmarks; reading them onto the chat kinds is extrapolation, re-verified with the other
+  fast-moving facts below. Opus is the recorded fallback for the synthesis kinds if Fable's
+  subscription-inclusion terms shift, and the retry model when a run hits Fable's
+  safety-classifier refusal (security-adjacent stories can false-positive; the CLI's headless
+  refusal behavior is unspiked).
+
+**Effort is the second axis, capped at high.** Models expose reasoning-effort levels (low ·
+medium · high · xhigh · max; the top levels vary by model): the tier sets the capability ceiling,
+effort sets how much of it a session spends per turn. max is excluded outright; xhigh is excluded
+for its latency and context-window burn everywhere except as `run`'s escalation lever (below).
+How a headless spawn sets effort is unverified: spike it before building the registry
+([claude-integration](./claude-integration.md) §Invocation model). Below the cap, each kind sits
+at the cheapest point that clears its quality bar, weighed by four factors: what checks the
+output downstream, the kind's token volume, how steep the effort payoff is (Fable climbs with
+effort; Sonnet's extraction work barely does), and interactive latency (the chat kinds bypass the
+queue because a person is waiting, so their ceiling is a turn the user will sit through). High
+goes where output is unchecked, stakes peak, or thoroughness is the product: `run` (highest
+stakes and volume), `adversary` (reasoning-dense, tiny sessions), `shape` (unchecked omissions at
+the frame, low volume), `init` (one-time), `conflict` (rare, and a failed rebase wastes a queue
+slot), `research` (tiny volume, and a wrong finding bakes into the epic structure with no later
+gate re-reading it), and `review` (effort buys tool-call thoroughness, and evidence is review's
+whole product; a confidently wrong grade miscalibrates the trust the approver puts in every other
+grade). Medium goes where a stronger stage re-checks the work: `refine` and `define`
+(gate-checked, and Fable at medium still clears every Opus setting on the published curves). When
+the pool binds, the tune-down lever is `run`'s effort; when quality disappoints, the tune-up
+order is the medium cells first. One cost to watch: long-run thinking
+fills the context window sooner, so it raises compaction pressure, the least-verified mechanic
+([claude-integration](./claude-integration.md) §Context management).
+
+**`run`'s effort adapts per story; its model never does.** The registry cell is the default, and
+two signals move it, both riding artifacts that already exist. Refine stamps a size hint on the
+story while writing the brief ([board-storage](./board-storage.md) §Story file); a `trivial` hint
+drops the run to medium, safe because Fable at medium still clears every Opus setting and a wrong
+hint costs at most one review cycle. A request-changes exit raises the follow-up run to xhigh
+([review](../product/features/review.md) §Three exits): escalation reacts to evidence of failure,
+which beats predicting difficulty from a brief. Dynamic model routing is rejected. The stage
+already classifies the work, so a classifier session would spend pool tokens re-deriving a known
+label, and its failure mode, a hard story routed to Sonnet, costs a failed run plus rework, the
+same asymmetry that sets the Sonnet floor.
+
+Two resources are easy to conflate. The **rate-limit pool** is priced per model: Fable burns it
+roughly twice as fast as Opus per token (pool weighting follows per-token price) while finishing
+a task in fewer tokens. The **context window** burns the same per token on every tier; effort is
+what fills it faster. Model family names are stable; the exact ids, relative pool burn, effort
+mechanics, and Fable's subscription-inclusion terms move fast, so re-verify against current docs
+before building on them ([claude-integration](./claude-integration.md)).
 
 ## Context policies
 

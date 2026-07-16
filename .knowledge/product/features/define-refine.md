@@ -19,7 +19,8 @@ anyway starts a fresh session seeded from the card
 
 Structure comes from tools, not from parsing prose. Chat sessions get an in-process MCP server with
 board tools that vary by session kind (`propose_epics`, `propose_stories`, `raise_decision`,
-`update_brief`, `resolve_question`, `flag_risk`, [session-kinds](../../architecture/session-kinds.md)); the UI
+`update_brief`, `resolve_question`, `contest_flag`, `flag_risk`,
+[session-kinds](../../architecture/session-kinds.md)); the UI
 renders each tool call as a widget with **accept / edit / reject**. Accepting is what writes the
 file; an edit or a rejection with a reason goes back as the next resumed message. Claude never
 free-writes board files during chat.
@@ -94,6 +95,11 @@ scope · open questions), the canonical generation template for a brief
    ("sync should work well" ⚠). Deliberate friction: the implementation run is graded against them
    ([review](./review.md)).
 
+Refine also stamps a size hint on the card's frontmatter as it writes the brief. The refine
+session has already read the code and the whole brief, so the hint costs no extra session; a
+trivial story's run drops to medium effort
+([session-kinds](../../architecture/session-kinds.md) §Model per kind).
+
 ## Ready gate
 
 "Move to Ready" runs the **adversary review** and enables only when it passes and the brief is
@@ -104,10 +110,29 @@ history and attacks it, naming where an implementer would stumble. It dispatches
 queue and takes minutes; the card stays in Refining behind a gating indicator until the verdict
 lands ([board](./board.md) §Status state machine).
 
-Each critical finding renders as a widget through `flag_risk`; accepting one files it as an open
-question, which blocks the gate until the brief resolves it, and dismissing one records an override
-reason. A cold reader catches what the author and the refine chat talked themselves past, so the
-gate blocks by default with a deliberate override, not an advisory note.
+**A finding routes by who can settle it**, the split shaping already uses for decisions (§Human
+and research decisions). The flags land in the story's refine session first: the orchestrator
+resumes it with the findings, and the session answers each flag with a fix or a contest. A fix is
+an `update_brief` proposal naming the flag it resolves; accepting it resolves the flag and stales
+the verdict. A contest is a `contest_flag` call whose payload carries the session's
+counter-argument; the flag renders as a widget with the argument attached: accepting files it as
+an open question, which blocks the gate until the brief resolves it, and dismissing records an
+override reason. A flag the session leaves unanswered when its turn ends renders contested with
+no counter-argument, so a round never idles. Dismissal never delegates: a cold reader
+catches what the author and the refine chat talked themselves past, so the refine session may
+answer the adversary, never silence it, and only the user overrides the gate.
+
+The adversary arbitrates every fix. A fix edits the brief, the edit stales the verdict, and the
+re-run is a fresh cold pass attacking the fixed brief, so a fix that quietly narrows scope faces
+the next cold reader and diffs in git. A round ends when every flag
+is fixed or dismissed. Dismissals alone leave the brief unchanged, so the verdict stands and the
+story enters Ready with the overrides recorded; any accepted fix staled the verdict, so the gate
+re-enqueues the fresh pass itself, capped at two automatic rounds. A dismissal stands for the
+whole attempt: each later pass reads the override register (the dismissed flags with their
+reasons) alongside the brief and does not re-raise an accepted risk, the `gate` block accumulates
+every round's dismissals, and a re-raise that slips through takes the normal fix-or-contest path.
+After the second round the gate surfaces the round history and waits, so a fix-attack loop never
+burns the shared pool unattended.
 
 **The verdict persists in frontmatter and binds to the brief.** A pass writes the story's `gate`
 block: timestamp, a hash of the brief body at pass time, and the dismissed flags with their
