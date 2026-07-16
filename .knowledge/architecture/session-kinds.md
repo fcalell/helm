@@ -59,7 +59,10 @@ Three policies cover every kind:
 
 Any session asks the user a question through `ask_user`: it records the question, the UI renders a
 quick-reply form with a free-text fallback, and answering resumes the session with the answer. A
-run that calls it flips the card to Needs input ([runs](../product/features/runs.md) §Needs input);
+question arrives one at a time in dependency order and carries Claude's recommended answer, so the
+user confirms or redirects, and anything the code can settle is read rather than asked
+([define-refine](../product/features/define-refine.md) §Grilling). A run that calls it flips the
+card to Needs input ([runs](../product/features/runs.md) §Needs input);
 a chat kind renders the question inline in the drawer. This is the one interactive-question path, so
 a mid-loop decision reaches the user the same way whichever stage raises it
 ([claude-integration](./claude-integration.md) §Board tools).

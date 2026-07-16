@@ -24,6 +24,15 @@ renders each tool call as a widget with **accept / edit / reject**. Accepting is
 file; an edit or a rejection with a reason goes back as the next resumed message. Claude never
 free-writes board files during chat.
 
+## Grilling
+
+Every chat kind interviews the same way. Questions arrive one at a time in dependency order, never a
+bulk list: an early answer reshapes which questions follow, and a firehose loses that structure. Each
+question carries Claude's own recommended answer, so the user confirms or redirects instead of
+starting from a blank. Anything the code can settle, Claude settles by reading it rather than asking.
+The chat holds off proposing until the shared understanding is confirmed. This is the discipline the
+`ask_user` primitive enforces ([session-kinds](../../architecture/session-kinds.md) §Interaction).
+
 ## Shaping the roadmap
 
 Shaping is the conversation upstream of the board: a feature or a slice of the roadmap talked into
@@ -40,11 +49,14 @@ stories so one agreement lands a whole epic with its first cards. The shaping th
 
 Entry: `n` → title + a rough paragraph, as messy as the user likes.
 
-1. **Explore first, ask second.** Claude's opening move is reading the actual code, so its 2–4
-   clarifying questions are informed ones, rendered as tappable quick-reply chips plus free text.
+1. **Explore first, ask second.** Claude's opening move is reading the actual code, so its
+   clarifying questions are informed ones, asked one at a time (§Grilling) as tappable quick-reply
+   chips plus free text.
 2. **Breakdown arrives as draft cards.** `propose_stories` renders each proposed story as a
    mini-card (title, one-line goal, dependency hints) with per-card accept/edit/reject and
-   accept-all. A text reply ("merge 2 and 3, drop 4") triggers a re-proposal.
+   accept-all. Each story is a vertical slice: a thin path through every layer (schema, API, UI,
+   tests) that is demoable on its own, not a horizontal slice of one layer that does nothing until
+   the others land. A text reply ("merge 2 and 3, drop 4") triggers a re-proposal.
 3. Accepted cards land in Backlog. The chat stays attached to the epic and resumes with full memory
    whenever reopened.
 

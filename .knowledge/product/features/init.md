@@ -12,6 +12,9 @@ investigates, proposals render as widgets, and accepting a widget writes the fil
   ([board-storage](../../architecture/board-storage.md)).
 - `CLAUDE.md`, drafted from what the repo reveals (stack, conventions, entry points) over the
   canonical scaffold template, not a blank stub.
+- A **ubiquitous-language glossary**: the project's canonical terms, kept glossary-only (no
+  implementation detail), loaded every session (a `.claude/rules/` entry) so chats and runs speak the
+  repo's language concisely.
 - `.claude/rules/` entries for the practices the repo should follow.
 - `helm.config.json` registration: path and main branch
   ([overview](../../architecture/overview.md)).

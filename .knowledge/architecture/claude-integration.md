@@ -66,11 +66,12 @@ Model and context are set per session kind ([session-kinds](./session-kinds.md))
 live at the CLI boundary. Chats reseed: a resume that fails because the transcript was cleaned up
 starts a fresh session seeded from the card (§Invocation model). Runs compact: a headless process
 has no interactive `/compact`, so the orchestrator watches window usage from the `assistant` and
-`result` event totals, ends the turn near the limit, summarizes progress in a cheap step, and
-resumes the run with that summary plus the brief reloaded from the card. The resumed run is told its
-earlier tool output was summarized, the same caution a steering resume carries (§Invocation model).
-Compaction is designed, not yet spike-verified: re-verify the CLI's headless context behavior
-before building it.
+`result` event totals and, near the limit, ends the turn and writes a **handoff**: the run squeezed
+to its resumable core (what is in flight and why, and what is left to do), referencing the brief,
+the diff, and settled decisions by path instead of restating them, with secrets redacted. The run
+resumes from that handoff plus the brief reloaded from the card, and is told its earlier tool output
+was summarized, the same caution a steering resume carries (§Invocation model). Compaction is
+designed, not yet spike-verified: re-verify the CLI's headless context behavior before building it.
 
 ## Board tools (in-process MCP)
 

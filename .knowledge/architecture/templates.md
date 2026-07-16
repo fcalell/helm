@@ -14,8 +14,9 @@ the kind's prompt says "fill this template", the template is the output shape
   version and lands in `.helm/` as a filled artifact; the template itself is never copied into the
   repo. A generation template improves freely, and the next artifact picks up the improvement with no
   migration.
-- **Scaffold templates** produce a one-time repo file at onboarding: `CLAUDE.md`, `.claude/rules/`
-  entries, the `.helm/` structure, and `helm.config.json`. Init writes concrete files from them into
+- **Scaffold templates** produce a one-time repo file at onboarding: `CLAUDE.md`, a
+  ubiquitous-language glossary, `.claude/rules/` entries, the `.helm/` structure, and
+  `helm.config.json`. Init writes concrete files from them into
   the repo, where they are git-versioned and hand-editable
   ([init](../product/features/init.md)). They stay current afterward through the rules & knowledge
   library's import-and-override model ([roadmap](../product/roadmap.md) §Later).
