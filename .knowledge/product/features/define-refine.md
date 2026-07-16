@@ -18,10 +18,23 @@ anyway starts a fresh session seeded from the card
 ## Proposal widgets
 
 Structure comes from tools, not from parsing prose. Chat sessions get an in-process MCP server with
-board tools (`propose_stories`, `update_brief`, `resolve_question`); the UI renders each tool call
-as a widget with **accept / edit / reject**. Accepting is what writes the file; an edit or a
-rejection with a reason goes back as the next resumed message. Claude never free-writes board files
-during chat.
+board tools that vary by session kind (`propose_epics`, `propose_stories`, `update_brief`,
+`resolve_question`, `flag_risk`, [session-kinds](../../architecture/session-kinds.md)); the UI
+renders each tool call as a widget with **accept / edit / reject**. Accepting is what writes the
+file; an edit or a rejection with a reason goes back as the next resumed message. Claude never
+free-writes board files during chat.
+
+## Shaping the roadmap
+
+Shaping is the conversation upstream of the board: a feature or a slice of the roadmap talked into
+epics before any card exists. Entry is a board-level chat (not attached to a card), reached from the
+header, seeded with a rough goal. Claude reads the repo and the current board, then the two of you
+argue scope until it holds together. `propose_epics` renders each proposed epic as a mini-card with
+per-epic accept/edit/reject; accepting writes a new epic folder
+([board-storage](../../architecture/board-storage.md)), and a shaping proposal can carry draft
+stories so one agreement lands a whole epic with its first cards. The shaping thread persists under
+`.helm/shaping/` and resumes with full memory, so a roadmap conversation survives across sessions
+([session-kinds](../../architecture/session-kinds.md)).
 
 ## Defining an epic
 
@@ -39,7 +52,8 @@ Entry: `n` → title + a rough paragraph, as messy as the user likes.
 
 Entry: open a Backlog card, `r`. The session is seeded with the epic conversation's conclusions,
 the card, and the brief template (goal · approach · acceptance criteria · out of scope · open
-questions).
+questions), the canonical generation template for a brief
+([templates](../../architecture/templates.md)).
 
 1. **Claude drives, the user steers.** It investigates the code (tool calls render as collapsed
    one-liners, expandable, never noise), then proposes brief sections one at a time as widgets.
@@ -52,10 +66,15 @@ questions).
 
 ## Ready gate
 
-"Move to Ready" enables only when all brief sections are set and no open questions remain
-([board](./board.md) §Status state machine). Enabling it offers an optional **cold-read check**:
-one cheap pass where Claude re-reads the finished brief without the chat context and names where an
-implementer would stumble.
+"Move to Ready" runs the **adversary review** and enables only when it passes and the brief is
+complete: all sections set, no unresolved open questions ([board](./board.md) §Status state
+machine). The adversary is a cold session (`adversary` kind,
+[session-kinds](../../architecture/session-kinds.md)) that reads the finished brief with no chat
+history and attacks it, naming where an implementer would stumble. Each critical finding renders as
+a widget through `flag_risk`; accepting one files it as an open question, which blocks the gate
+until the brief resolves it, and dismissing one records an override reason. A cold reader catches
+what the author and the refine chat talked themselves past, so the gate blocks by default with a
+deliberate override, not an advisory note.
 
 ## Slash shortcuts
 

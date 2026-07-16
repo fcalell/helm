@@ -11,6 +11,8 @@ that checkout's branch swaps the board out from under the orchestrator.
 
 ```
 .helm/
+  shaping/
+    offline-sync.md      # a roadmap thread: shape-chat session id + agreed notes
   epics/
     012-offline-sync/
       epic.md            # goal, epic-chat session id, breakdown rationale
@@ -23,10 +25,15 @@ can't.
 
 ## Classification
 
-One classifier decides what each path under `.helm/epics/` is; the loader and the watcher both
-consume it, so a fresh load and a live edit never disagree. The policy, at every depth:
+One classifier decides what each path under `.helm/` is; the loader and the watcher both consume
+it, so a fresh load and a live edit never disagree. Two top-level directories are classified,
+`shaping/` and `epics/`. The policy, at every depth:
 
 - Dotfiles are ignored.
+- Under `shaping/`, only `<slug>.md` shaping threads are valid; every other entry is invalid. A
+  shaping thread carries a `shape` session id and the agreed roadmap notes, and its accepted
+  proposals write new epics ([define-refine](../product/features/define-refine.md) §Shaping the
+  roadmap).
 - Epic directories are `<NNN>-<slug>/`; every other entry directly under `epics/` is invalid.
 - Inside an epic directory only `epic.md` and story files `<NN>-<slug>.md` are valid; every other
   entry (a stray file, an editor dropping like `01-x.md~`, a subdirectory) is invalid.
@@ -66,7 +73,9 @@ frontmatter in fixed key order (id · status · depends · branch · sessions ·
 flow-styled run per line, so a rewrite diffs as exactly the lines that changed.
 
 `epic.md` has the same shape: frontmatter holds `sessions: { define: <uuid> }` (the epic chat);
-the body is `# Title`, the goal, and the breakdown rationale.
+the body is `# Title`, the goal, and the breakdown rationale. A shaping thread under `.helm/shaping/`
+holds `sessions: { shape: <uuid> }` and the agreed roadmap notes; accepting its proposals writes new
+epics, so it is a source of cards rather than a card.
 
 ## Mutation rules
 

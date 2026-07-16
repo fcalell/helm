@@ -32,11 +32,16 @@ One `claude -p` process per chat turn or run segment:
   ([board-storage](./board-storage.md)). Sessions survive orchestrator restarts and machine
   reboots.
 - `--strict-mcp-config`: without it every headless run loads the user's global MCP servers
-  (spike-verified); skills and settings load regardless, so runs are not hermetic.
+  (spike-verified); skills and settings load regardless, so runs are not hermetic. The target
+  repo's `CLAUDE.md` and `.claude/rules/` (plus user-global `~/.claude`) auto-load the same way, so
+  a managed repo's standing rules already shape every Helm run; curating them is a planned feature
+  ([roadmap](../product/roadmap.md) §Later, Rules & knowledge library).
 - `--permission-mode` + `--allowedTools`: implement the per-story permission presets
   ([runs](../product/features/runs.md)); define/refine chats get the read-only allowlist
   (Read/Grep/Glob + board tools).
 - `--append-system-prompt`: injects the brief template / run contract per session kind.
+- `--model`: the per-kind model, so read-only chats stay cheap and implementation runs on the
+  frontier model ([session-kinds](./session-kinds.md)).
 - Working directory: the target repo (chats) or the story's worktree (runs).
 
 Transcripts live at `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`; JSONL format is internal
@@ -55,20 +60,39 @@ session with the steering message. Spike-verified: a SIGTERM mid-tool-call resum
 full memory, but the resumed model believes the interrupted tool call never ran even though its
 side effects may have partially landed, so the steering message states the interruption.
 
+## Context management
+
+Model and context are set per session kind ([session-kinds](./session-kinds.md)). Two mechanics
+live at the CLI boundary. Chats reseed: a resume that fails because the transcript was cleaned up
+starts a fresh session seeded from the card (§Invocation model). Runs compact: a headless process
+has no interactive `/compact`, so the orchestrator watches window usage from the `assistant` and
+`result` event totals, ends the turn near the limit, summarizes progress in a cheap step, and
+resumes the run with that summary plus the brief reloaded from the card. The resumed run is told its
+earlier tool output was summarized, the same caution a steering resume carries (§Invocation model).
+Compaction is designed, not yet spike-verified: re-verify the CLI's headless context behavior
+before building it.
+
 ## Board tools (in-process MCP)
 
 Chat sessions receive an MCP server hosted by the orchestrator (official MCP SDK, streamable HTTP
-on localhost, mounted on the orchestrator's own Hono app), passed via `--mcp-config`:
-`propose_stories`, `update_brief`, `resolve_question`. Tool calls become UI proposal widgets;
-**accepting a widget is what writes the board file**, the tool call itself mutates nothing. This is
-how structure is extracted from conversation without parsing prose
-([define-refine](../product/features/define-refine.md) §Proposal widgets).
+on localhost, mounted on the orchestrator's own Hono app), passed via `--mcp-config`. The tools
+vary by session kind ([session-kinds](./session-kinds.md)): `shape` proposes epics
+(`propose_epics`) and stories (`propose_stories`), `define` proposes stories, `refine` builds the
+brief (`update_brief`, `resolve_question`), `adversary` raises blocking flaws (`flag_risk`), and
+`init` proposes repo scaffolding (`propose_scaffold`).
+Tool calls become UI proposal widgets; **accepting a widget is what writes the board file**, the
+tool call itself mutates nothing. This is how structure is extracted from conversation without
+parsing prose ([define-refine](../product/features/define-refine.md) §Proposal widgets).
 
-Run sessions get their own pair. `ask_user` records a mid-run question and tells the agent to end
-its turn; the answer resumes the session, and a pending question is what distinguishes a stuck run
-from a finished one when the process exits ([runs](../product/features/runs.md) §Needs input).
-`update_card` applies body edits (checking off criteria, noting decisions), so the agent never
-writes `.helm/` files itself ([board-storage](./board-storage.md) §Mutation rules).
+Run sessions get `update_card`, which applies body edits (checking off criteria, noting decisions)
+so the agent never writes `.helm/` files itself ([board-storage](./board-storage.md) §Mutation
+rules).
+
+`ask_user` is available to every session kind, not runs alone. It records a question and tells the
+agent to end its turn; the answer resumes the session, and a pending question is what distinguishes
+a stuck session from a finished one when the process exits ([runs](../product/features/runs.md)
+§Needs input). A run that calls it flips the card to Needs input; a chat kind renders the question
+inline in the drawer.
 
 ## Permission prompts
 

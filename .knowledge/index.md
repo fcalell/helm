@@ -13,6 +13,7 @@ contents.** Entries are durable present-tense *what/why* reference, what the cod
 - **Features**: building or changing a feature's behavior; open the matching domain file under [`product/features/`](./product/features/):
   - [board](./product/features/board.md): the kanban board, card anatomy, the status state machine, epics, or the drawer layout
   - [define-refine](./product/features/define-refine.md): the epic/story chat UX, proposal widgets, the brief template, or the ready gate
+  - [init](./product/features/init.md): onboarding a repo, scaffolding `.helm/`/`CLAUDE.md`/rules, or the guided-init flow
   - [runs](./product/features/runs.md): implementation runs, permission presets, needs-input, steering, or the queue and rate-limit behavior
   - [review](./product/features/review.md): the review flow, criteria self-grading, or the approve / request-changes / discard exits
   - [mobile](./product/features/mobile.md): the phone surface, PWA install, or notifications
@@ -22,5 +23,7 @@ contents.** Entries are durable present-tense *what/why* reference, what the cod
 - [overview](./architecture/overview.md): getting your bearings: the orchestrator shape, API-first layering, stack intent, top-level constraints
 - [api](./architecture/api.md): adding or changing an orchestrator procedure, the WS protocol, or an API error code
 - [claude-integration](./architecture/claude-integration.md): anything touching the `claude` CLI: headless flags, auth, sessions/resume, transcripts, the MCP board tools, or the subscription/ToS constraint
+- [session-kinds](./architecture/session-kinds.md): choosing a stage's model, prompt, tool allowlist, or context policy (compact vs reseed vs cold); the closed set of session kinds the loop runs on
+- [templates](./architecture/templates.md): how a generated artifact is shaped, where templates live (canonical vs per-repo override), or the generation-vs-scaffold split
 - [board-storage](./architecture/board-storage.md): the `.helm/` on-disk board format, story frontmatter, or the files-as-truth rules
 - [deployment](./architecture/deployment.md): hosting on the homelab, network exposure, security posture, or server-side Claude auth

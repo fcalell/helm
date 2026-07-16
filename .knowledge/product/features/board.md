@@ -23,8 +23,9 @@ Backlog → Refining → Ready → Running → Review → Done
 - **Agent events move cards on their own**: a finished run flips Running → Review via the Stop
   hook backstop, a mid-run `ask_user` call flips Running → Needs input
   ([claude-integration](../../architecture/claude-integration.md) §Board tools, §Hooks).
-- The **ready gate** is the one hard transition: a story cannot enter Ready with empty acceptance
-  criteria or unresolved open questions ([define-refine](./define-refine.md) §Ready gate).
+- The **ready gate** is the one hard transition: a story cannot enter Ready while the adversary
+  review holds an unresolved critical flaw, acceptance criteria are empty, or open questions remain
+  ([define-refine](./define-refine.md) §Ready gate).
 
 ## Card anatomy
 
@@ -43,6 +44,14 @@ Epics render as toggleable swimlanes over the same columns. An epic card opens i
 (same interaction as a story, one level up) and shows rolled-up progress (stories done/total).
 Dependency hints between sibling stories come from the epic breakdown; v1 renders them, the
 dependency-aware queue is deferred ([roadmap](../roadmap.md) §Later).
+
+## Shaping
+
+Cards start upstream of the board, in a shaping chat: a board-level conversation with no card yet
+that talks a feature into epics and their first stories
+([define-refine](./define-refine.md) §Shaping the roadmap). Shaping is reached from the header, not
+a column, and its output is accepted epics and Backlog cards. That is where the state machine above
+begins.
 
 ## Screen layout
 

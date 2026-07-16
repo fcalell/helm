@@ -37,6 +37,10 @@ an unbounded fan-out, and shows rate-limit headroom as a first-class UI signal.
   hand-editable, and readable/writable by the agent itself. No database to sync.
 - **Supervision over spectation.** The user shouldn't have to watch runs. Blocking moments (a
   question, a finished run) come to them as interrupts, answerable from a phone.
+- **Every artifact comes from a template.** Nothing Helm generates starts from a blank page:
+  briefs, cards, reports, and scaffolded config are stamped from templates that encode the current
+  best practice. Predictability is the point, and a template improves over time, so a better
+  template lifts every future artifact at once ([templates](../architecture/templates.md)).
 
 ## Ambition
 

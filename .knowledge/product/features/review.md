@@ -13,6 +13,12 @@ output). The tally lands on the card (5/6 ✓). Grades are claims to verify, nev
 auto-approval; a human decides every exit. (v2; v1 review is the checklist rendered ungraded +
 the diff. See [roadmap](../roadmap.md).)
 
+The review surfaces the tests, not only the tally: which test commands ran and their output, and
+whether a human verification pass is still needed. A criterion graded from code inspection alone, or
+one no automated test covers, is flagged as needing a human check, with the steps to reproduce and
+verify it by hand. Automated evidence and the human to-do list sit side by side, so approving is a
+decision about what the machine could not prove, not a re-read of the whole diff.
+
 ## The review drawer
 
 Diff tab: per-file, side-by-side, with the criteria checklist pinned above; clicking a criterion's
