@@ -1,11 +1,12 @@
 # Board storage: markdown in the target repo
 
 A board is a `.helm/` directory inside the repo it manages. Everything Helm writes into a repo lives
-under `.helm/`: the board (`.helm/board/`), the repo's Helm rules (`.helm/CLAUDE.md`), its glossary,
-and any template overrides. The one footprint outside `.helm/` is a single line in the repo's root `CLAUDE.md`,
-`@.helm/CLAUDE.md`, which pulls Helm's rules into every Claude Code session (native `@`-import,
-[claude-integration](./claude-integration.md)). Removing Helm is deleting `.helm/` and that one line;
-an update touches only `.helm/`.
+under `.helm/`: the board (`.helm/board/`), the repo's agent rules (`.helm/agents/`), its knowledge
+base (`.helm/knowledge/`), and any template overrides. The one footprint outside `.helm/` is a single
+line in the repo's root `CLAUDE.md`, `@.helm/agents/index.md`, which pulls Helm's rules into every
+Claude Code session (native `@`-import, [claude-integration](./claude-integration.md)). Routing
+through `agents/index.md` keeps a single file named `CLAUDE.md` in the repo (its own). Removing Helm
+is deleting `.helm/` and that one line; an update touches only `.helm/`.
 
 Files are the truth; the orchestrator and UI are views over them. Consequences: boards are git-versioned with the code they describe,
 hand-editable in any editor (the file watcher live-reloads the UI), and readable by the
@@ -17,9 +18,12 @@ that checkout's branch swaps the board out from under the orchestrator.
 
 ```
 .helm/
-  CLAUDE.md              # Helm's rules for this repo; imported by the repo's root CLAUDE.md
-  glossary.md            # ubiquitous-language glossary; imported by .helm/CLAUDE.md
-  rules/                 # additional Helm-managed rule docs; imported by .helm/CLAUDE.md
+  agents/                # agent rule files; the repo's root CLAUDE.md imports agents/index.md
+    index.md             # single entry point; imports the glossary and rule docs below
+    glossary.md          # ubiquitous-language glossary
+    <topic>.md           # additional Helm-managed rule docs
+  knowledge/             # the knowledge base (what/why docs), pulled on demand
+    index.md             # navigation map, referenced from agents/index.md
   templates/             # per-repo generation-template overrides
   board/                 # orchestrator runtime state: watched, worktree-excluded
     shaping/
@@ -39,7 +43,7 @@ can't.
 One classifier decides what each path under `.helm/board/` is; the loader and the watcher both
 consume it, so a fresh load and a live edit never disagree. All board content lives under
 `.helm/board/`, which holds two directories, `shaping/` and `epics/`; the rest of `.helm/`
-(`CLAUDE.md`, `glossary.md`, `rules/`, `templates/`) is Helm's rules and templates, outside the
+(`agents/`, `knowledge/`, `templates/`) is Helm's rules, knowledge, and templates, outside the
 board and watched by nothing. The policy, at every depth:
 
 - Dotfiles are ignored.

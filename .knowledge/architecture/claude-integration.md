@@ -33,7 +33,7 @@ One `claude -p` process per chat turn or run segment:
   reboots.
 - `--strict-mcp-config`: without it every headless run loads the user's global MCP servers
   (spike-verified); skills and settings load regardless, so runs are not hermetic. The target
-  repo's root `CLAUDE.md` auto-loads and, through its `@.helm/CLAUDE.md` import, pulls in Helm's
+  repo's root `CLAUDE.md` auto-loads and, through its `@.helm/agents/index.md` import, pulls in Helm's
   rules (plus user-global `~/.claude`), so a managed repo's standing rules already shape every Helm
   run; curating them is a planned feature ([roadmap](../product/roadmap.md) §Later, Rules & knowledge
   library).
