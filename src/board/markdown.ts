@@ -4,7 +4,10 @@ import {
 	type Brief,
 	type BriefSection,
 	type ChecklistItem,
+	type DecisionItem,
+	type DecisionSettler,
 	type EpicFrontmatter,
+	type ShapingFrontmatter,
 	type StoryFrontmatter,
 } from "./schema.ts";
 
@@ -117,6 +120,123 @@ export function serializeEpic(
 	body: string,
 ): string {
 	return `---\n${stringifyFrontmatter({ sessions: frontmatter.sessions })}---\n${body}`;
+}
+
+export function serializeShaping(
+	frontmatter: ShapingFrontmatter,
+	body: string,
+): string {
+	return `---\n${stringifyFrontmatter({ sessions: frontmatter.sessions })}---\n${body}`;
+}
+
+// The two shaping sections: notes accumulate resolution appends, decisions
+// are the checklist the breakdown waits on.
+export const SHAPING_NOTES = "Agreed notes";
+export const SHAPING_DECISIONS = "Decisions";
+
+export function buildShapingBody(title: string, goal: string): string {
+	return `# ${title}\n\n## ${SHAPING_NOTES}\n\n${goal.trim()}\n\n## ${SHAPING_DECISIONS}\n`;
+}
+
+// A research decision carries its tag as a trailing marker; untagged items
+// are human decisions (the default settler).
+const DECISION_TAG_RE = /\s*\((research)\)$/;
+
+export function parseDecisions(body: string): DecisionItem[] {
+	const section = parseBrief(body).sections[SHAPING_DECISIONS] ?? "";
+	return parseChecklist(section).map((item) => {
+		const tag = DECISION_TAG_RE.exec(item.text);
+		return {
+			text: item.text.replace(DECISION_TAG_RE, "").trim(),
+			checked: item.checked,
+			settledBy: tag === null ? "human" : "research",
+		};
+	});
+}
+
+function decisionLine(decision: string, settledBy: DecisionSettler): string {
+	const tag = settledBy === "research" ? " (research)" : "";
+	return `- [ ] ${decision.trim()}${tag}`;
+}
+
+// Append `line` to the end of the `## <section>` block, creating the section
+// at the end of the body when missing.
+function appendToSection(body: string, section: string, line: string): string {
+	const lines = body.trimEnd().split("\n");
+	let sectionStart = -1;
+	let sectionEnd = lines.length;
+	for (let i = 0; i < lines.length; i++) {
+		const heading = HEADING_RE.exec(lines[i] ?? "");
+		if (heading?.[1] !== "##") continue;
+		if (sectionStart !== -1) {
+			sectionEnd = i;
+			break;
+		}
+		if (heading[2]?.trim() === section) sectionStart = i;
+	}
+	if (sectionStart === -1) {
+		return `${lines.join("\n")}\n\n## ${section}\n\n${line}\n`;
+	}
+	// Replace the section's trailing blank lines with the new line, a blank
+	// after the heading when the section was empty, and a blank before the next
+	// heading when one follows.
+	let end = sectionEnd;
+	while (end > sectionStart + 1 && (lines[end - 1] ?? "").trim() === "") end--;
+	lines.splice(
+		end,
+		sectionEnd - end,
+		...(end === sectionStart + 1 ? ["", line] : [line]),
+		...(sectionEnd < lines.length ? [""] : []),
+	);
+	return `${lines.join("\n")}\n`;
+}
+
+export function appendDecision(
+	body: string,
+	decision: string,
+	settledBy: DecisionSettler,
+): string {
+	return appendToSection(
+		body,
+		SHAPING_DECISIONS,
+		decisionLine(decision, settledBy),
+	);
+}
+
+// Check the matching open decision off and fold the answer into the agreed
+// notes; undefined when no unchecked decision matches the text exactly.
+export function resolveDecision(
+	body: string,
+	decision: string,
+	answer: string,
+): string | undefined {
+	const target = decision.trim();
+	const lines = body.split("\n");
+	let inSection = false;
+	let found = false;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i] ?? "";
+		const heading = HEADING_RE.exec(line);
+		if (heading !== null) {
+			inSection =
+				heading[1] === "##" && heading[2]?.trim() === SHAPING_DECISIONS;
+			continue;
+		}
+		if (!inSection) continue;
+		const match = CHECKLIST_RE.exec(line);
+		if (match?.[1] !== " ") continue;
+		const text = (match[2] ?? "").replace(DECISION_TAG_RE, "").trim();
+		if (text !== target) continue;
+		lines[i] = line.replace("[ ]", "[x]");
+		found = true;
+		break;
+	}
+	if (!found) return undefined;
+	return appendToSection(
+		lines.join("\n"),
+		SHAPING_NOTES,
+		`- ${target}: ${answer.trim()}`,
+	);
 }
 
 // The six brief headings in template order, Goal filled and the rest empty.

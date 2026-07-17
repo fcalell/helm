@@ -1,9 +1,9 @@
-import { basename, dirname, join, sep } from "node:path";
+import { basename, dirname, sep } from "node:path";
 import { watch } from "chokidar";
-import type { Board, Epic, Notice, Story } from "./schema.ts";
+import type { Board, Epic, Notice, ShapingThread, Story } from "./schema.ts";
 import {
 	addToIndex,
-	boardDir,
+	boardRoot,
 	classify,
 	duplicateEpicMessage,
 	duplicateStoryMessage,
@@ -13,6 +13,7 @@ import {
 	invalidFrom,
 	isENOENT,
 	readEpicFile,
+	readShapingFile,
 	readStoryFile,
 	removeFromIndex,
 	scanBoard,
@@ -41,10 +42,10 @@ export async function watchBoard(
 	repoPath: string,
 	callbacks: WatchCallbacks,
 ): Promise<BoardWatcher> {
-	const root = join(repoPath, ".helm", "board");
-	const epicsDir = boardDir(repoPath);
+	const root = boardRoot(repoPath);
 	const epics = new Map<string, Epic>();
 	const stories = new Map<string, Story>();
+	const shaping = new Map<string, ShapingThread>();
 	const invalid = new Map<string, string>();
 	const epicDirIds: IdIndex = new Map();
 	const storyIds: IdIndex = new Map();
@@ -66,6 +67,14 @@ export async function watchBoard(
 	};
 	const deleteStory = (path: string): void => {
 		if (stories.delete(path)) changed = true;
+	};
+	const setShaping = (path: string, thread: ShapingThread): void => {
+		if (shaping.get(path)?.raw === thread.raw) return;
+		shaping.set(path, thread);
+		changed = true;
+	};
+	const deleteShaping = (path: string): void => {
+		if (shaping.delete(path)) changed = true;
 	};
 	const markInvalid = (path: string, message: string): void => {
 		if (invalid.get(path) === message) return;
@@ -125,6 +134,17 @@ export async function watchBoard(
 		}
 	};
 
+	const readShaping = async (path: string): Promise<void> => {
+		try {
+			setShaping(path, await readShapingFile(path));
+			clearInvalid(path);
+		} catch (error) {
+			deleteShaping(path);
+			if (isENOENT(error)) clearInvalid(path);
+			else markInvalid(path, invalidFrom(path, error).message);
+		}
+	};
+
 	// Re-derive every holder of an id after its membership changed: duplicates
 	// are all invalidated, a lone survivor is re-read and rehabilitated.
 	const refreshEpicId = async (epicId: string): Promise<void> => {
@@ -161,10 +181,14 @@ export async function watchBoard(
 	};
 
 	const handleFile = async (path: string): Promise<void> => {
-		const c = classify(epicsDir, path, "file");
+		const c = classify(root, path, "file");
 		if (c.type === "ignored") return;
 		if (c.type === "invalid") {
 			markInvalid(path, c.message);
+			return;
+		}
+		if (c.type === "shaping") {
+			await readShaping(path);
 			return;
 		}
 		if (c.type === "epic") {
@@ -182,7 +206,7 @@ export async function watchBoard(
 	};
 
 	const handleAddDir = async (path: string): Promise<void> => {
-		const c = classify(epicsDir, path, "dir");
+		const c = classify(root, path, "dir");
 		if (c.type === "invalid") {
 			markInvalid(path, c.message);
 			return;
@@ -195,6 +219,10 @@ export async function watchBoard(
 
 	const handleUnlink = async (path: string): Promise<void> => {
 		clearInvalid(path);
+		if (shaping.has(path)) {
+			deleteShaping(path);
+			return;
+		}
 		const story = stories.get(path);
 		if (story !== undefined) {
 			removeFromIndex(storyIds, story.id, path);
@@ -224,6 +252,9 @@ export async function watchBoard(
 		}
 		for (const path of [...epics.keys()]) {
 			if (path.startsWith(prefix)) deleteEpic(path);
+		}
+		for (const path of [...shaping.keys()]) {
+			if (path.startsWith(prefix)) deleteShaping(path);
 		}
 		const affectedStoryIds = new Set<string>();
 		for (const [storyId, paths] of storyIds) {
@@ -288,6 +319,7 @@ export async function watchBoard(
 			const scan = await scanBoard(repoPath);
 			for (const [path, epic] of scan.epics) epics.set(path, epic);
 			for (const [path, story] of scan.stories) stories.set(path, story);
+			for (const [path, thread] of scan.shaping) shaping.set(path, thread);
 			for (const [path, message] of scan.invalid) invalid.set(path, message);
 			for (const [id, paths] of scan.epicDirIds) epicDirIds.set(id, paths);
 			for (const [id, paths] of scan.storyIds) storyIds.set(id, paths);
@@ -309,6 +341,7 @@ export async function watchBoard(
 		snapshot: () => ({
 			epics: [...epics.values()].sort(byPath),
 			stories: [...stories.values()].sort(byPath),
+			shaping: [...shaping.values()].sort(byPath),
 			invalid: [...invalid.entries()]
 				.map(([path, message]) => ({ path, message }))
 				.sort(byPath),

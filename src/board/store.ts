@@ -5,7 +5,9 @@ import { z } from "@fcalell/plugin-api/schema";
 import { parse as parseYaml } from "yaml";
 import {
 	parseBrief,
+	parseDecisions,
 	serializeEpic,
+	serializeShaping,
 	serializeStory,
 	splitFrontmatter,
 } from "./markdown.ts";
@@ -15,13 +17,16 @@ import {
 	type EpicFrontmatter,
 	epicFrontmatterSchema,
 	type InvalidFile,
+	type ShapingThread,
 	type Story,
 	type StoryFrontmatter,
+	shapingFrontmatterSchema,
 	storyFrontmatterSchema,
 } from "./schema.ts";
 
 export const EPIC_DIR_RE = /^(\d{3})-([a-z0-9-]+)$/;
 export const STORY_FILE_RE = /^(\d{2})-([a-z0-9-]+)\.md$/;
+export const SHAPING_FILE_RE = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
 
 // One home for every classification message, so the loader and the watcher
 // (both consumers of `classify`) cannot drift on wording.
@@ -29,6 +34,7 @@ export const INVALID_MESSAGES = {
 	fileInEpicsRoot: "unexpected file: boards contain only epic directories",
 	epicDirName: "epic directories are named <NNN>-<slug>",
 	storyFileName: "story files are named <NN>-<slug>.md",
+	shapingEntry: "shaping entries are <slug>.md threads",
 } as const;
 
 export function duplicateEpicMessage(epicId: string): string {
@@ -66,7 +72,7 @@ export function invalidFrom(path: string, error: unknown): InvalidFile {
 	};
 }
 
-// What a single path under `.helm/board/epics/` is. `kind` is the filesystem
+// What a single path under `.helm/board/` is. `kind` is the filesystem
 // entry kind because the path alone cannot distinguish a directory named
 // `01-foo.md/` from a story file. F4's duplicate-ordinal check sits in the
 // scan layer above this (`scanBoard`, the watcher), which sees every path.
@@ -74,17 +80,11 @@ export type PathClass =
 	| { type: "epicDir"; epicId: string }
 	| { type: "epic"; epicId: string }
 	| { type: "story"; epicId: string }
+	| { type: "shaping" }
 	| { type: "invalid"; message: string }
 	| { type: "ignored" };
 
-export function classify(
-	epicsDir: string,
-	path: string,
-	kind: "file" | "dir",
-): PathClass {
-	const rel = relative(epicsDir, path);
-	if (rel === "" || rel.startsWith("..")) return { type: "ignored" };
-	const parts = rel.split(sep);
+function classifyEpicsEntry(parts: string[], kind: "file" | "dir"): PathClass {
 	const dirName = parts[0];
 	if (dirName === undefined || dirName.startsWith(".")) {
 		return { type: "ignored" };
@@ -115,6 +115,37 @@ export function classify(
 	}
 
 	// Deeper than a story file: below a directory already flagged at depth 2.
+	return { type: "ignored" };
+}
+
+function classifyShapingEntry(
+	parts: string[],
+	kind: "file" | "dir",
+): PathClass {
+	const entryName = parts[0];
+	if (entryName === undefined || entryName.startsWith(".")) {
+		return { type: "ignored" };
+	}
+	if (parts.length > 1) {
+		// Below a directory already flagged at depth 1.
+		return { type: "ignored" };
+	}
+	if (kind === "file" && SHAPING_FILE_RE.test(entryName)) {
+		return { type: "shaping" };
+	}
+	return { type: "invalid", message: INVALID_MESSAGES.shapingEntry };
+}
+
+export function classify(
+	boardRoot: string,
+	path: string,
+	kind: "file" | "dir",
+): PathClass {
+	const rel = relative(boardRoot, path);
+	if (rel === "" || rel.startsWith("..")) return { type: "ignored" };
+	const [top, ...parts] = rel.split(sep);
+	if (top === "epics") return classifyEpicsEntry(parts, kind);
+	if (top === "shaping") return classifyShapingEntry(parts, kind);
 	return { type: "ignored" };
 }
 
@@ -197,6 +228,24 @@ export async function readStoryFile(
 	};
 }
 
+export async function readShapingFile(path: string): Promise<ShapingThread> {
+	const raw = await readFile(path, "utf8");
+	const slug = SHAPING_FILE_RE.exec(basename(path))?.[1];
+	if (slug === undefined) {
+		throw new InvalidBoardFileError(path, INVALID_MESSAGES.shapingEntry);
+	}
+	const { value, body } = parseFrontmatter(path, raw, shapingFrontmatterSchema);
+	return {
+		slug,
+		path,
+		frontmatter: value,
+		title: parseBrief(body).title,
+		decisions: parseDecisions(body),
+		body,
+		raw,
+	};
+}
+
 export async function readEpicFile(path: string): Promise<Epic> {
 	const raw = await readFile(path, "utf8");
 	const dirMatch = EPIC_DIR_RE.exec(basename(dirname(path)));
@@ -217,8 +266,16 @@ export async function readEpicFile(path: string): Promise<Epic> {
 	};
 }
 
+export function boardRoot(repoPath: string): string {
+	return join(repoPath, ".helm", "board");
+}
+
 export function boardDir(repoPath: string): string {
-	return join(repoPath, ".helm", "board", "epics");
+	return join(boardRoot(repoPath), "epics");
+}
+
+export function shapingDir(repoPath: string): string {
+	return join(boardRoot(repoPath), "shaping");
 }
 
 export function epicFilePath(epicDir: string): string {
@@ -227,6 +284,7 @@ export function epicFilePath(epicDir: string): string {
 
 export async function ensureBoard(repoPath: string): Promise<void> {
 	await mkdir(boardDir(repoPath), { recursive: true });
+	await mkdir(shapingDir(repoPath), { recursive: true });
 }
 
 function sortedByName(entries: Dirent[]): Dirent[] {
@@ -243,13 +301,14 @@ function byPath<T extends { path: string }>(a: T, b: T): number {
 export interface ScanResult {
 	epics: Map<string, Epic>;
 	stories: Map<string, Story>;
+	shaping: Map<string, ShapingThread>;
 	invalid: Map<string, string>;
 	epicDirIds: IdIndex;
 	storyIds: IdIndex;
 }
 
 async function scanEpicDir(
-	epicsDir: string,
+	root: string,
 	dirPath: string,
 	epicId: string,
 	scan: ScanResult,
@@ -258,7 +317,7 @@ async function scanEpicDir(
 	for (const entry of sortedByName(entries)) {
 		const path = join(dirPath, entry.name);
 		const kind = entry.isDirectory() ? "dir" : "file";
-		const c = classify(epicsDir, path, kind);
+		const c = classify(root, path, kind);
 		if (c.type === "ignored") continue;
 		if (c.type === "invalid") {
 			scan.invalid.set(path, c.message);
@@ -303,14 +362,43 @@ function resolveCollisions(scan: ScanResult): void {
 	}
 }
 
+async function scanShapingDir(root: string, scan: ScanResult): Promise<void> {
+	const dir = join(root, "shaping");
+	let entries: Dirent[];
+	try {
+		entries = await readdir(dir, { withFileTypes: true });
+	} catch (error) {
+		if (isENOENT(error)) return;
+		throw error;
+	}
+	for (const entry of sortedByName(entries)) {
+		const path = join(dir, entry.name);
+		const c = classify(root, path, entry.isDirectory() ? "dir" : "file");
+		if (c.type === "invalid") {
+			scan.invalid.set(path, c.message);
+			continue;
+		}
+		if (c.type !== "shaping") continue;
+		try {
+			scan.shaping.set(path, await readShapingFile(path));
+		} catch (error) {
+			if (isENOENT(error)) continue;
+			scan.invalid.set(path, invalidFrom(path, error).message);
+		}
+	}
+}
+
 export async function scanBoard(repoPath: string): Promise<ScanResult> {
 	const scan: ScanResult = {
 		epics: new Map(),
 		stories: new Map(),
+		shaping: new Map(),
 		invalid: new Map(),
 		epicDirIds: new Map(),
 		storyIds: new Map(),
 	};
+	const root = boardRoot(repoPath);
+	await scanShapingDir(root, scan);
 	const epicsDir = boardDir(repoPath);
 	let entries: Dirent[];
 	try {
@@ -321,7 +409,7 @@ export async function scanBoard(repoPath: string): Promise<ScanResult> {
 	}
 	for (const entry of sortedByName(entries)) {
 		const path = join(epicsDir, entry.name);
-		const c = classify(epicsDir, path, entry.isDirectory() ? "dir" : "file");
+		const c = classify(root, path, entry.isDirectory() ? "dir" : "file");
 		if (c.type === "ignored") continue;
 		if (c.type === "invalid") {
 			scan.invalid.set(path, c.message);
@@ -329,7 +417,7 @@ export async function scanBoard(repoPath: string): Promise<ScanResult> {
 		}
 		if (c.type === "epicDir") {
 			addToIndex(scan.epicDirIds, c.epicId, path);
-			await scanEpicDir(epicsDir, path, c.epicId, scan);
+			await scanEpicDir(root, path, c.epicId, scan);
 		}
 	}
 	resolveCollisions(scan);
@@ -341,6 +429,7 @@ export async function loadBoard(repoPath: string): Promise<Board> {
 	return {
 		epics: [...scan.epics.values()].sort(byPath),
 		stories: [...scan.stories.values()].sort(byPath),
+		shaping: [...scan.shaping.values()].sort(byPath),
 		invalid: [...scan.invalid.entries()]
 			.map(([path, message]) => ({ path, message }))
 			.sort(byPath),
@@ -400,5 +489,27 @@ export async function attachEpicSession(
 			sessions: { ...epic.frontmatter.sessions, [kind]: sessionId },
 		},
 		body: epic.body,
+	});
+}
+
+export async function writeShaping(
+	thread: Pick<ShapingThread, "path" | "frontmatter" | "body">,
+): Promise<void> {
+	await writeFile(
+		thread.path,
+		serializeShaping(thread.frontmatter, thread.body),
+		"utf8",
+	);
+}
+
+export async function attachShapingSession(
+	path: string,
+	sessionId: string,
+): Promise<void> {
+	const thread = await readShapingFile(path);
+	await writeShaping({
+		path,
+		frontmatter: { sessions: { shape: sessionId } },
+		body: thread.body,
 	});
 }

@@ -60,6 +60,21 @@ export const epicFrontmatterSchema = z.strictObject({
 });
 export type EpicFrontmatter = z.infer<typeof epicFrontmatterSchema>;
 
+export const shapingFrontmatterSchema = z.strictObject({
+	sessions: z.strictObject({ shape: z.uuid().optional() }).default({}),
+});
+export type ShapingFrontmatter = z.infer<typeof shapingFrontmatterSchema>;
+
+export const decisionSettlerSchema = z.enum(["human", "research"]);
+export type DecisionSettler = z.infer<typeof decisionSettlerSchema>;
+
+export const decisionItemSchema = z.object({
+	text: z.string(),
+	checked: z.boolean(),
+	settledBy: decisionSettlerSchema,
+});
+export type DecisionItem = z.infer<typeof decisionItemSchema>;
+
 export const BRIEF_SECTIONS = [
 	"Goal",
 	"Approach",
@@ -106,6 +121,17 @@ export const epicSchema = z.object({
 });
 export type Epic = z.infer<typeof epicSchema>;
 
+export const shapingThreadSchema = z.object({
+	slug: z.string(),
+	path: z.string(),
+	frontmatter: shapingFrontmatterSchema,
+	title: z.string(),
+	decisions: z.array(decisionItemSchema),
+	body: z.string(),
+	raw: z.string(),
+});
+export type ShapingThread = z.infer<typeof shapingThreadSchema>;
+
 export const invalidFileSchema = z.object({
 	path: z.string(),
 	message: z.string(),
@@ -115,6 +141,7 @@ export type InvalidFile = z.infer<typeof invalidFileSchema>;
 export const boardSchema = z.object({
 	epics: z.array(epicSchema),
 	stories: z.array(storySchema),
+	shaping: z.array(shapingThreadSchema),
 	invalid: z.array(invalidFileSchema),
 });
 export type Board = z.infer<typeof boardSchema>;
