@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname } from "node:path";
 import { ApiError } from "@fcalell/plugin-api/error";
 import { z } from "@fcalell/plugin-api/schema";
 import { type ChannelHandle, defineService } from "@fcalell/plugin-node/server";
@@ -19,8 +19,9 @@ import {
 	readEpicFile,
 	readShapingFile,
 	readStoryFile,
+	type ShapingThread,
 	STORY_FILE_RE,
-	shapingDir,
+	shapingPath,
 	writeEpic,
 	writeShaping,
 	writeStory,
@@ -199,9 +200,6 @@ export async function answerQuestion(input: {
 	}
 	questions.delete(input.questionId);
 	broadcast();
-	// A shape question that quotes an open decision is that decision's ask_user
-	// surface: answering it checks the item off and folds the answer into the
-	// agreed notes before the session resumes.
 	if (question.kind === "shape") {
 		await tryResolveDecision(
 			question.sessionId,
@@ -215,9 +213,6 @@ export async function answerQuestion(input: {
 	);
 }
 
-// True while the session has an unresolved raise_decision proposal: a raised
-// decision the user has not filed onto the checklist yet still blocks the
-// breakdown.
 export function hasPendingDecision(sessionId: string): boolean {
 	for (const proposal of proposals.values()) {
 		if (proposal.tool !== "raise_decision") continue;
@@ -233,27 +228,23 @@ async function tryResolveDecision(
 	sessionId: string,
 	decision: string,
 	answer: string,
-): Promise<boolean> {
+): Promise<void> {
 	const thread = boardSnapshot().shaping.find(
 		(each) => each.frontmatter.sessions.shape === sessionId,
 	);
-	if (thread === undefined) return false;
-	return await enqueueWrite(async () => {
+	if (thread === undefined) return;
+	await enqueueWrite(async () => {
 		const current = await readShapingThread(thread.slug);
 		const body = resolveDecision(current.body, decision, answer);
-		if (body === undefined) return false;
+		if (body === undefined) return;
 		await writeShaping({
 			path: current.path,
 			frontmatter: current.frontmatter,
 			body,
 		});
-		return true;
 	});
 }
 
-// The checklist path: answering a Decisions item directly in the shaping
-// drawer. The write checks the item off and folds the answer into the agreed
-// notes, then the thread's shape session resumes with the resolution.
 export async function resolveShapingDecision(input: {
 	slug: string;
 	decision: string;
@@ -408,15 +399,9 @@ async function completeEpicBody(
 	});
 }
 
-function shapingPath(slug: string): string {
-	return join(shapingDir(managedRepo().path), `${slug}.md`);
-}
-
-async function readShapingThread(
-	slug: string,
-): Promise<Awaited<ReturnType<typeof readShapingFile>>> {
+async function readShapingThread(slug: string): Promise<ShapingThread> {
 	try {
-		return await readShapingFile(shapingPath(slug));
+		return await readShapingFile(shapingPath(managedRepo().path, slug));
 	} catch (error) {
 		if (isENOENT(error)) {
 			throw new ApiError("NOT_FOUND", {

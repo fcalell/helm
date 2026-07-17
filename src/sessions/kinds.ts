@@ -61,8 +61,6 @@ const WORK_READ_ONLY =
 	"proposal the user resolves, so call a tool instead of pasting structure " +
 	"into prose. To ask the user something, call ask_user and end your turn.";
 
-// The grilling discipline every chat kind interviews with
-// (`.knowledge/product/features/define-refine.md` §Grilling).
 const GRILLING =
 	"Explore first, ask second: read the repository before your first " +
 	"question, and settle by reading whatever the code can answer. Ask " +

@@ -17,8 +17,6 @@ interface BoardHeaderProps {
 	onOpenShaping: (target: ShapingTarget) => void;
 }
 
-// The board-level shaping entry: reopen an existing thread or seed a new
-// shape session with a rough goal.
 function ShapeEntry(props: { onOpenShaping: (target: ShapingTarget) => void }) {
 	const [dialogOpen, setDialogOpen] = createSignal(false);
 	const [goal, setGoal] = createSignal("");

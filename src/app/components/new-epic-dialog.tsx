@@ -14,8 +14,6 @@ export interface NewEpicDialogProps {
 	onCreated: (target: DefineTarget) => void;
 }
 
-// The `n` entry: title plus a rough paragraph create the epic and seed its
-// define chat with both.
 export function NewEpicDialog(props: NewEpicDialogProps) {
 	const [title, setTitle] = createSignal("");
 	const [rough, setRough] = createSignal("");

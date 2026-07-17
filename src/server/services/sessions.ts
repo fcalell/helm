@@ -15,7 +15,7 @@ import {
 	readEpicFile,
 	readShapingFile,
 	readStoryFile,
-	shapingDir,
+	shapingPath,
 } from "../../board/store.ts";
 import { KIND_REGISTRY, type SessionKind } from "../../sessions/kinds.ts";
 import { reseedPrompt, steeringPrompt } from "../../sessions/prompts.ts";
@@ -252,8 +252,6 @@ async function resolveAttach(
 	return undefined;
 }
 
-// The shaping slug and title come from the rough goal's opening words; the
-// slug dedupes with a numeric suffix against existing threads.
 const SLUG_WORDS = 6;
 
 function shapeSeedTitle(prompt: string): string {
@@ -282,10 +280,6 @@ async function createShapeThread(prompt: string): Promise<Attach> {
 			slug = `${base}-${n}`;
 		}
 	}
-}
-
-function shapingPath(slug: string): string {
-	return join(shapingDir(managedRepo().path), `${slug}.md`);
 }
 
 function findStory(id: string) {
@@ -349,7 +343,10 @@ async function persistAttach(attach: Attach, sessionId: string): Promise<void> {
 		await enqueueWrite(() => attachEpicSession(path, "define", sessionId));
 	} else {
 		await enqueueWrite(() =>
-			attachShapingSession(shapingPath(attach.id), sessionId),
+			attachShapingSession(
+				shapingPath(managedRepo().path, attach.id),
+				sessionId,
+			),
 		);
 	}
 }
@@ -362,7 +359,8 @@ async function readCardRaw(attach: Attach): Promise<string> {
 	if (attach.type === "epic") {
 		return (await readEpicFile(await findEpicPath(attach.id))).raw;
 	}
-	return (await readShapingFile(shapingPath(attach.id))).raw;
+	return (await readShapingFile(shapingPath(managedRepo().path, attach.id)))
+		.raw;
 }
 
 export default defineService({

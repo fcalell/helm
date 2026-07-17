@@ -19,8 +19,6 @@ export interface DefineDrawerProps {
 	onOpenChange: (open: boolean) => void;
 }
 
-// The epic breakdown chat: the artifact pane lists the epic's cards so
-// accepted stories are visible as they land in Backlog.
 export function DefineDrawer(props: DefineDrawerProps) {
 	const epic = () =>
 		props.target === null ? undefined : boardStore.epics[props.target.epicId];

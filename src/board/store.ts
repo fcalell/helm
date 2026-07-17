@@ -46,7 +46,13 @@ export function duplicateStoryMessage(storyId: string): string {
 	return `duplicate story number ${ordinal} in epic ${epicId}`;
 }
 
-export type { Board, Epic, InvalidFile, Story } from "./schema.ts";
+export type {
+	Board,
+	Epic,
+	InvalidFile,
+	ShapingThread,
+	Story,
+} from "./schema.ts";
 
 export class InvalidBoardFileError extends Error {
 	readonly path: string;
@@ -276,6 +282,10 @@ export function boardDir(repoPath: string): string {
 
 export function shapingDir(repoPath: string): string {
 	return join(boardRoot(repoPath), "shaping");
+}
+
+export function shapingPath(repoPath: string, slug: string): string {
+	return join(shapingDir(repoPath), `${slug}.md`);
 }
 
 export function epicFilePath(epicDir: string): string {

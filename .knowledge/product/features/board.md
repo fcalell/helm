@@ -71,7 +71,6 @@ a **rules & knowledge surface** for viewing, chat-curating, and lightly editing 
 `.helm/agents/` rules and `.helm/knowledge/` docs, Helm's own markdown and never the repo's code
 ([roadmap](../roadmap.md) §Later). The header carries the target repo/branch, the rate-limit meter,
 queue occupancy, and a **standing-context meter** (the tokens that load every session,
-[init](./init.md) §Migrating an existing repo). Keyboard-first: `j/k` move, `enter` opens, `n` new
-story,
+[init](./init.md) §Migrating an existing repo). Keyboard-first: `j/k` move, `enter` opens, `n` new epic (opens the define chat),
 `e` epic view, `r` run/refine per status, `⌘k` command palette. Narrow screens collapse to the
 mobile surface ([mobile](./mobile.md)).
