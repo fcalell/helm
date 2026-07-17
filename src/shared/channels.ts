@@ -1,5 +1,6 @@
 import { defineChannel } from "@fcalell/plugin-node/ws";
 import { boardSchema, noticeSchema } from "../board/schema.ts";
+import { proposalSnapshotSchema } from "../server/mcp/schemas.ts";
 import {
 	sessionClosedSchema,
 	sessionWireEventSchema,
@@ -25,5 +26,14 @@ export const sessionChannel = defineChannel("session", {
 		event: sessionWireEventSchema,
 		closed: sessionClosedSchema,
 	},
+	client: {},
+});
+
+// The proposal channel: pending proposals and questions, sent as a full
+// snapshot on every (re)subscribe and on every change (the board-channel
+// pattern; the pending set is small and a missed frame is irrelevant).
+// Resolutions go over RPC.
+export const proposalChannel = defineChannel("proposal", {
+	server: { snapshot: proposalSnapshotSchema },
 	client: {},
 });

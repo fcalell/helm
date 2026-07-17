@@ -15,13 +15,19 @@ import {
 	spawnSessionProcess,
 } from "../../sessions/runner.ts";
 import { sessionChannel } from "../../shared/channels.ts";
+import {
+	bindSessionId,
+	mcpEndpointUrl,
+	registerSpawn,
+	releaseSpawn,
+} from "../mcp/registry.ts";
 import { enqueueWrite } from "../write-queue.ts";
 import { boardSnapshot, managedRepo } from "./board.ts";
 
 // The card a session's id persists on. `refine` attaches to a story and
 // `define` to an epic; the cold kinds never attach (they never resume, so
 // nothing stores their id).
-type Attach = { type: "story" | "epic"; id: string };
+export type Attach = { type: "story" | "epic"; id: string };
 
 interface SessionInfo {
 	kind: SessionKind;
@@ -34,7 +40,21 @@ interface SessionInfo {
 const live = new Map<string, SessionProcess>();
 const known = new Map<string, SessionInfo>();
 const interrupted = new Set<string>();
+const closedListeners = new Set<
+	(info: { sessionId?: string; stale: boolean }) => void
+>();
 let handle: ChannelHandle<(typeof sessionChannel)["server"]> | undefined;
+
+// The proposals service subscribes to flush held resumes when a turn ends.
+export function onSessionClosed(
+	listener: (info: { sessionId?: string; stale: boolean }) => void,
+): void {
+	closedListeners.add(listener);
+}
+
+export function isSessionLive(sessionId: string): boolean {
+	return live.has(sessionId);
+}
 
 export interface SpawnSessionInput {
 	kind: SessionKind;
@@ -132,6 +152,8 @@ interface TurnOptions {
 async function runTurn(options: TurnOptions): Promise<{ sessionId: string }> {
 	const runId = randomUUID();
 	const { kind, attach } = options;
+	const mcpToken = randomUUID();
+	registerSpawn(mcpToken, { kind, attach });
 	let sessionId = options.resume;
 	let resultSeen = false;
 	const child = spawnSessionProcess({
@@ -139,19 +161,27 @@ async function runTurn(options: TurnOptions): Promise<{ sessionId: string }> {
 		cwd: managedRepo().path,
 		prompt: options.prompt,
 		resume: options.resume,
+		mcpUrl: mcpEndpointUrl(mcpToken),
 		onEvent: (event) => {
-			if (event.session_id !== undefined) sessionId = event.session_id;
+			if (event.session_id !== undefined) {
+				sessionId = event.session_id;
+				bindSessionId(mcpToken, event.session_id);
+			}
 			if (event.type === "result") resultSeen = true;
 			handle?.broadcast("event", { runId, kind, sessionId, event });
 		},
 	});
 	void child.done.then((outcome) => {
+		releaseSpawn(mcpToken);
 		if (sessionId !== undefined) {
 			live.delete(sessionId);
 			// A turn that ended without a result event was interrupted (kill or
 			// crash); the next resume must state that (steeringPrompt).
 			if (resultSeen || outcome.stale) interrupted.delete(sessionId);
 			else interrupted.add(sessionId);
+		}
+		for (const listener of closedListeners) {
+			listener({ sessionId, stale: outcome.stale });
 		}
 		handle?.broadcast("closed", {
 			runId,

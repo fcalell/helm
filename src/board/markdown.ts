@@ -1,9 +1,11 @@
 import { Document, isMap, isSeq } from "yaml";
-import type {
-	Brief,
-	ChecklistItem,
-	EpicFrontmatter,
-	StoryFrontmatter,
+import {
+	BRIEF_SECTIONS,
+	type Brief,
+	type BriefSection,
+	type ChecklistItem,
+	type EpicFrontmatter,
+	type StoryFrontmatter,
 } from "./schema.ts";
 
 export interface SplitFile {
@@ -117,4 +119,83 @@ export function serializeEpic(
 	body: string,
 ): string {
 	return `---\n${stringifyFrontmatter({ sessions: frontmatter.sessions })}---\n${body}`;
+}
+
+const SECTION_HEADING_RE = /^##\s+(.*)$/;
+
+// The six brief headings in template order, Goal filled and the rest empty.
+export function buildStoryBody(title: string, goal: string): string {
+	const blocks = BRIEF_SECTIONS.map((section) =>
+		section === "Goal" ? `## Goal\n\n${goal.trim()}` : `## ${section}`,
+	);
+	return `# ${title}\n\n${blocks.join("\n\n")}\n`;
+}
+
+// `# Title`, the goal paragraph, then the rationale paragraph when present.
+export function buildEpicBody(
+	title: string,
+	goal: string,
+	rationale?: string,
+): string {
+	const parts = [`# ${title}`, goal.trim()];
+	if (rationale !== undefined) parts.push(rationale.trim());
+	return `${parts.join("\n\n")}\n`;
+}
+
+// Replace the `## <section>` block (up to the next `## ` heading or EOF). A
+// missing heading is inserted at its BRIEF_SECTIONS position relative to the
+// headings already present.
+export function replaceBriefSection(
+	body: string,
+	section: BriefSection,
+	content: string,
+): string {
+	const parts = body.split(/(?=^##\s)/m);
+	const preamble = parts[0] ?? "";
+	const blocks = parts.slice(1).map((text) => ({
+		name:
+			SECTION_HEADING_RE.exec(text.split("\n", 1)[0] ?? "")?.[1]?.trim() ?? "",
+		text,
+	}));
+	const block = {
+		name: section,
+		text: `## ${section}\n\n${content.trim()}\n\n`,
+	};
+	const at = blocks.findIndex((b) => b.name === section);
+	if (at !== -1) {
+		blocks[at] = block;
+	} else {
+		const order = BRIEF_SECTIONS as readonly string[];
+		const rank = order.indexOf(section);
+		const insertAt = blocks.findIndex((b) => order.indexOf(b.name) > rank);
+		blocks.splice(insertAt === -1 ? blocks.length : insertAt, 0, block);
+	}
+	const rebuilt = preamble + blocks.map((b) => b.text).join("");
+	return `${rebuilt.trimEnd()}\n`;
+}
+
+// Set the matching `- [ ] <question>` under Open questions to `- [x]`;
+// undefined when no unchecked item matches the text exactly.
+export function checkQuestion(
+	body: string,
+	question: string,
+): string | undefined {
+	const lines = body.split("\n");
+	const target = question.trim();
+	let inSection = false;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i] ?? "";
+		const heading = SECTION_HEADING_RE.exec(line);
+		if (heading !== null) {
+			inSection = heading[1]?.trim() === "Open questions";
+			continue;
+		}
+		if (!inSection) continue;
+		const match = CHECKLIST_RE.exec(line);
+		if (match?.[1] === " " && match[2]?.trim() === target) {
+			lines[i] = line.replace("[ ]", "[x]");
+			return lines.join("\n");
+		}
+	}
+	return undefined;
 }

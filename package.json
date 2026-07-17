@@ -17,9 +17,12 @@
 		"@fcalell/plugin-solid": "link:../stack/plugins/solid",
 		"@fcalell/plugin-solid-ui": "link:../stack/plugins/solid-ui",
 		"@fcalell/plugin-vite": "link:../stack/plugins/vite",
+		"@hono/mcp": "^0.3.1",
+		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@solidjs/router": "^0.16.1",
 		"@thisbeyond/solid-dnd": "^0.7.5",
 		"chokidar": "^5.0.0",
+		"hono": "^4.12.23",
 		"solid-js": "^1.9.9",
 		"tailwindcss": "^4.1.11",
 		"yaml": "^2.9.0"

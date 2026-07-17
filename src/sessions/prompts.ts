@@ -1,3 +1,40 @@
+import type { BoardToolName } from "./kinds.ts";
+
+export interface ProposalOutcomeItem {
+	summary: string;
+	outcome: "accept" | "edit" | "reject";
+	// Reject reason, or an edit's note / edited-payload JSON.
+	detail?: string;
+}
+
+// Batched outcomes for one fully resolved proposal; called only when at least
+// one item was edited or rejected.
+export function proposalOutcomePrompt(
+	tool: BoardToolName,
+	items: ProposalOutcomeItem[],
+): string {
+	const lines = items.map((item) => {
+		if (item.outcome === "accept") return `- ${item.summary}: accepted`;
+		if (item.outcome === "reject") {
+			return `- ${item.summary}: rejected: ${item.detail ?? ""}`;
+		}
+		return `- ${item.summary}: accepted with edits: ${item.detail ?? ""}`;
+	});
+	return [
+		`The user resolved your ${tool} proposal:`,
+		...lines,
+		"Address the rejections and edits before proposing again.",
+	].join("\n");
+}
+
+export function questionAnswerPrompt(question: string, answer: string): string {
+	return [
+		"The user answered your question.",
+		`Question: ${question}`,
+		`Answer: ${answer}`,
+	].join("\n");
+}
+
 // A fresh session gets the card as its whole history plus the message that
 // triggered the resume.
 export function reseedPrompt(cardRaw: string, message: string): string {

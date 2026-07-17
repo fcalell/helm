@@ -7,7 +7,7 @@ import {
 	type SessionInit,
 	sessionEventSchema,
 } from "./events.ts";
-import { type SessionKind, spawnableRow } from "./kinds.ts";
+import { MCP_SERVER_NAME, type SessionKind, spawnableRow } from "./kinds.ts";
 
 export interface SpawnSessionOptions {
 	kind: SessionKind;
@@ -15,6 +15,9 @@ export interface SpawnSessionOptions {
 	prompt: string;
 	// Session id to resume; omit to start a fresh session.
 	resume?: string;
+	// The orchestrator's per-spawn MCP endpoint; set enables the kind's board
+	// tools. Omit to run standalone with only the read-only allowlist.
+	mcpUrl?: string;
 	onEvent?: (event: SessionEvent) => void;
 }
 
@@ -80,6 +83,13 @@ export function spawnSessionProcess(
 	options: SpawnSessionOptions,
 ): SessionProcess {
 	const row = spawnableRow(options.kind);
+	const allowedTools =
+		options.mcpUrl === undefined
+			? [...row.tools]
+			: [
+					...row.tools,
+					...row.boardTools.map((t) => `mcp__${MCP_SERVER_NAME}__${t}`),
+				];
 	const args = [
 		"-p",
 		options.prompt,
@@ -97,12 +107,20 @@ export function spawnSessionProcess(
 		"--permission-mode",
 		"default",
 		"--allowedTools",
-		row.tools.join(","),
+		allowedTools.join(","),
 		"--append-system-prompt",
 		row.systemPrompt,
 		// Without it the user's global MCP servers load into every session.
 		"--strict-mcp-config",
 	];
+	if (options.mcpUrl !== undefined) {
+		const mcpConfig = JSON.stringify({
+			mcpServers: {
+				[MCP_SERVER_NAME]: { type: "http", url: options.mcpUrl },
+			},
+		});
+		args.push("--mcp-config", mcpConfig);
+	}
 	if (options.resume !== undefined) args.push("--resume", options.resume);
 
 	const child = spawn("claude", args, {
