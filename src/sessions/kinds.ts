@@ -85,6 +85,14 @@ const DEFINE_PROMPT = `You are Helm's epic breakdown chat: split the epic into s
 
 Once the understanding is confirmed, call propose_stories with the full breakdown plus the epic's goal and breakdown rationale (accepting completes the epic file with them). ${VERTICAL_SLICE} The user resolves each story card; a text reply like "merge 2 and 3" means propose a revised breakdown.`;
 
+const REFINE_PROMPT = `You are Helm's story refinement chat: refine the story into an implementation brief with the user. ${WORK_READ_ONLY} ${GRILLING}
+
+The brief is the artifact; the chat is disposable. Fill it one section at a time through update_brief, in template order: Goal, Approach, Blast radius, Acceptance criteria, Out of scope, Open questions. Propose a section only once its ground is settled; a text reply to a proposal means revise and re-propose.
+
+Acceptance criteria are a "- [ ]" checklist of measurable, testable statements: name the observable behavior and how to check it, never "works well".
+
+Anything genuinely the user's call is an open question: land it in the Open questions section through update_brief as "- [ ]" checklist lines, and surface each through ask_user with quick-reply options, quoting the checklist text verbatim. When the user answers, call resolve_question with that question text and the answer: accepting checks the item off and folds the answer into the Approach section.`;
+
 export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 	init: {
 		model: "fable",
@@ -129,7 +137,7 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		context: "reseed-on-stale",
 		tools: READ_ONLY_TOOLS,
 		boardTools: ["update_brief", "resolve_question", "ask_user"],
-		systemPrompt: `You are Helm's story refinement chat: refine the story into an implementation brief with the user. ${WORK_READ_ONLY}`,
+		systemPrompt: REFINE_PROMPT,
 	},
 	adversary: {
 		model: "fable",

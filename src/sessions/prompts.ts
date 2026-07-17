@@ -52,6 +52,33 @@ export function questionAnswerPrompt(question: string, answer: string): string {
 	].join("\n");
 }
 
+// The refine seed rides the system prompt (never the transcript): the epic
+// body carries the define chat's conclusions (transcripts are not readable),
+// and the card body is the brief under construction.
+export function refineSeedPrompt(
+	cardRaw: string,
+	epicBody: string | undefined,
+): string {
+	const parts = ["You are refining the story card below."];
+	if (epicBody !== undefined) {
+		parts.push(
+			"Its epic's conclusions:",
+			"",
+			"<epic>",
+			epicBody.trimEnd(),
+			"</epic>",
+		);
+	}
+	parts.push(
+		"The card; its body is the brief under construction:",
+		"",
+		"<card>",
+		cardRaw.trimEnd(),
+		"</card>",
+	);
+	return parts.join("\n");
+}
+
 // A fresh session gets the card as its whole history plus the message that
 // triggered the resume.
 export function reseedPrompt(cardRaw: string, message: string): string {

@@ -21,7 +21,7 @@ import {
 	sortedEpics,
 	storiesByStatus,
 } from "../lib/board-store.ts";
-import { connectSessions } from "../lib/session-store.ts";
+import { connectSessions, spawnRefineSession } from "../lib/session-store.ts";
 
 function isTypingTarget(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) return false;
@@ -37,6 +37,7 @@ export default function Home() {
 		null,
 	);
 	const [drawerOpen, setDrawerOpen] = createSignal(false);
+	const [drawerTab, setDrawerTab] = createSignal<string>();
 	const [epicView, setEpicView] = createSignal(false);
 	const [shapingTarget, setShapingTarget] = createSignal<ShapingTarget | null>(
 		null,
@@ -51,7 +52,27 @@ export default function Home() {
 
 	function openStory(id: string): void {
 		setSelectedStoryId(id);
+		setDrawerTab(undefined);
 		setDrawerOpen(true);
+	}
+
+	// The refine entry: on a Backlog card it spawns the refine chat (the server
+	// flips the card into refining in the same move); on a Refining card it
+	// reopens the chat.
+	function refineSelected(): void {
+		const id = selectedStoryId();
+		const story = id ? boardStore.stories[id] : undefined;
+		if (!id || !story) return;
+		const status = story.frontmatter.status;
+		if (status !== "backlog" && status !== "refining") return;
+		setDrawerTab("chat");
+		setDrawerOpen(true);
+		if (
+			status === "backlog" &&
+			story.frontmatter.sessions.refine === undefined
+		) {
+			void spawnRefineSession(id).catch(() => {});
+		}
 	}
 
 	function flatStoryOrder(): string[] {
@@ -89,8 +110,13 @@ export default function Home() {
 			setDrawerOpen(false);
 			return;
 		}
+		if (event.key === "r") {
+			refineSelected();
+			return;
+		}
 		if (event.key === "Enter") {
-			if (selectedStoryId()) setDrawerOpen(true);
+			const id = selectedStoryId();
+			if (id) openStory(id);
 			return;
 		}
 		if (event.key !== "j" && event.key !== "k") return;
@@ -147,6 +173,7 @@ export default function Home() {
 				story={selectedStory()}
 				open={drawerOpen()}
 				onOpenChange={setDrawerOpen}
+				initialTab={drawerTab()}
 			/>
 			<ShapingDrawer
 				target={shapingTarget()}

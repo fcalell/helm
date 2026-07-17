@@ -7,9 +7,9 @@ import { createEpic, createStory } from "../../board/create.ts";
 import {
 	appendDecision,
 	buildEpicBody,
-	checkQuestion,
 	replaceBriefSection,
 	resolveDecision,
+	resolveQuestion,
 } from "../../board/markdown.ts";
 import { nextEpicOrdinal, nextStoryOrdinal } from "../../board/ordinals.ts";
 import {
@@ -347,7 +347,11 @@ async function applyItem(proposal: Proposal, index: number): Promise<void> {
 			const payload = proposal.items[index]?.payload;
 			if (payload === undefined) return;
 			const current = await readBoundStory(proposal);
-			const body = checkQuestion(current.body, payload.question);
+			const body = resolveQuestion(
+				current.body,
+				payload.question,
+				payload.answer,
+			);
 			if (body === undefined) {
 				throw new ApiError("NOT_FOUND", {
 					message: `no unchecked open question matching "${payload.question}"`,

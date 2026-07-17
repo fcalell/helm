@@ -55,6 +55,9 @@ interface SessionsState {
 	chats: Record<string, ChatState>;
 	proposals: Record<string, LoggedProposal>;
 	questions: Record<string, LoggedQuestion>;
+	// Story id -> refine spawn in flight this page load; bridges the gap until
+	// the board snapshot names the session in frontmatter.
+	refineSpawns: Record<string, { sessionId?: string }>;
 	connected: boolean;
 }
 
@@ -62,6 +65,7 @@ const [store, setStore] = createStore<SessionsState>({
 	chats: {},
 	proposals: {},
 	questions: {},
+	refineSpawns: {},
 	connected: false,
 });
 
@@ -352,6 +356,43 @@ export async function spawnDefineSession(
 	const result = await api.session.spawn({ kind: "define", epicId, prompt });
 	seedSpawnedChat(result.sessionId, prompt);
 	return result.sessionId;
+}
+
+const REFINE_KICKOFF = "Refine this story into an implementation brief.";
+
+// The `r` entry: the server seeds the session from the card and flips the
+// story into refining in the same move.
+export async function spawnRefineSession(storyId: string): Promise<string> {
+	setStore("refineSpawns", storyId, {});
+	try {
+		const result = await api.session.spawn({
+			kind: "refine",
+			storyId,
+			prompt: REFINE_KICKOFF,
+		});
+		seedSpawnedChat(result.sessionId, REFINE_KICKOFF);
+		setStore("refineSpawns", storyId, { sessionId: result.sessionId });
+		return result.sessionId;
+	} catch (error) {
+		setStore(
+			"refineSpawns",
+			produce((spawns) => {
+				delete spawns[storyId];
+			}),
+		);
+		toast.error(
+			error instanceof Error
+				? error.message
+				: "failed to start the refine chat",
+		);
+		throw error;
+	}
+}
+
+export function refineSpawnFor(
+	storyId: string,
+): { sessionId?: string } | undefined {
+	return store.refineSpawns[storyId];
 }
 
 export async function spawnShapeSession(goal: string): Promise<string> {

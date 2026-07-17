@@ -15,6 +15,9 @@ export interface SpawnSessionOptions {
 	prompt: string;
 	// Session id to resume; omit to start a fresh session.
 	resume?: string;
+	// Per-spawn context appended after the kind's system prompt (e.g. the
+	// refine seed: epic conclusions + the card).
+	seedSystemPrompt?: string;
 	// The orchestrator's per-spawn MCP endpoint; set enables the kind's board
 	// tools. Omit to run standalone with only the read-only allowlist.
 	mcpUrl?: string;
@@ -109,7 +112,9 @@ export function spawnSessionProcess(
 		"--allowedTools",
 		allowedTools.join(","),
 		"--append-system-prompt",
-		row.systemPrompt,
+		options.seedSystemPrompt === undefined
+			? row.systemPrompt
+			: `${row.systemPrompt}\n\n${options.seedSystemPrompt}`,
 		// Without it the user's global MCP servers load into every session.
 		"--strict-mcp-config",
 	];

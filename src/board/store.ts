@@ -19,7 +19,6 @@ import {
 	type InvalidFile,
 	type ShapingThread,
 	type Story,
-	type StoryFrontmatter,
 	shapingFrontmatterSchema,
 	storyFrontmatterSchema,
 } from "./schema.ts";
@@ -469,23 +468,6 @@ export async function writeEpic(
 // Session ids attach through a fresh read-modify-write so a hand edit made
 // since the last snapshot survives; callers serialize through the write
 // queue like every other board write.
-export async function attachStorySession(
-	path: string,
-	epicId: string,
-	kind: keyof StoryFrontmatter["sessions"],
-	sessionId: string,
-): Promise<void> {
-	const story = await readStoryFile(path, epicId);
-	await writeStory({
-		path,
-		frontmatter: {
-			...story.frontmatter,
-			sessions: { ...story.frontmatter.sessions, [kind]: sessionId },
-		},
-		body: story.body,
-	});
-}
-
 export async function attachEpicSession(
 	path: string,
 	kind: keyof EpicFrontmatter["sessions"],

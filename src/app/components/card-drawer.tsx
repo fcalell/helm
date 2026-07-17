@@ -1,20 +1,28 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { Checkbox } from "@fcalell/plugin-solid-ui/components/checkbox";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
+import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
 import { Sheet } from "@fcalell/plugin-solid-ui/components/sheet";
 import { Tabs } from "@fcalell/plugin-solid-ui/components/tabs";
-import { For, Show } from "solid-js";
-import type { Status, Story } from "../../board/schema.ts";
+import { For, Match, Show, Switch } from "solid-js";
+import {
+	BRIEF_SECTIONS,
+	type ChecklistItem,
+	type Status,
+	type Story,
+} from "../../board/schema.ts";
 import { boardStore, STATUS_LABELS } from "../lib/board-store.ts";
+import { weakCriterion } from "../lib/criteria.ts";
+import { refineSpawnFor } from "../lib/session-store.ts";
 import { ChatPane } from "./chat-pane.tsx";
 
 interface CardDrawerProps {
 	story: Story | undefined;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	// Overrides the status-derived default tab (the `r` entry lands on chat).
+	initialTab?: string;
 }
-
-const PROSE_SECTIONS = ["Goal", "Approach", "Out of scope"] as const;
 
 function defaultTab(status: Status): string {
 	if (status === "refining") return "chat";
@@ -23,59 +31,75 @@ function defaultTab(status: Status): string {
 	return "brief";
 }
 
-function BriefTab(props: { story: Story }) {
+function ChecklistSection(props: {
+	items: ChecklistItem[];
+	// Weak-phrasing warnings apply to the criteria checklist alone.
+	warn: boolean;
+}) {
+	return (
+		<Show
+			when={props.items.length > 0}
+			fallback={<p class="mt-1 text-muted-foreground">None yet</p>}
+		>
+			<ul class="mt-2 flex flex-col gap-2">
+				<For each={props.items}>
+					{(item) => {
+						const weak = () =>
+							props.warn ? weakCriterion(item.text) : undefined;
+						return (
+							<li class="flex items-start gap-2">
+								<Checkbox checked={item.checked} disabled label={item.text} />
+								<Show when={weak()}>
+									{(phrase) => (
+										<span
+											class="cursor-help text-warning"
+											title={`Not measurable: "${phrase()}" — name the observable behavior instead`}
+										>
+											⚠
+										</span>
+									)}
+								</Show>
+							</li>
+						);
+					}}
+				</For>
+			</ul>
+		</Show>
+	);
+}
+
+// The brief in template order, rendered from the story file: hand edits and
+// accepted chat proposals look the same. Doubles as the chat tab's
+// artifact-under-construction pane.
+export function BriefView(props: { story: Story }) {
 	return (
 		<div class="flex flex-col gap-4 text-sm">
-			<For each={PROSE_SECTIONS}>
+			<For each={BRIEF_SECTIONS}>
 				{(section) => (
 					<div>
 						<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
 							{section}
 						</h3>
-						<p class="mt-1 text-foreground">
-							{props.story.brief.sections[section]?.trim() || "Not set"}
-						</p>
+						<Switch
+							fallback={
+								<p class="mt-1 whitespace-pre-wrap text-foreground">
+									{props.story.brief.sections[section]?.trim() || "Not set"}
+								</p>
+							}
+						>
+							<Match when={section === "Acceptance criteria"}>
+								<ChecklistSection items={props.story.brief.criteria} warn />
+							</Match>
+							<Match when={section === "Open questions"}>
+								<ChecklistSection
+									items={props.story.brief.openQuestions}
+									warn={false}
+								/>
+							</Match>
+						</Switch>
 					</div>
 				)}
 			</For>
-			<div>
-				<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-					Acceptance criteria
-				</h3>
-				<Show
-					when={props.story.brief.criteria.length > 0}
-					fallback={<p class="mt-1 text-muted-foreground">None yet</p>}
-				>
-					<ul class="mt-2 flex flex-col gap-2">
-						<For each={props.story.brief.criteria}>
-							{(item) => (
-								<li>
-									<Checkbox checked={item.checked} disabled label={item.text} />
-								</li>
-							)}
-						</For>
-					</ul>
-				</Show>
-			</div>
-			<div>
-				<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-					Open questions
-				</h3>
-				<Show
-					when={props.story.brief.openQuestions.length > 0}
-					fallback={<p class="mt-1 text-muted-foreground">None yet</p>}
-				>
-					<ul class="mt-2 flex flex-col gap-2">
-						<For each={props.story.brief.openQuestions}>
-							{(item) => (
-								<li>
-									<Checkbox checked={item.checked} disabled label={item.text} />
-								</li>
-							)}
-						</For>
-					</ul>
-				</Show>
-			</div>
 		</div>
 	);
 }
@@ -83,18 +107,36 @@ function BriefTab(props: { story: Story }) {
 function ChatTab(props: { story: Story }) {
 	const epic = () => boardStore.epics[props.story.epicId];
 	// The pane binds to whatever session the frontmatter names, never to a
-	// kind: the story's refine session first, else the epic's define session.
+	// kind: the story's refine session first (or the one just spawned, until
+	// the snapshot names it), else the epic's define session.
 	const sessionId = () =>
 		props.story.frontmatter.sessions.refine ??
+		refineSpawnFor(props.story.id)?.sessionId ??
 		epic()?.frontmatter.sessions.define;
 	return (
 		<Show
 			when={sessionId()}
 			fallback={
-				<EmptyState title="Chat" description="Arrives with the refine chat" />
+				<Show
+					when={refineSpawnFor(props.story.id)}
+					fallback={
+						<EmptyState
+							title="Chat"
+							description="Press r on a Backlog card to start refining"
+						/>
+					}
+				>
+					<Loader text="starting the refine chat" class="text-xs" />
+				</Show>
 			}
 		>
-			{(id) => <ChatPane sessionId={id()} />}
+			{(id) => (
+				<ChatPane
+					sessionId={id()}
+					artifactTitle="Brief"
+					artifact={<BriefView story={props.story} />}
+				/>
+			)}
 		</Show>
 	);
 }
@@ -124,7 +166,9 @@ export function CardDrawer(props: CardDrawerProps) {
 						    when the status-driven default should apply. Controlled
 						    value freezes the renderer (solid-ui Tabs bug). */}
 						<Tabs
-							defaultValue={defaultTab(story.frontmatter.status)}
+							defaultValue={
+								props.initialTab ?? defaultTab(story.frontmatter.status)
+							}
 							class="mt-4 flex min-h-0 flex-1 flex-col"
 							listClass="shrink-0"
 							contentClass="mt-4 min-h-0 flex-1 overflow-y-auto"
@@ -132,7 +176,7 @@ export function CardDrawer(props: CardDrawerProps) {
 								{
 									value: "brief",
 									label: "Brief",
-									content: <BriefTab story={story} />,
+									content: <BriefView story={story} />,
 								},
 								{
 									value: "chat",

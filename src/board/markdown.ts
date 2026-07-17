@@ -294,10 +294,7 @@ export function replaceBriefSection(
 
 // Set the matching `- [ ] <question>` under Open questions to `- [x]`;
 // undefined when no unchecked item matches the text exactly.
-export function checkQuestion(
-	body: string,
-	question: string,
-): string | undefined {
+function checkQuestion(body: string, question: string): string | undefined {
 	const lines = body.split("\n");
 	const target = question.trim();
 	let inSection = false;
@@ -317,4 +314,20 @@ export function checkQuestion(
 		}
 	}
 	return undefined;
+}
+
+// Check the matching open question off and fold the answer into the Approach
+// section; undefined when no unchecked question matches the text exactly.
+export function resolveQuestion(
+	body: string,
+	question: string,
+	answer: string,
+): string | undefined {
+	const checked = checkQuestion(body, question);
+	if (checked === undefined) return undefined;
+	return appendToSection(
+		checked,
+		"Approach",
+		`- ${question.trim()}: ${answer.trim()}`,
+	);
 }

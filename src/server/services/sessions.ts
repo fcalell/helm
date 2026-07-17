@@ -7,7 +7,6 @@ import { createShapingThread, slugify } from "../../board/create.ts";
 import {
 	attachEpicSession,
 	attachShapingSession,
-	attachStorySession,
 	boardDir,
 	EPIC_DIR_RE,
 	epicFilePath,
@@ -16,9 +15,14 @@ import {
 	readShapingFile,
 	readStoryFile,
 	shapingPath,
+	writeStory,
 } from "../../board/store.ts";
 import { KIND_REGISTRY, type SessionKind } from "../../sessions/kinds.ts";
-import { reseedPrompt, steeringPrompt } from "../../sessions/prompts.ts";
+import {
+	refineSeedPrompt,
+	reseedPrompt,
+	steeringPrompt,
+} from "../../sessions/prompts.ts";
 import {
 	type SessionProcess,
 	SessionSpawnError,
@@ -177,6 +181,8 @@ async function runTurn(options: TurnOptions): Promise<{ sessionId: string }> {
 			cwd: managedRepo().path,
 			prompt: options.prompt,
 			resume: options.resume,
+			seedSystemPrompt:
+				options.resume === undefined ? await seedFor(kind, attach) : undefined,
 			mcpUrl: mcpEndpointUrl(mcpToken),
 			onEvent: (event) => {
 				if (event.session_id !== undefined) {
@@ -223,6 +229,20 @@ async function runTurn(options: TurnOptions): Promise<{ sessionId: string }> {
 	return { sessionId: init.sessionId };
 }
 
+// A fresh refine turn (first spawn or reseed) is seeded with the epic's
+// conclusions and the card through the system prompt, so the seed never
+// clutters the transcript.
+async function seedFor(
+	kind: SessionKind,
+	attach: Attach | undefined,
+): Promise<string | undefined> {
+	if (kind !== "refine" || attach?.type !== "story") return undefined;
+	const story = findStory(attach.id);
+	const raw = (await readStoryFile(story.path, story.epicId)).raw;
+	const epic = boardSnapshot().epics.find((each) => each.id === story.epicId);
+	return refineSeedPrompt(raw, epic?.body);
+}
+
 function asSpawnFailed(error: unknown): unknown {
 	if (!(error instanceof SessionSpawnError)) return error;
 	return new ApiError("SPAWN_FAILED", { message: error.message });
@@ -237,7 +257,19 @@ async function resolveAttach(
 				message: "refine sessions attach to a story: storyId is required",
 			});
 		}
-		findStory(input.storyId);
+		const story = findStory(input.storyId);
+		const status = story.frontmatter.status;
+		if (status !== "backlog" && status !== "refining") {
+			throw new ApiError("ILLEGAL_TRANSITION", {
+				status: 409,
+				message: `a ${status} story cannot enter refining`,
+				data: {
+					from: status,
+					to: "refining",
+					reason: `a ${status} story cannot enter refining`,
+				},
+			});
+		}
 		return { type: "story", id: input.storyId };
 	}
 	if (input.kind === "define") {
@@ -334,10 +366,24 @@ function findOnBoard(sessionId: string): SessionInfo | undefined {
 
 async function persistAttach(attach: Attach, sessionId: string): Promise<void> {
 	if (attach.type === "story") {
+		// One write attaches the session and enters refining: `r` on a Backlog
+		// card flips it in the same move.
 		const story = findStory(attach.id);
-		await enqueueWrite(() =>
-			attachStorySession(story.path, story.epicId, "refine", sessionId),
-		);
+		await enqueueWrite(async () => {
+			const current = await readStoryFile(story.path, story.epicId);
+			await writeStory({
+				path: current.path,
+				frontmatter: {
+					...current.frontmatter,
+					status:
+						current.frontmatter.status === "backlog"
+							? "refining"
+							: current.frontmatter.status,
+					sessions: { ...current.frontmatter.sessions, refine: sessionId },
+				},
+				body: current.body,
+			});
+		});
 	} else if (attach.type === "epic") {
 		const path = await findEpicPath(attach.id);
 		await enqueueWrite(() => attachEpicSession(path, "define", sessionId));

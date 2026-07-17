@@ -25,6 +25,47 @@ import { QuestionWidget } from "./question-widget.tsx";
 
 const BOARD_TOOL_PREFIX = `mcp__${MCP_SERVER_NAME}__`;
 
+// Canned prompts for the recurring refinement moves, available to every chat
+// kind: typing the command sends its prompt.
+const SLASH_COMMANDS = [
+	{
+		name: "/split",
+		hint: "too big — propose a split into two stories",
+		prompt:
+			"This story is too big. Propose splitting it into two stories, each " +
+			"a vertical slice that is demoable on its own.",
+	},
+	{
+		name: "/shrink",
+		hint: "cut to the smallest shippable version",
+		prompt:
+			"Cut this to the smallest shippable version: propose what to drop or " +
+			"defer, and what the trimmed scope still delivers.",
+	},
+	{
+		name: "/risks",
+		hint: "what could go wrong",
+		prompt:
+			"What could go wrong with this plan? Name the biggest risks and where " +
+			"an implementer would stumble.",
+	},
+	{
+		name: "/estimate",
+		hint: "blast radius — what this touches",
+		prompt:
+			"Estimate the blast radius: which files and modules does this touch? " +
+			"Propose the Blast radius section from what you find in the code.",
+	},
+] as const;
+
+type SlashCommand = (typeof SLASH_COMMANDS)[number];
+
+function slashMatches(draft: string): SlashCommand[] {
+	const text = draft.trim();
+	if (!text.startsWith("/")) return [];
+	return SLASH_COMMANDS.filter((command) => command.name.startsWith(text));
+}
+
 function summarizeInput(input: unknown): string {
 	if (input === undefined || input === null) return "";
 	if (typeof input !== "object") return String(input);
@@ -157,13 +198,20 @@ export function ChatPane(props: ChatPaneProps) {
 	function send(): void {
 		const text = draft().trim();
 		if (text === "" || chat().busy) return;
+		const command = SLASH_COMMANDS.find((each) => each.name === text);
 		setDraft("");
-		void sendChatMessage(props.sessionId, text);
+		void sendChatMessage(props.sessionId, command?.prompt ?? text);
+	}
+
+	function sendCommand(command: SlashCommand): void {
+		if (chat().busy) return;
+		setDraft("");
+		void sendChatMessage(props.sessionId, command.prompt);
 	}
 
 	return (
 		<div class="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
-			<div class="shrink-0 rounded-lg border bg-card p-3">
+			<div class="max-h-[45%] shrink-0 overflow-y-auto rounded-lg border bg-card p-3">
 				<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
 					{props.artifactTitle ?? "Artifact"}
 				</h3>
@@ -188,6 +236,24 @@ export function ChatPane(props: ChatPaneProps) {
 					<Loader text="assistant is working" class="text-xs" />
 				</Show>
 			</div>
+			<Show when={slashMatches(draft()).length > 0}>
+				<div class="shrink-0 rounded-md border bg-popover p-1">
+					<For each={slashMatches(draft())}>
+						{(command) => (
+							<button
+								type="button"
+								class="flex w-full cursor-pointer items-baseline gap-2 rounded px-2 py-1 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+								onClick={() => sendCommand(command)}
+							>
+								<span class="font-mono">{command.name}</span>
+								<span class="text-xs text-muted-foreground">
+									{command.hint}
+								</span>
+							</button>
+						)}
+					</For>
+				</div>
+			</Show>
 			<form
 				class="flex shrink-0 items-end gap-2"
 				onSubmit={(event) => {

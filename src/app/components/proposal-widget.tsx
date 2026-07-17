@@ -8,7 +8,9 @@ import type {
 	Proposal,
 	ProposalResolution,
 	RaiseDecisionPayload,
+	ResolveQuestionPayload,
 	StoryDraft,
+	UpdateBriefPayload,
 } from "../../server/mcp/schemas.ts";
 import {
 	acceptAllProposalItems,
@@ -76,6 +78,32 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 									</Badge>
 								</Show>
 							</div>
+						</div>
+					);
+				})()}
+			</Match>
+			<Match when={props.proposal.tool === "update_brief"}>
+				{(() => {
+					const draft = payload() as UpdateBriefPayload;
+					return (
+						<div class="flex flex-col gap-1">
+							<Badge variant="outline" class="self-start">
+								{draft.section}
+							</Badge>
+							<p class="whitespace-pre-wrap text-sm">{draft.content}</p>
+						</div>
+					);
+				})()}
+			</Match>
+			<Match when={props.proposal.tool === "resolve_question"}>
+				{(() => {
+					const draft = payload() as ResolveQuestionPayload;
+					return (
+						<div class="flex flex-col gap-1">
+							<p class="text-sm font-semibold">{draft.question}</p>
+							<p class="whitespace-pre-wrap text-sm text-muted-foreground">
+								{draft.answer}
+							</p>
 						</div>
 					);
 				})()}
@@ -166,6 +194,55 @@ function StoryEditForm(props: EditFormProps) {
 				onInput={(event) => setDepends(event.currentTarget.value)}
 				placeholder="Depends on (slugs, comma-separated)"
 				aria-label="Depends on"
+			/>
+			<Input
+				size="sm"
+				value={note()}
+				onInput={(event) => setNote(event.currentTarget.value)}
+				placeholder="Note for the assistant (optional)"
+				aria-label="Note"
+			/>
+			<div class="flex gap-2">
+				<Button type="submit" size="sm">
+					Send edit
+				</Button>
+				<Button
+					type="button"
+					size="sm"
+					variant="ghost"
+					onClick={props.onCancel}
+				>
+					Cancel
+				</Button>
+			</div>
+		</form>
+	);
+}
+
+function BriefEditForm(props: EditFormProps) {
+	const draft = props.item.payload as UpdateBriefPayload;
+	const [content, setContent] = createSignal(draft.content);
+	const [note, setNote] = createSignal("");
+	return (
+		<form
+			class="flex flex-col gap-2"
+			onSubmit={(event) => {
+				event.preventDefault();
+				props.onSubmit(
+					{ section: draft.section, content: content().trim() },
+					note().trim() === "" ? undefined : note().trim(),
+				);
+			}}
+		>
+			<Badge variant="outline" class="self-start">
+				{draft.section}
+			</Badge>
+			<Textarea
+				size="sm"
+				rows={6}
+				value={content()}
+				onInput={(event) => setContent(event.currentTarget.value)}
+				aria-label="Section content"
 			/>
 			<Input
 				size="sm"
@@ -308,8 +385,7 @@ function ProposalItem(props: {
 								</div>
 							</Match>
 							<Match when={mode() === "edit"}>
-								<Show
-									when={props.proposal.tool === "propose_stories"}
+								<Switch
 									fallback={
 										<JsonEditForm
 											proposal={props.proposal}
@@ -321,15 +397,27 @@ function ProposalItem(props: {
 										/>
 									}
 								>
-									<StoryEditForm
-										proposal={props.proposal}
-										item={props.item}
-										onCancel={() => setMode("view")}
-										onSubmit={(payload, note) =>
-											void resolve({ type: "edit", payload, note })
-										}
-									/>
-								</Show>
+									<Match when={props.proposal.tool === "propose_stories"}>
+										<StoryEditForm
+											proposal={props.proposal}
+											item={props.item}
+											onCancel={() => setMode("view")}
+											onSubmit={(payload, note) =>
+												void resolve({ type: "edit", payload, note })
+											}
+										/>
+									</Match>
+									<Match when={props.proposal.tool === "update_brief"}>
+										<BriefEditForm
+											proposal={props.proposal}
+											item={props.item}
+											onCancel={() => setMode("view")}
+											onSubmit={(payload, note) =>
+												void resolve({ type: "edit", payload, note })
+											}
+										/>
+									</Match>
+								</Switch>
 							</Match>
 							<Match when={mode() === "reject"}>
 								<form
