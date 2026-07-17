@@ -156,21 +156,29 @@ async function runTurn(options: TurnOptions): Promise<{ sessionId: string }> {
 	registerSpawn(mcpToken, { kind, attach });
 	let sessionId = options.resume;
 	let resultSeen = false;
-	const child = spawnSessionProcess({
-		kind,
-		cwd: managedRepo().path,
-		prompt: options.prompt,
-		resume: options.resume,
-		mcpUrl: mcpEndpointUrl(mcpToken),
-		onEvent: (event) => {
-			if (event.session_id !== undefined) {
-				sessionId = event.session_id;
-				bindSessionId(mcpToken, event.session_id);
-			}
-			if (event.type === "result") resultSeen = true;
-			handle?.broadcast("event", { runId, kind, sessionId, event });
-		},
-	});
+	let child: ReturnType<typeof spawnSessionProcess>;
+	try {
+		child = spawnSessionProcess({
+			kind,
+			cwd: managedRepo().path,
+			prompt: options.prompt,
+			resume: options.resume,
+			mcpUrl: mcpEndpointUrl(mcpToken),
+			onEvent: (event) => {
+				if (event.session_id !== undefined) {
+					sessionId = event.session_id;
+					bindSessionId(mcpToken, event.session_id);
+				}
+				if (event.type === "result") resultSeen = true;
+				handle?.broadcast("event", { runId, kind, sessionId, event });
+			},
+		});
+	} catch (error) {
+		// A synchronous spawn throw (a kind with no spawnable row) would
+		// otherwise leak the binding: the done handler below never registers.
+		releaseSpawn(mcpToken);
+		throw error;
+	}
 	void child.done.then((outcome) => {
 		releaseSpawn(mcpToken);
 		if (sessionId !== undefined) {
