@@ -67,3 +67,22 @@ First data point for the outcome-routed follow-up: the standards-only round resu
 medium and cost $1.31 against 001-03's $4.96 at a Fable escalation, with the same cache reseed in
 the price. The nested rows are the run's live verification targets, four shape/define sessions
 spawned on the scratch repo plus the in-browser subagent check.
+
+## 001-05 Refine chat (2026-07-17)
+
+| Session                                        | Model / effort  | Fresh input | Output      | Cache reads    | Modeled cost |
+| ---------------------------------------------- | --------------- | ----------- | ----------- | -------------- | ------------ |
+| Run 1: implementation                          | Fable / medium  | 203,493     | 70,068      | 17,317,676     | $24.89       |
+| Nested verification sessions (2, scratch repo) | Fable / medium  | 58,970      | 7,039       | 767,242        | $2.30        |
+| Review: spec axis                              | Sonnet / high   | 61,231      | 25,513      | 1,743,128      | $1.27        |
+| Review: standards axis                         | Sonnet / high   | 46,020      | 19,676      | 209,216        | $0.64        |
+| Run 1 follow-up: review fix-up                 | Sonnet / medium | 53,180      | 7,763       | 1,482,255      | $1.51        |
+| **Total**                                      |                 | **422,894** | **130,059** | **21,519,517** | **$30.61**   |
+
+The cheapest full loop so far, and the fastest run (24 minutes against 001-04's 44): most of the
+refine backend already existed from 001-04, so the run spent its tokens on the seams. The nested
+rows are the run's live targets, a fresh refine session driven through the whole
+propose-accept-resolve flow and the reseeded session that proved the stale path; no browser
+subagent ran, so the artifact pane and the ⚠ marker rest on code-level review plus by-hand steps
+in the run report. The standards-only follow-up on Sonnet at medium repeats 001-04's data point:
+$1.51 for a ten-finding cosmetic round.
