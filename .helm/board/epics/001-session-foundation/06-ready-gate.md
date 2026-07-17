@@ -1,8 +1,12 @@
 ---
 id: 001-06
-status: ready
+status: done
 depends: [001-05]
+branch: helm/001-06-ready-gate
 gate: { passed: 2026-07-16T22:54:34Z, brief: a29fe80142b0c92c, overrides: [] }
+sessions: {}
+runs:
+  - { n: 1, session: f8741706-46af-4226-9095-cd05fba8396a, brief: a29fe80142b0c92c, started: 2026-07-17T14:50:28Z, outcome: done, grades: 11/11, tokens: 325987, minutes: 52 }
 ---
 # Ready gate: dispatcher & adversary review
 
