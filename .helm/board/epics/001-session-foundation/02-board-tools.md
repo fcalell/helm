@@ -1,8 +1,12 @@
 ---
 id: 001-02
-status: ready
+status: done
 depends: [001-01]
+branch: helm/001-02-board-tools
 gate: { passed: 2026-07-16T21:53:36Z, brief: c9535b529cf92317, overrides: [] }
+sessions: {}
+runs:
+  - { n: 1, session: 609e1632-d1c1-4145-99e8-d2fcdb266ca4, brief: c9535b529cf92317, started: 2026-07-17T08:37:38Z, outcome: review, grades: 4/6, tokens: 486148, minutes: 50 }
 ---
 # Board tools: in-process MCP server & proposals
 
