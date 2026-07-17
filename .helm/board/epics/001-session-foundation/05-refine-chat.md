@@ -1,8 +1,12 @@
 ---
 id: 001-05
-status: ready
+status: done
 depends: [001-03]
+branch: helm/001-05-refine-chat
 gate: { passed: 2026-07-16T21:49:22Z, brief: 62903e5859b28f92, overrides: [] }
+sessions: {}
+runs:
+  - { n: 1, session: 3de7fe77-6b46-486b-b4ad-303960b7fc7f, brief: 1f9cf45ce24b511b, started: 2026-07-17T13:29:12Z, outcome: done, grades: 6/6, tokens: 334504, minutes: 30 }
 ---
 # Refine chat
 
@@ -31,19 +35,13 @@ the artifact under construction the whole time.
   the item off and folds the answer into the approach on accept.
 - Weak-criteria flagging is a UI heuristic on the criteria section (unmeasurable phrasing gets a
   warning marker), deliberate friction before the gate.
-- Refine stamps the story's `size` hint while writing the brief
-  (`.knowledge/product/features/define-refine.md` §Refining a story): the session proposes it
-  alongside the final section and accept writes it to frontmatter. `trivial` is the only value
-  with a consumer (drops the run to medium effort); absent means standard, so a standard story
-  stays unstamped. The `size` field lands in the story frontmatter schema here.
 - Slash shortcuts (`/split`, `/shrink`, `/risks`, `/estimate`) are canned prompts in the
   composer, available to every chat kind.
 
 ## Blast radius
 
-Refine prompt and kind wiring in `src/sessions/`; brief-section and question writes plus the
-`size` frontmatter field in `src/board/` (section-targeted body update; `schema.ts` lacks `size`
-today); `update_brief` / `resolve_question` handling in the
+Refine prompt and kind wiring in `src/sessions/`; brief-section and question writes in
+`src/board/` (section-targeted body update); `update_brief` / `resolve_question` handling in the
 proposal service under `src/server/`; brief artifact pane, `r` key, criteria warnings, and slash
 shortcuts in `src/app/`.
 
@@ -59,8 +57,6 @@ shortcuts in `src/app/`.
       not.
 - [ ] `/estimate` produces a blast-radius proposal for the section without the user typing a
       prompt.
-- [ ] Completing a trivial story's brief lands `size: trivial` in its frontmatter; a standard
-      story's frontmatter stays unstamped.
 - [ ] The session resumes by id after an orchestrator restart, and a stale transcript reseeds
       from the card without losing the brief.
 
