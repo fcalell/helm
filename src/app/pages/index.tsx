@@ -12,6 +12,7 @@ import {
 	sortedEpics,
 	storiesByStatus,
 } from "../lib/board-store.ts";
+import { connectSessions } from "../lib/session-store.ts";
 
 function isTypingTarget(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) return false;
@@ -30,6 +31,7 @@ export default function Home() {
 	const [epicView, setEpicView] = createSignal(false);
 
 	connectBoard();
+	connectSessions();
 
 	function openStory(id: string): void {
 		setSelectedStoryId(id);

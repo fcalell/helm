@@ -1,10 +1,10 @@
-import { createWsClient } from "@fcalell/plugin-node/client";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createStore, reconcile } from "solid-js/store";
 import type { Board, Epic, Notice, Status, Story } from "../../board/schema.ts";
 import { canTransition } from "../../board/transitions.ts";
 import { boardChannel } from "../../shared/channels.ts";
 import { api } from "./api.ts";
+import { wsClient } from "./ws.ts";
 
 export interface BoardState {
 	epics: Record<string, Epic>;
@@ -80,8 +80,7 @@ let started = false;
 export function connectBoard(): void {
 	if (started) return;
 	started = true;
-	const client = createWsClient();
-	client.subscribe(boardChannel, {
+	wsClient().subscribe(boardChannel, {
 		onMessage: {
 			snapshot: applySnapshot,
 			notice: applyNotice,
