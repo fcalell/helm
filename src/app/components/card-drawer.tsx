@@ -20,7 +20,8 @@ interface CardDrawerProps {
 	story: Story | undefined;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	initialTab?: string;
+	tab?: string;
+	onTabChange: (tab: string) => void;
 }
 
 function defaultTab(status: Status): string {
@@ -157,14 +158,9 @@ export function CardDrawer(props: CardDrawerProps) {
 								<Badge>{STATUS_LABELS[story.frontmatter.status]}</Badge>
 							</div>
 						</Sheet.Header>
-						{/* Uncontrolled on purpose: the keyed Show remounts this
-						    subtree per story, so defaultValue re-evaluates exactly
-						    when the status-driven default should apply. Controlled
-						    value freezes the renderer (solid-ui Tabs bug). */}
 						<Tabs
-							defaultValue={
-								props.initialTab ?? defaultTab(story.frontmatter.status)
-							}
+							value={props.tab ?? defaultTab(story.frontmatter.status)}
+							onValueChange={props.onTabChange}
 							class="mt-4 flex min-h-0 flex-1 flex-col"
 							listClass="shrink-0"
 							contentClass="mt-4 min-h-0 flex-1 overflow-y-auto"

@@ -170,7 +170,8 @@ export default function Home() {
 				story={selectedStory()}
 				open={drawerOpen()}
 				onOpenChange={setDrawerOpen}
-				initialTab={drawerTab()}
+				tab={drawerTab()}
+				onTabChange={setDrawerTab}
 			/>
 			<ShapingDrawer
 				target={shapingTarget()}
