@@ -145,8 +145,8 @@ export function ChatPane(props: ChatPaneProps) {
 		// to the bottom.
 		const items = chat().items;
 		const last = items[items.length - 1];
-		if (last?.type === "assistant") last.text;
-		if (last?.type === "tool") last.done;
+		if (last?.type === "assistant") void last.text;
+		if (last?.type === "tool") void last.done;
 		chat().busy;
 		if (transcriptRef !== undefined) {
 			transcriptRef.scrollTop = transcriptRef.scrollHeight;

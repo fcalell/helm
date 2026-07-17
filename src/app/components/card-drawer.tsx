@@ -84,8 +84,7 @@ function BriefTab(props: { story: Story }) {
 	);
 }
 
-// Until the real entry points land, a dev-only entry spawns a `define`
-// session on the story's epic so the chat pane has a session to render.
+// TODO: remove once define/refine entry points land
 function DevChatEntry(props: { epicId: string }) {
 	const [prompt, setPrompt] = createSignal("");
 	const [spawning, setSpawning] = createSignal(false);

@@ -68,7 +68,7 @@ const [store, setStore] = createStore<SessionsState>({
 export const sessionStore = store;
 
 // Per-session map from the current message's content-block index to its item
-// index; transient stream bookkeeping, so deliberately outside the store.
+// index.
 const blockMaps = new Map<string, Map<number, number>>();
 // Texts this client just sent, awaiting their echo as a `user` stream event;
 // matching echoes are dropped so a message never renders twice.
@@ -260,7 +260,6 @@ function applyProposalSnapshot(snapshot: ProposalSnapshot): void {
 
 let started = false;
 
-// Idempotent so the page component can call this unconditionally.
 export function connectSessions(): void {
 	if (started) return;
 	started = true;
@@ -287,8 +286,6 @@ function dropEcho(sessionId: string, text: string): void {
 	if (index !== -1) echoes.splice(index, 1);
 }
 
-// A reseed returns a fresh session id; the old transcript carries over so the
-// conversation reads unbroken under the new binding.
 function migrateChat(oldId: string, newId: string): void {
 	if (oldId === newId) return;
 	setStore(
