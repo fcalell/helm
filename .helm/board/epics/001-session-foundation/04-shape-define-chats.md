@@ -1,8 +1,12 @@
 ---
 id: 001-04
-status: ready
+status: done
 depends: [001-03]
+branch: helm/001-04-shape-define-chats
 gate: { passed: 2026-07-16T21:49:22Z, brief: c34780a0bbf2cdaa, overrides: [] }
+sessions: {}
+runs:
+  - { n: 1, session: 544ecea3-0ac7-4ff3-9c4c-aabee52b58d6, brief: c34780a0bbf2cdaa, started: 2026-07-17T12:05:55Z, outcome: done, grades: 5/5, tokens: 490396, minutes: 51 }
 ---
 # Shape & define chats
 
