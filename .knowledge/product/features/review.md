@@ -50,8 +50,10 @@ with the error ([board](./board.md) §Status state machine).
   parallel runs land.
 - **Request changes**: the user's comments (per-criterion or free-form) become the next message in
   the **same session, same worktree**, so full implementation context is preserved; card → Running.
-  The follow-up runs at xhigh effort, the one escalation above the registry cap: the first attempt
-  failing is evidence the story needs it
+  The follow-up's tier follows what failed: an unmet criterion or a free-form comment runs at
+  xhigh effort, the one escalation above the registry cap (the first attempt failing is evidence
+  the story needs it); a round carrying only accepted standards findings resumes on Sonnet at
+  medium, mechanical application of the findings' located edits
   ([session-kinds](../../architecture/session-kinds.md) §Model per kind).
 - **Discard**: worktree + branch deleted, card → Ready, runs history kept. The brief survives; only
   the attempt is thrown away.

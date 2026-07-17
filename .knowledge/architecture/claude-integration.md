@@ -30,7 +30,11 @@ One `claude -p` process per chat turn or run segment:
 - `--resume <session-id>`: every user message resumes the card's session; the id stays stable
   across resumes (spike-verified), so frontmatter stores one id per session kind
   ([board-storage](./board-storage.md)). Sessions survive orchestrator restarts and machine
-  reboots.
+  reboots. A resume that changes `--model` or `--effort` forfeits the warm prompt cache: the
+  request shape keys the cache, so the full transcript re-enters as fresh cache writes on the
+  next turn (measured on 001-03's fix-up, which re-wrote its 208k-token transcript). Tier
+  switches on resume therefore carry a fixed cost proportional to transcript length, priced into
+  the follow-up routing ([session-kinds](./session-kinds.md) §Model per kind).
 - `--strict-mcp-config`: without it every headless run loads the user's global MCP servers
   (spike-verified); skills and settings load regardless, so runs are not hermetic. The target
   repo's root `CLAUDE.md` auto-loads and, through its `@.helm/agents/index.md` import, pulls in Helm's

@@ -82,15 +82,22 @@ escalates itself on evidence of failure (below). One cost to watch: long-run thi
 context window sooner, so it raises compaction pressure, the least-verified mechanic
 ([claude-integration](./claude-integration.md) §Context management).
 
-**`run`'s effort adapts per story; its model never does.** The registry cell (medium) is the
-default. One signal moves it, riding an artifact that already exists: a request-changes exit
-raises the follow-up run to xhigh ([review](../product/features/review.md) §Three exits),
-reacting to evidence of failure rather than predicting difficulty from a brief. Refine's `trivial`
-size hint is retired: it existed only to drop a high-default run to medium, which is now the
-unconditional default, so the hint has nothing left to do. Dynamic model routing is rejected. The
-stage already classifies the work, so a classifier session would spend pool tokens re-deriving a
-known label, and its failure mode, a hard story routed to Sonnet, costs a failed run plus rework,
-the same asymmetry that sets the Sonnet floor.
+**`run`'s follow-up tier follows the review outcome.** The registry cell (medium) is every first
+attempt. A request-changes exit routes the same-session resume by what its payload carries
+([review](../product/features/review.md) §Three exits). Any unmet acceptance criterion or
+free-form comment raises it to xhigh, reacting to evidence of failure rather than predicting
+difficulty from a brief. A payload of accepted standards findings alone drops it to Sonnet at
+medium instead: applying located, prescribed edits is extraction-grade work, re-checked by the
+repo's check command and the approving human, and a tier switch re-seeds the transcript into
+cache either way ([claude-integration](./claude-integration.md) §Invocation model) at a third of
+Fable's write rate, so the cosmetic round costs about a third (001-03's comments-only round:
+$4.96 modeled at Fable xhigh against ~$1.50 at Sonnet medium). Refine's `trivial` size hint is
+retired: it existed only to drop a high-default run to medium, which is now the unconditional
+default, so the hint has nothing left to do. Dynamic model routing by prediction stays rejected.
+The stage already classifies the work, so a classifier session would spend pool tokens
+re-deriving a known label, and its failure mode, a hard story routed to Sonnet, costs a failed
+run plus rework, the same asymmetry that sets the Sonnet floor. The follow-up routing reads the
+review exit's recorded content; nothing predicts.
 
 Two resources are easy to conflate. The **rate-limit pool** is priced per model: Fable burns it
 roughly twice as fast as Opus per token (pool weighting follows per-token price) while finishing
