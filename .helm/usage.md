@@ -86,3 +86,24 @@ propose-accept-resolve flow and the reseeded session that proved the stale path;
 subagent ran, so the artifact pane and the ⚠ marker rest on code-level review plus by-hand steps
 in the run report. The standards-only follow-up on Sonnet at medium repeats 001-04's data point:
 $1.51 for a ten-finding cosmetic round.
+
+## 001-06 Ready gate: dispatcher & adversary review (2026-07-17)
+
+| Session                                         | Model / effort   | Fresh input | Output      | Cache reads    | Modeled cost |
+| ----------------------------------------------- | ---------------- | ----------- | ----------- | -------------- | ------------ |
+| Run 1: implementation                           | Fable / medium   | 275,035     | 126,790     | 31,780,737     | $43.62       |
+| Nested verification sessions (12, scratch repo) | Fable / med–high | 149,006     | 29,331      | 1,428,438      | $5.87        |
+| Review: spec axis                               | Sonnet / high    | 63,373      | 27,667      | 454,401        | $0.93        |
+| Review: standards axis                          | Sonnet / high    | 75,772      | 26,830      | 672,965        | $1.06        |
+| Run 1 follow-up: review fix-up                  | Sonnet / medium  | 50,952      | 13,211      | 782,011        | $1.54        |
+| **Total**                                       |                  | **614,138** | **223,829** | **35,118,552** | **$53.02**   |
+
+The most expensive loop so far, and the first whose live verification itself spawns real cold
+sessions: the twelve nested rows are the scratch repo's adversary passes (Fable at high per the
+kind registry) and the steered refine sessions that drove the fix, contest, unanswered, and
+dismissal paths for real, so the gate's whole round machinery is exercised rather than mocked.
+The run also ran the longest (45 minutes, 185 turns) against the milestone's widest blast radius
+(26 files across every src/ module). Spec review graded 11/11 with zero unclear; the standards
+round's two blockers split on adjudication — the attempt-leak fix landed, while the suggested
+`review/blocked → ready` reopening was rejected as a gate bypass and reduced to a message reword.
+The Sonnet-medium follow-up held the cosmetic-round price at $1.54 for a ten-item payload.
