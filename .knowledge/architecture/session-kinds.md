@@ -60,8 +60,9 @@ registry:
 
 **Effort is the second axis, capped at high.** Models expose reasoning-effort levels (low ·
 medium · high · xhigh · max; the top levels vary by model): the tier sets the capability ceiling,
-effort sets how much of it a session spends per turn. max is excluded outright; xhigh is excluded
-for its latency and context-window burn everywhere except as `run`'s escalation lever (below).
+effort sets how much of it a session spends per turn. max and xhigh are excluded outright for
+their latency and context-window burn: high is the ceiling everywhere, `run`'s escalation
+included (below).
 A headless spawn sets effort with the `--effort` flag
 ([claude-integration](./claude-integration.md) §Invocation model). Below the cap, each kind sits
 at the cheapest point that clears its quality bar, weighed by four factors: what checks the
@@ -85,15 +86,15 @@ context window sooner, so it raises compaction pressure, the least-verified mech
 **`run`'s follow-up tier follows the review outcome.** The registry cell (medium) is every first
 attempt. A request-changes exit routes the same-session resume by what its payload carries
 ([review](../product/features/review.md) §Three exits). Any unmet acceptance criterion or
-free-form comment raises it to xhigh, reacting to evidence of failure rather than predicting
+free-form comment raises it to high, reacting to evidence of failure rather than predicting
 difficulty from a brief. A payload of accepted standards findings alone drops it to Sonnet at
 medium instead: applying located, prescribed edits is extraction-grade work, re-checked by the
 repo's check command and the approving human, and a tier switch re-seeds the transcript into
 cache either way ([claude-integration](./claude-integration.md) §Invocation model) at a third of
 Fable's write rate, so the cosmetic round costs about a third (001-03's comments-only round:
-$4.96 modeled at Fable xhigh against ~$1.50 at Sonnet medium). Refine's `trivial` size hint is
-retired: it existed only to drop a high-default run to medium, which is now the unconditional
-default, so the hint has nothing left to do. Dynamic model routing by prediction stays rejected.
+$4.96 modeled at a Fable escalation against ~$1.50 at Sonnet medium). Refine's `trivial` size
+hint is retired: it existed only to drop a high-default run to medium, which is now the
+unconditional default, so the hint has nothing left to do. Dynamic model routing by prediction stays rejected.
 The stage already classifies the work, so a classifier session would spend pool tokens
 re-deriving a known label, and its failure mode, a hard story routed to Sonnet, costs a failed
 run plus rework, the same asymmetry that sets the Sonnet floor. The follow-up routing reads the
