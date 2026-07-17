@@ -28,20 +28,23 @@ One real story runs end-to-end from the board against a real repo (Sailward is t
 1. **Session foundation + shape/define/refine chats**: the session runner, the in-process MCP board
    tools + proposal widgets, and the session-kind registry (model + context policy per kind,
    [session-kinds](../architecture/session-kinds.md)). Brings the shaping surface, the blocking
-   adversary gate, the `n` (new story) and `r` (refine) keys, and card creation from the UI (today
+   adversary gate, the New epic and Refine entries, and card creation from the UI (today
    boards are populated by hand-edited files).
-2. **Runs + review**: worktree lifecycle, activity timeline, diff view with test evidence, the three
-   review exits, and run compaction; brings the live rate-limit meter and queue occupancy (the
-   header shows placeholders) and the `r` run key. The command palette (`⌘k`) lands with whichever
-   step wants it first.
+2. **Runs + review**: worktree lifecycle, permission presets with on-card prompts, needs-input
+   forms, activity timeline, diff view with test evidence, the three review exits, and run
+   compaction; brings the live rate-limit meter and queue occupancy (the header shows
+   placeholders) and the Run action. Every board action is a visible control: the hotkey layer
+   and the `⌘k` palette are dropped ([board](./features/board.md) §Screen layout). Shaped as
+   epic 002 on Helm's own board.
 
 ## v2
 
 - Parallel runs: queue, concurrency cap, rate-limit meter with auto-pause
   ([runs](./features/runs.md)).
-- **Needs-input** forms end-to-end (mid-run question → notification → answer resumes).
-- Criteria **self-grading** pass before human review ([review](./features/review.md)).
-- Notifications: web push (PWA) with ntfy fallback ([mobile](./features/mobile.md)).
+- Criteria **self-grading** pass before human review, the review **standards axis**, and the
+  `conflict` rebase session ([review](./features/review.md)).
+- Notifications: web push (PWA) with ntfy fallback, closing the needs-input and permission-prompt
+  loops from a phone ([mobile](./features/mobile.md)).
 - **Guided init**: onboard a repo by exploring it and proposing its `.helm/board/`, agent rules
   (`.helm/agents/`), and knowledge base (`.helm/knowledge/`) from scaffold templates, wired in by one
   import in the repo's root `CLAUDE.md` ([init](./features/init.md)).

@@ -66,7 +66,7 @@ rate-limit pool ([runs](./runs.md) §Queue & rate limits).
 
 ## Defining an epic
 
-Entry: `n` → title + a rough paragraph, as messy as the user likes.
+Entry: **New epic** in the header → title + a rough paragraph, as messy as the user likes.
 
 1. **Explore first, ask second.** Claude's opening move is reading the actual code, so its
    clarifying questions are informed ones, asked one at a time (§Grilling) as tappable quick-reply
@@ -81,7 +81,7 @@ Entry: `n` → title + a rough paragraph, as messy as the user likes.
 
 ## Refining a story
 
-Entry: open a Backlog card, `r`. The session is seeded with the epic conversation's conclusions,
+Entry: a Backlog card's **Refine** action. The session is seeded with the epic conversation's conclusions,
 the card, and the brief template (goal · approach · blast radius · acceptance criteria · out of
 scope · open questions), the canonical generation template for a brief
 ([templates](../../architecture/templates.md)).

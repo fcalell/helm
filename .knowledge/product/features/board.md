@@ -66,11 +66,14 @@ begins.
 One screen: board + a right-hand **drawer**, never a page navigation away. Selecting a card opens
 the drawer on tabs **Brief | Chat | Activity | Diff | History**; the default tab follows status
 (Refining → Chat, Running → Activity, Review → Diff). Repo-level surfaces sit beside the board,
-reached from the header or command palette rather than a card drawer: the shaping chat (§Shaping) and
+reached from the header rather than a card drawer: the shaping chat (§Shaping) and
 a **rules & knowledge surface** for viewing, chat-curating, and lightly editing the repo's
 `.helm/agents/` rules and `.helm/knowledge/` docs, Helm's own markdown and never the repo's code
 ([roadmap](../roadmap.md) §Later). The header carries the target repo/branch, the rate-limit meter,
 queue occupancy, and a **standing-context meter** (the tokens that load every session,
-[init](./init.md) §Migrating an existing repo). Keyboard-first: `j/k` move, `enter` opens, `n` new epic (opens the define chat),
-`e` epic view, `r` run/refine per status, `⌘k` command palette. Narrow screens collapse to the
+[init](./init.md) §Migrating an existing repo). Button-first: every action is a visible control.
+Each card carries one status-driven primary action (Backlog → Refine, Ready → Run, per status),
+the header carries the board-level entries (Shape, New epic, the epic-view toggle), and no
+app-level hotkey layer exists; native focus activation (Enter/Space on a focused card, a dialog's
+own Escape dismiss) is the only keyboard behavior. Narrow screens collapse to the
 mobile surface ([mobile](./mobile.md)).
