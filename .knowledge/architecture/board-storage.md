@@ -37,7 +37,10 @@ that checkout's branch swaps the board out from under the orchestrator.
 
 IDs are `<epic>-<story>` ordinal pairs (`012-01`), stable forever; slugs can be renamed, IDs
 can't. A deleted epic or story retires its ordinal: new entries mint the next number, so a
-reference in git history stays unambiguous.
+reference in git history stays unambiguous. Minting (`src/board/ordinals.ts`) scans the live tree
+plus git's added-path history (`git log --diff-filter=A` over `.helm/board/epics`), which is what
+retires a deleted ordinal permanently; a repo with nothing committed yet falls back to the live
+tree alone.
 
 ## Classification
 

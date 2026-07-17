@@ -97,7 +97,10 @@ flaws (`flag_risk`), and
 `init` proposes repo scaffolding (`propose_scaffold`).
 Tool calls become UI proposal widgets; **accepting a widget is what writes the board file**, the
 tool call itself mutates nothing. This is how structure is extracted from conversation without
-parsing prose ([define-refine](../product/features/define-refine.md) §Proposal widgets).
+parsing prose ([define-refine](../product/features/define-refine.md) §Proposal widgets). Caller
+identity rides the transport, not the payload: each spawn gets its own endpoint (`/mcp/<token>`,
+bound to its session and card once `system/init` reports the id), so tool payloads never carry
+session, epic, or story ids.
 
 Run sessions get `update_card`, which applies body edits (noting decisions and progress; criteria
 checkboxes belong to review, [review](../product/features/review.md) §Self-grading) so the agent

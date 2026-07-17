@@ -14,10 +14,12 @@ group; `stack generate` regenerates the barrel that wires them into the router.
 | `session.spawn` | Spawns a fresh `claude` session of the given kind (`src/sessions/kinds.ts` registry fixes model, effort, allowlist, prompt, context policy). `refine` requires a `storyId` and `define` an `epicId`; the id persists in that card's frontmatter. Returns `{ sessionId }` once `system/init` announces it; the turn keeps streaming on the `session` channel, and the session stays busy until its `closed` frame. |
 | `session.message` | Resumes the session with a user message; same return-at-init contract. A resume whose transcript is gone reseeds a card-attached session (fresh spawn seeded from the card, new id persisted and returned). A session killed mid-turn gets the steering preamble prepended. |
 | `session.kill` | SIGTERMs the live process, ending the turn without a `result` event. Steering is kill, then `session.message`. |
+| `proposal.resolve` | Resolves one item of a pending proposal by index: accept, edit (a full replacement payload), or reject with a reason. Accept and edit write through `src/board/` inside the write queue; the last item resolving with any edit or rejection resumes the session with the batched outcomes (held until the turn ends if it is mid-turn). Returns nothing; the `proposal` channel snapshot is the authority. |
+| `proposal.answer` | Answers a pending `ask_user` question and resumes the session with the answer. |
 
 ## WS protocol
 
-Two channels live in `src/shared/channels.ts`. `board` carries two server messages:
+Three channels live in `src/shared/channels.ts`. `board` carries two server messages:
 
 - `snapshot` — the full `Board`. Sent on every (re)subscribe and rebroadcast on any change, with a
   trailing 100ms debounce. The client applies it wholesale (with a pending-move overlay, below), so
@@ -37,6 +39,14 @@ over WS; a client calls a procedure (`story.move`) and observes the resulting sn
 - `closed`: `{ runId, kind, sessionId?, exitCode, signal, stale }`, one per process exit. The
   turn is over (and the session resumable) only at this frame; `result` precedes it by the
   process's shutdown time. `stale: true` is the loud reseed signal.
+
+`proposal` carries the pending set of board-tool proposals and `ask_user` questions:
+
+- `snapshot`: `{ proposals, questions }`, the whole pending set. Sent on every (re)subscribe and
+  rebroadcast on every change, like `board`; the set is small, so a missed frame is irrelevant. A
+  board tool call records a proposal or question here; resolutions travel over RPC
+  (`proposal.resolve`, `proposal.answer`), never WS. Pending state is in-memory only and does not
+  survive an orchestrator restart.
 
 Optimistic moves carry a **pending-move overlay** on the client: `moveStory` records `id → target`
 and every incoming snapshot is applied with pending statuses overlaid, so a snapshot the watcher
@@ -60,6 +70,8 @@ Registry:
 | `SESSION_BUSY`       | The session is mid-turn; kill it before steering (HTTP 409). | none |
 | `SESSION_COLD`       | The kind's context policy is always-cold, so the session never resumes (HTTP 409). | none |
 | `SESSION_STALE`      | The transcript is gone and the session has no card to reseed from (HTTP 410). | none |
+| `PROPOSAL_RESOLVED`  | The proposal item is already resolved, or the question already answered (HTTP 409). | none |
+| `UNSUPPORTED_RESOLUTION` | The tool's accept path lands with a later stage (`raise_decision` 001-04, `flag_risk` 001-06) (HTTP 501). | none |
 
 Input validation failures surface as oRPC's built-in `BAD_REQUEST` before a handler runs.
 Unexpected (non-`ApiError`) throws reach the client as `INTERNAL_SERVER_ERROR`; the UI shows a
