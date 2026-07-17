@@ -19,8 +19,8 @@ import { enqueueWrite } from "../write-queue.ts";
 import { boardSnapshot, managedRepo } from "./board.ts";
 
 // The card a session's id persists on. `refine` attaches to a story and
-// `define` to an epic; shaping threads join in 001-04, and the cold kinds
-// never attach (they never resume, so nothing stores their id).
+// `define` to an epic; the cold kinds never attach (they never resume, so
+// nothing stores their id).
 type Attach = { type: "story" | "epic"; id: string };
 
 interface SessionInfo {
@@ -28,9 +28,9 @@ interface SessionInfo {
 	attach?: Attach;
 }
 
-// Module singletons, board-service style: routes import the functions below
-// directly. `known`/`interrupted` are in-memory only; after a restart a
-// card-attached session is recovered from frontmatter (`findOnBoard`).
+// Module singletons: routes import the functions below directly.
+// `known`/`interrupted` are in-memory only; after a restart a card-attached
+// session is recovered from frontmatter (`findOnBoard`).
 const live = new Map<string, SessionProcess>();
 const known = new Map<string, SessionInfo>();
 const interrupted = new Set<string>();

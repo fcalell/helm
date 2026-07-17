@@ -31,10 +31,10 @@ over WS; a client calls a procedure (`story.move`) and observes the resulting sn
 
 `session` carries every live session's CLI stream, tagged so clients filter by session:
 
-- `event` — `{ runId, kind, sessionId?, event }`, one per stream-json event as it arrives,
+- `event`: `{ runId, kind, sessionId?, event }`, one per stream-json event as it arrives,
   including the `stream_event` partial-message deltas. `runId` identifies one process (one turn);
   `sessionId` is absent only before `system/init` announces it.
-- `closed` — `{ runId, kind, sessionId?, exitCode, signal, stale }`, one per process exit. The
+- `closed`: `{ runId, kind, sessionId?, exitCode, signal, stale }`, one per process exit. The
   turn is over (and the session resumable) only at this frame; `result` precedes it by the
   process's shutdown time. `stale: true` is the loud reseed signal.
 

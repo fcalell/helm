@@ -28,8 +28,8 @@ export const session = {
 	spawn: procedure()
 		.input(spawnInputSchema)
 		.handler(({ input }) => spawnSession(input)),
-	// Resumes the session with a user message. A stale card-attached session
-	// reseeds: the returned id is the fresh session's.
+	// A stale card-attached session reseeds: the returned id is the fresh
+	// session's.
 	message: procedure()
 		.input(z.object({ sessionId: z.uuid(), prompt: z.string().min(1) }))
 		.handler(({ input }) => messageSession(input)),

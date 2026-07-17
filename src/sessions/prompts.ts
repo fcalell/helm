@@ -1,8 +1,5 @@
-// Prompt builders for the two resume edge cases the context policies name
-// (`.knowledge/architecture/session-kinds.md` §Context policies).
-
-// Reseed on stale: the transcript is gone, so a fresh session gets the card
-// as its whole history plus the message that triggered the resume.
+// A fresh session gets the card as its whole history plus the message that
+// triggered the resume.
 export function reseedPrompt(cardRaw: string, message: string): string {
 	return [
 		"The earlier chat for this card was lost (its transcript expired).",
