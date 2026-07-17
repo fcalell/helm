@@ -18,12 +18,14 @@ export function proposalOutcomePrompt(
 		if (item.outcome === "reject") {
 			return `- ${item.summary}: rejected: ${item.detail ?? ""}`;
 		}
-		return `- ${item.summary}: accepted with edits: ${item.detail ?? ""}`;
+		return `- ${item.summary}: edit requested: ${item.detail ?? ""}`;
 	});
 	return [
 		`The user resolved your ${tool} proposal:`,
 		...lines,
-		"Address the rejections and edits before proposing again.",
+		"Accepted items are on the board. Nothing was written for edited or",
+		"rejected items: propose revised versions that address each edit and",
+		"rejection.",
 	].join("\n");
 }
 

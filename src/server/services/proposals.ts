@@ -155,7 +155,7 @@ export async function resolveProposalItem(input: {
 		// the tool's item schema; the union widens `payload` to `never` here.
 		(item as { payload: unknown }).payload = parsed.data;
 	}
-	if (resolution.type === "accept" || resolution.type === "edit") {
+	if (resolution.type === "accept") {
 		await enqueueWrite(() => applyItem(proposal, input.item));
 	}
 	item.resolution = resolution;
@@ -407,10 +407,14 @@ function composeOutcome(proposal: Proposal): string {
 			};
 		}
 		if (resolution?.type === "edit") {
+			const payload = JSON.stringify(item.payload);
 			return {
 				summary: itemSummary(proposal, index),
 				outcome: "edit" as const,
-				detail: resolution.note ?? JSON.stringify(item.payload),
+				detail:
+					resolution.note === undefined
+						? payload
+						: `${payload} (note: ${resolution.note})`,
 			};
 		}
 		return {

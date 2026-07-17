@@ -176,10 +176,10 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 		handle: async (binding, args) => {
 			const parsed = askUserPayloadSchema.safeParse(args);
 			if (!parsed.success) return err(z.prettifyError(parsed.error));
-			recordQuestion(binding, parsed.data);
+			const question = recordQuestion(binding, parsed.data);
 			return ok(
-				"Question recorded. End your turn now; the user's answer arrives as " +
-					"the next message.",
+				`Recorded question ${question.id}. End your turn now; the user's ` +
+					"answer arrives as the next message.",
 			);
 		},
 	},
