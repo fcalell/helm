@@ -1,8 +1,12 @@
 ---
 id: 001-03
-status: ready
+status: done
 depends: [001-02]
+branch: helm/001-03-proposal-widgets
 gate: { passed: 2026-07-16T21:53:36Z, brief: 9578a10934af0854, overrides: [] }
+sessions: {}
+runs:
+  - { n: 1, session: 39e54208-ab43-499d-8276-c11d34ffabba, brief: 9578a10934af0854, started: 2026-07-17T10:26:45Z, outcome: done, grades: 5/5, tokens: 513256, minutes: 41 }
 ---
 # Drawer chat & proposal widgets
 
