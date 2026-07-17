@@ -17,6 +17,7 @@ import {
 	shapingPath,
 	writeStory,
 } from "../../board/store.ts";
+import { parseResultEvent, type SessionResult } from "../../sessions/events.ts";
 import { KIND_REGISTRY, type SessionKind } from "../../sessions/kinds.ts";
 import {
 	refineSeedPrompt,
@@ -103,13 +104,14 @@ export async function spawnSession(
 }
 
 // The dispatcher path for the always-cold kinds: spawns outside the chat
-// entrypoints and exposes the process's completion, which the caller (the
-// gate today) awaits to hold its dispatcher slot.
+// entrypoints and exposes the process's completion, which the caller awaits
+// to hold its dispatcher slot. `done` resolves with the CLI's final result
+// event (undefined on a kill or crash) — a research session's finding.
 export async function runColdSession(input: {
 	kind: SessionKind;
 	prompt: string;
 	attach?: Attach;
-}): Promise<{ sessionId: string; done: Promise<void> }> {
+}): Promise<{ sessionId: string; done: Promise<SessionResult | undefined> }> {
 	try {
 		return await runTurn({
 			kind: input.kind,
@@ -200,13 +202,14 @@ interface TurnOptions {
 
 async function runTurn(
 	options: TurnOptions,
-): Promise<{ sessionId: string; done: Promise<void> }> {
+): Promise<{ sessionId: string; done: Promise<SessionResult | undefined> }> {
 	const runId = randomUUID();
 	const { kind, attach } = options;
 	const mcpToken = randomUUID();
 	registerSpawn(mcpToken, { kind, attach });
 	let sessionId = options.resume;
 	let resultSeen = false;
+	let result: SessionResult | undefined;
 	let child: ReturnType<typeof spawnSessionProcess>;
 	try {
 		child = spawnSessionProcess({
@@ -222,7 +225,10 @@ async function runTurn(
 					sessionId = event.session_id;
 					bindSessionId(mcpToken, event.session_id);
 				}
-				if (event.type === "result") resultSeen = true;
+				if (event.type === "result") {
+					resultSeen = true;
+					result = parseResultEvent(event) ?? result;
+				}
 				handle?.broadcast("event", { runId, kind, sessionId, event });
 			},
 		});
@@ -265,7 +271,7 @@ async function runTurn(
 	) {
 		await persistAttach(attach, init.sessionId);
 	}
-	return { sessionId: init.sessionId, done: child.done.then(() => undefined) };
+	return { sessionId: init.sessionId, done: child.done.then(() => result) };
 }
 
 // A fresh refine turn (first spawn or reseed) is seeded with the epic's

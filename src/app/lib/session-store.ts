@@ -5,6 +5,7 @@ import type {
 	ProposalResolution,
 	ProposalSnapshot,
 	Question,
+	ResearchState,
 } from "../../server/mcp/schemas.ts";
 import type { SessionClosed, SessionWireEvent } from "../../sessions/events.ts";
 import { proposalChannel, sessionChannel } from "../../shared/channels.ts";
@@ -55,6 +56,9 @@ interface SessionsState {
 	chats: Record<string, ChatState>;
 	proposals: Record<string, LoggedProposal>;
 	questions: Record<string, LoggedQuestion>;
+	// The server's in-flight/failed research decisions, replaced wholesale on
+	// every snapshot (a resolved decision leaves the set).
+	research: ResearchState[];
 	// Story id -> refine spawn in flight this page load; bridges the gap until
 	// the board snapshot names the session in frontmatter.
 	refineSpawns: Record<string, { sessionId?: string }>;
@@ -65,6 +69,7 @@ const [store, setStore] = createStore<SessionsState>({
 	chats: {},
 	proposals: {},
 	questions: {},
+	research: [],
 	refineSpawns: {},
 	connected: false,
 });
@@ -258,7 +263,17 @@ function applyProposalSnapshot(snapshot: ProposalSnapshot): void {
 			for (const logged of Object.values(state.questions)) {
 				if (!pendingQuestions.has(logged.id)) logged.pending = false;
 			}
+			state.research = snapshot.research;
 		}),
+	);
+}
+
+export function researchStateFor(
+	slug: string,
+	decision: string,
+): ResearchState | undefined {
+	return store.research.find(
+		(each) => each.slug === slug && each.decision === decision,
 	);
 }
 

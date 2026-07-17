@@ -30,8 +30,11 @@ import {
 	decisionResolvedPrompt,
 	proposalOutcomePrompt,
 	questionAnswerPrompt,
+	researchPrompt,
+	researchResolvedPrompt,
 } from "../../sessions/prompts.ts";
 import { proposalChannel } from "../../shared/channels.ts";
+import { dispatch } from "../dispatcher.ts";
 import type { ReadyBinding } from "../mcp/registry.ts";
 import type {
 	AskUserPayload,
@@ -39,6 +42,7 @@ import type {
 	Proposal,
 	ProposalResolution,
 	Question,
+	ResearchState,
 } from "../mcp/schemas.ts";
 import {
 	epicDraftSchema,
@@ -57,6 +61,7 @@ import {
 	isSessionLive,
 	messageSession,
 	onSessionClosed,
+	runColdSession,
 } from "./sessions.ts";
 
 // In-memory only: a pending proposal or question dies with the process (the
@@ -73,6 +78,7 @@ const proposals = new Map<string, Proposal>();
 const questions = new Map<string, Question>();
 const contexts = new Map<string, ProposalContext>();
 const heldResumes = new Map<string, string[]>();
+const research = new Map<string, ResearchState>();
 let handle: ChannelHandle<(typeof proposalChannel)["server"]> | undefined;
 
 const ITEM_SCHEMA: Record<Proposal["tool"], z.ZodType> = {
@@ -83,10 +89,15 @@ const ITEM_SCHEMA: Record<Proposal["tool"], z.ZodType> = {
 	raise_decision: raiseDecisionPayloadSchema,
 };
 
-function snapshot(): { proposals: Proposal[]; questions: Question[] } {
+function snapshot(): {
+	proposals: Proposal[];
+	questions: Question[];
+	research: ResearchState[];
+} {
 	return {
 		proposals: [...proposals.values()],
 		questions: [...questions.values()],
+		research: [...research.values()],
 	};
 }
 
@@ -165,6 +176,7 @@ export async function resolveProposalItem(input: {
 	if (resolution.type === "accept") {
 		await enqueueWrite(() => applyItem(proposal, input.item));
 		notifyGate(proposal, input.item);
+		dispatchResearch(proposal, input.item);
 	} else if (resolution.type === "reject" && proposal.tool === "update_brief") {
 		const attach = contexts.get(proposal.id)?.attach;
 		const resolves = proposal.items[input.item]?.payload.resolves;
@@ -232,16 +244,18 @@ async function tryResolveDecision(
 		(each) => each.frontmatter.sessions.shape === sessionId,
 	);
 	if (thread === undefined) return;
-	await enqueueWrite(async () => {
+	const resolved = await enqueueWrite(async () => {
 		const current = await readShapingThread(thread.slug);
 		const body = resolveDecision(current.body, decision, answer);
-		if (body === undefined) return;
+		if (body === undefined) return false;
 		await writeShaping({
 			path: current.path,
 			frontmatter: current.frontmatter,
 			body,
 		});
+		return true;
 	});
+	if (resolved) clearResearch(thread.slug, decision.trim());
 }
 
 export async function resolveShapingDecision(input: {
@@ -264,11 +278,92 @@ export async function resolveShapingDecision(input: {
 		});
 		return thread.frontmatter.sessions.shape;
 	});
+	clearResearch(input.slug, input.decision.trim());
 	if (sessionId !== undefined) {
 		await dispatchResume(
 			sessionId,
 			decisionResolvedPrompt(input.decision, input.answer),
 		);
+	}
+}
+
+function researchKey(slug: string, decision: string): string {
+	return JSON.stringify([slug, decision]);
+}
+
+function clearResearch(slug: string, decision: string): void {
+	if (research.delete(researchKey(slug, decision))) broadcast();
+}
+
+// Accepting a research-tagged decision dispatches a cold research session
+// through the serial queue; its finding resolves the decision the way a user
+// answer does. A failure leaves the decision open and surfaces on the item.
+function dispatchResearch(proposal: Proposal, index: number): void {
+	if (proposal.tool !== "raise_decision") return;
+	const payload = proposal.items[index]?.payload;
+	const attach = contexts.get(proposal.id)?.attach;
+	if (payload?.settledBy !== "research" || attach?.type !== "shaping") return;
+	const slug = attach.id;
+	const decision = payload.decision.trim();
+	const key = researchKey(slug, decision);
+	research.set(key, { slug, decision, status: "pending" });
+	broadcast();
+	void dispatch(() => runResearch(slug, decision, payload.context)).catch(
+		(error) => {
+			const state = research.get(key);
+			if (state?.status !== "pending") return;
+			research.set(key, { ...state, status: "failed", error: String(error) });
+			broadcast();
+		},
+	);
+}
+
+const SINGLE_LINE = /\s*\n\s*/g;
+
+async function runResearch(
+	slug: string,
+	decision: string,
+	context: string | undefined,
+): Promise<void> {
+	const thread = await readShapingThread(slug);
+	const open = thread.decisions.some(
+		(each) => !each.checked && each.text === decision,
+	);
+	if (!open) {
+		// Resolved by hand while queued; nothing left to research.
+		clearResearch(slug, decision);
+		return;
+	}
+	const run = await runColdSession({
+		kind: "research",
+		prompt: researchPrompt(decision, context, thread.body),
+		attach: { type: "shaping", id: slug },
+	});
+	const result = await run.done;
+	if (result === undefined) {
+		throw new Error("the session ended without a result");
+	}
+	if (result.isError) throw new Error(result.text);
+	const finding = result.text.trim();
+	if (finding === "") throw new Error("the session returned an empty finding");
+	const sessionId = await enqueueWrite(async () => {
+		const current = await readShapingThread(slug);
+		const body = resolveDecision(
+			current.body,
+			decision,
+			finding.replace(SINGLE_LINE, " "),
+		);
+		if (body === undefined) return undefined;
+		await writeShaping({
+			path: current.path,
+			frontmatter: current.frontmatter,
+			body,
+		});
+		return current.frontmatter.sessions.shape;
+	});
+	clearResearch(slug, decision);
+	if (sessionId !== undefined) {
+		await dispatchResume(sessionId, researchResolvedPrompt(decision, finding));
 	}
 }
 
@@ -607,6 +702,7 @@ export default defineService({
 			questions.clear();
 			contexts.clear();
 			heldResumes.clear();
+			research.clear();
 		};
 	},
 });

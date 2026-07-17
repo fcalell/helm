@@ -38,6 +38,31 @@ export function parseInitEvent(event: SessionEvent): SessionInit | undefined {
 	};
 }
 
+// The CLI's final `result` event: `result` carries the last assistant text
+// on success and is absent on the error subtypes (which set `is_error`).
+const resultEventSchema = z.looseObject({
+	type: z.literal("result"),
+	subtype: z.string(),
+	result: z.string().optional(),
+	is_error: z.boolean().optional(),
+});
+
+export interface SessionResult {
+	text: string;
+	isError: boolean;
+}
+
+export function parseResultEvent(
+	event: SessionEvent,
+): SessionResult | undefined {
+	const result = resultEventSchema.safeParse(event);
+	if (!result.success) return undefined;
+	return {
+		text: result.data.result ?? result.data.subtype,
+		isError: result.data.is_error === true || result.data.subtype !== "success",
+	};
+}
+
 // WS envelopes: one `event` per parsed CLI event, one `closed` when the
 // process exits. `sessionId` is absent only before `system/init` announces
 // it (or when a stale resume dies without one).

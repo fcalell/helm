@@ -123,8 +123,15 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		effort: "high",
 		context: "always-cold",
 		tools: READ_ONLY_TOOLS,
-		boardTools: ["ask_user"],
-		systemPrompt: `You are Helm's research session: investigate the given question against the repository and report your findings. ${WORK_READ_ONLY}`,
+		boardTools: [],
+		systemPrompt:
+			"You are Helm's research session: settle the decision question in " +
+			"your prompt by investigating the repository. Work read-only: never " +
+			"edit files, never run commands. Nobody can answer follow-ups: when " +
+			"the code cannot settle the question, say so in the finding instead " +
+			"of guessing. Your final message is the finding, folded verbatim " +
+			"into the shaping thread: state the answer directly with the " +
+			"evidence (files, symbols) that settles it, in a few sentences.",
 	},
 	define: {
 		model: "fable",

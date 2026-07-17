@@ -152,8 +152,21 @@ export const questionSchema = z.object({
 });
 export type Question = z.infer<typeof questionSchema>;
 
+// One entry per accepted research decision the orchestrator is settling:
+// `pending` while the session is queued or running, `failed` when it errored
+// (the decision stays open and the checklist item shows the failure). A
+// resolved decision leaves the set; the checked item is its record.
+export const researchStateSchema = z.object({
+	slug: z.string(),
+	decision: z.string(),
+	status: z.enum(["pending", "failed"]),
+	error: z.string().optional(),
+});
+export type ResearchState = z.infer<typeof researchStateSchema>;
+
 export const proposalSnapshotSchema = z.object({
 	proposals: z.array(proposalSchema),
 	questions: z.array(questionSchema),
+	research: z.array(researchStateSchema),
 });
 export type ProposalSnapshot = z.infer<typeof proposalSnapshotSchema>;

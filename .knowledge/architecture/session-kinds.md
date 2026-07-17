@@ -23,8 +23,10 @@ Helm stays a single fixed workflow; the kinds are its stages, never user-authore
 | `review`    | grade + test a finished run              | read-only + test-command Bash                   | Sonnet | high   | cold                  |
 | `conflict`  | rebase conflict resolution               | worktree tools                                  | Fable  | high   | cold                  |
 
-`ask_user` is available to every kind, not runs alone: it is the one primitive for a session to put
-a question to the user and end its turn (§Interaction). Read-only means the CLI's Read/Grep/Glob
+`ask_user` is available to every kind but `research`: it is the one primitive for a session to put
+a question to the user and end its turn (§Interaction). A research session runs in the background
+with nobody to ask; a question the code cannot settle comes back in the finding, and the shaping
+chat raises it as a human decision. Read-only means the CLI's Read/Grep/Glob
 plus the kind's board tools, with no Edit or Bash except where a row adds it.
 
 Chat kinds (`init`, `shape`, `define`, `refine`) spawn on the user's message and bypass the run
@@ -127,7 +129,7 @@ Three policies cover every kind:
 
 ## Interaction
 
-Any session asks the user a question through `ask_user`: it records the question, the UI renders a
+Any session but `research` asks the user a question through `ask_user`: it records the question, the UI renders a
 quick-reply form with a free-text fallback, and answering resumes the session with the answer. A
 question arrives one at a time in dependency order and carries Claude's recommended answer, so the
 user confirms or redirects, and anything the code can settle is read rather than asked

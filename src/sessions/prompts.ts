@@ -44,6 +44,43 @@ export function decisionResolvedPrompt(
 	].join("\n");
 }
 
+// The cold research pass: the single decision plus the shaping thread it
+// came from. The session's final text is the finding folded back as the
+// resolution.
+export function researchPrompt(
+	decision: string,
+	context: string | undefined,
+	threadBody: string,
+): string {
+	const parts = ["Settle this research decision:", "", `Decision: ${decision}`];
+	if (context !== undefined) parts.push(`Context: ${context}`);
+	parts.push(
+		"",
+		"The shaping thread it came from:",
+		"",
+		"<thread>",
+		threadBody.trimEnd(),
+		"</thread>",
+	);
+	return parts.join("\n");
+}
+
+// A research finding landed: the checklist write already happened, the same
+// one an accepted user resolution makes.
+export function researchResolvedPrompt(
+	decision: string,
+	finding: string,
+): string {
+	return [
+		"A research session resolved an open decision from the Decisions",
+		"checklist.",
+		`Decision: ${decision}`,
+		`Finding: ${finding}`,
+		"The item is checked off and the finding is in the agreed notes.",
+		"Continue shaping; propose epics once no decision is open.",
+	].join("\n");
+}
+
 export function questionAnswerPrompt(question: string, answer: string): string {
 	return [
 		"The user answered your question.",

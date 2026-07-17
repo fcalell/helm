@@ -5,10 +5,11 @@ import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
 import { Sheet } from "@fcalell/plugin-solid-ui/components/sheet";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Match, Show, Switch } from "solid-js";
 import type { DecisionItem, ShapingThread } from "../../board/schema.ts";
 import { api } from "../lib/api.ts";
 import { boardStore } from "../lib/board-store.ts";
+import { researchStateFor } from "../lib/session-store.ts";
 import { ChatPane } from "./chat-pane.tsx";
 
 // The drawer target right after a fresh spawn carries only the session id;
@@ -41,38 +42,55 @@ function OpenDecision(props: { slug: string; decision: DecisionItem }) {
 		}
 	}
 
+	const research = () =>
+		props.decision.settledBy === "research"
+			? researchStateFor(props.slug, props.decision.text)
+			: undefined;
+
 	return (
 		<li class="flex flex-col gap-1.5">
 			<div class="flex items-start gap-2">
 				<Checkbox checked={false} disabled aria-label="Open decision" />
 				<span class="text-sm">{props.decision.text}</span>
 				<Show when={props.decision.settledBy === "research"}>
-					<Badge variant="outline">research</Badge>
+					<Switch fallback={<Badge variant="outline">research</Badge>}>
+						<Match when={research()?.status === "pending"}>
+							<Badge variant="secondary">researching…</Badge>
+						</Match>
+						<Match when={research()?.status === "failed"}>
+							<Badge variant="destructive">research failed</Badge>
+						</Match>
+					</Switch>
 				</Show>
 			</div>
-			<form
-				class="ml-6 flex gap-2"
-				onSubmit={(event) => {
-					event.preventDefault();
-					void resolve();
-				}}
-			>
-				<Input
-					size="sm"
-					value={answer()}
-					onInput={(event) => setAnswer(event.currentTarget.value)}
-					placeholder="Settle it…"
-					aria-label={`Answer to: ${props.decision.text}`}
-				/>
-				<Button
-					type="submit"
-					size="sm"
-					variant="outline"
-					disabled={inFlight() || answer().trim() === ""}
+			<Show when={research()?.error}>
+				{(error) => <p class="ml-6 text-xs text-destructive">{error()}</p>}
+			</Show>
+			<Show when={research()?.status !== "pending"}>
+				<form
+					class="ml-6 flex gap-2"
+					onSubmit={(event) => {
+						event.preventDefault();
+						void resolve();
+					}}
 				>
-					Resolve
-				</Button>
-			</form>
+					<Input
+						size="sm"
+						value={answer()}
+						onInput={(event) => setAnswer(event.currentTarget.value)}
+						placeholder="Settle it…"
+						aria-label={`Answer to: ${props.decision.text}`}
+					/>
+					<Button
+						type="submit"
+						size="sm"
+						variant="outline"
+						disabled={inFlight() || answer().trim() === ""}
+					>
+						Resolve
+					</Button>
+				</form>
+			</Show>
 		</li>
 	);
 }
