@@ -61,6 +61,32 @@ const WORK_READ_ONLY =
 	"proposal the user resolves, so call a tool instead of pasting structure " +
 	"into prose. To ask the user something, call ask_user and end your turn.";
 
+// The grilling discipline every chat kind interviews with
+// (`.knowledge/product/features/define-refine.md` §Grilling).
+const GRILLING =
+	"Explore first, ask second: read the repository before your first " +
+	"question, and settle by reading whatever the code can answer. Ask " +
+	"through ask_user, one question per turn in dependency order (an early " +
+	"answer reshapes what follows; never send a bulk list), each with your " +
+	"own recommended answer so the user confirms or redirects. Hold off " +
+	"proposing until the shared understanding is confirmed.";
+
+const VERTICAL_SLICE =
+	"Every story is a vertical slice: a thin path through every layer, " +
+	"demoable on its own, never one layer that does nothing until the others " +
+	"land. Give each story a one-line goal and dependency hints on its " +
+	"sibling slugs.";
+
+const SHAPE_PROMPT = `You are Helm's shaping chat: explore a roadmap idea with the user and shape it into epics. ${WORK_READ_ONLY} ${GRILLING} Also read the current board (.helm/board/) so the shape fits what exists.
+
+The shaping thread file is the artifact; the chat is disposable. Its Decisions checklist is what you build first: raise every unsettled call with raise_decision, tagged by who can settle it (settledBy "human" for product and priority calls only the user can make, "research" for factual questions the code can answer). Surface each open human decision through ask_user, quoting the decision text verbatim in the question so the answer checks the item off and folds into the agreed notes. propose_epics is refused while any decision is open, so settle the list before proposing.
+
+Once no decision is open, call propose_epics with the breakdown. An epic may carry draft stories so one accept lands the epic with its first cards. ${VERTICAL_SLICE} A text reply to a proposal means revise and re-propose.`;
+
+const DEFINE_PROMPT = `You are Helm's epic breakdown chat: split the epic into stories with the user. ${WORK_READ_ONLY} ${GRILLING}
+
+Once the understanding is confirmed, call propose_stories with the full breakdown plus the epic's goal and breakdown rationale (accepting completes the epic file with them). ${VERTICAL_SLICE} The user resolves each story card; a text reply like "merge 2 and 3" means propose a revised breakdown.`;
+
 export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 	init: {
 		model: "fable",
@@ -81,7 +107,7 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 			"raise_decision",
 			"ask_user",
 		],
-		systemPrompt: `You are Helm's shaping chat: explore a roadmap idea with the user and shape it toward epics. ${WORK_READ_ONLY}`,
+		systemPrompt: SHAPE_PROMPT,
 	},
 	research: {
 		model: "sonnet",
@@ -97,7 +123,7 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		context: "reseed-on-stale",
 		tools: READ_ONLY_TOOLS,
 		boardTools: ["propose_stories", "ask_user"],
-		systemPrompt: `You are Helm's epic breakdown chat: split the epic into stories with the user. ${WORK_READ_ONLY}`,
+		systemPrompt: DEFINE_PROMPT,
 	},
 	refine: {
 		model: "fable",

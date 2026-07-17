@@ -29,6 +29,21 @@ export function proposalOutcomePrompt(
 	].join("\n");
 }
 
+// A decision answered from the shaping drawer's checklist: the item is
+// already checked off and the answer folded into the agreed notes.
+export function decisionResolvedPrompt(
+	decision: string,
+	answer: string,
+): string {
+	return [
+		"The user resolved an open decision from the Decisions checklist.",
+		`Decision: ${decision}`,
+		`Answer: ${answer}`,
+		"The item is checked off and the answer is in the agreed notes.",
+		"Continue shaping; propose epics once no decision is open.",
+	].join("\n");
+}
+
 export function questionAnswerPrompt(question: string, answer: string): string {
 	return [
 		"The user answered your question.",

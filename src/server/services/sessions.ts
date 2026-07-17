@@ -1,11 +1,21 @@
 import { randomUUID } from "node:crypto";
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
 import { ApiError } from "@fcalell/plugin-api/error";
 import { type ChannelHandle, defineService } from "@fcalell/plugin-node/server";
+import { createShapingThread, slugify } from "../../board/create.ts";
 import {
 	attachEpicSession,
+	attachShapingSession,
 	attachStorySession,
+	boardDir,
+	EPIC_DIR_RE,
+	epicFilePath,
+	isENOENT,
 	readEpicFile,
+	readShapingFile,
 	readStoryFile,
+	shapingDir,
 } from "../../board/store.ts";
 import { KIND_REGISTRY, type SessionKind } from "../../sessions/kinds.ts";
 import { reseedPrompt, steeringPrompt } from "../../sessions/prompts.ts";
@@ -24,10 +34,11 @@ import {
 import { enqueueWrite } from "../write-queue.ts";
 import { boardSnapshot, managedRepo } from "./board.ts";
 
-// The card a session's id persists on. `refine` attaches to a story and
-// `define` to an epic; the cold kinds never attach (they never resume, so
-// nothing stores their id).
-export type Attach = { type: "story" | "epic"; id: string };
+// The card a session's id persists on. `refine` attaches to a story,
+// `define` to an epic, and `shape` to a shaping thread (its id is the thread
+// slug); the cold kinds never attach (they never resume, so nothing stores
+// their id).
+export type Attach = { type: "story" | "epic" | "shaping"; id: string };
 
 interface SessionInfo {
 	kind: SessionKind;
@@ -66,7 +77,10 @@ export interface SpawnSessionInput {
 export async function spawnSession(
 	input: SpawnSessionInput,
 ): Promise<{ sessionId: string }> {
-	const attach = resolveAttach(input);
+	const attach =
+		input.kind === "shape"
+			? await createShapeThread(input.prompt)
+			: await resolveAttach(input);
 	try {
 		return await runTurn({ kind: input.kind, prompt: input.prompt, attach });
 	} catch (error) {
@@ -214,7 +228,9 @@ function asSpawnFailed(error: unknown): unknown {
 	return new ApiError("SPAWN_FAILED", { message: error.message });
 }
 
-function resolveAttach(input: SpawnSessionInput): Attach | undefined {
+async function resolveAttach(
+	input: SpawnSessionInput,
+): Promise<Attach | undefined> {
 	if (input.kind === "refine") {
 		if (input.storyId === undefined) {
 			throw new ApiError("BAD_REQUEST", {
@@ -230,10 +246,46 @@ function resolveAttach(input: SpawnSessionInput): Attach | undefined {
 				message: "define sessions attach to an epic: epicId is required",
 			});
 		}
-		findEpic(input.epicId);
+		await findEpicPath(input.epicId);
 		return { type: "epic", id: input.epicId };
 	}
 	return undefined;
+}
+
+// The shaping slug and title come from the rough goal's opening words; the
+// slug dedupes with a numeric suffix against existing threads.
+const SLUG_WORDS = 6;
+
+function shapeSeedTitle(prompt: string): string {
+	const firstLine = prompt.trim().split("\n", 1)[0] ?? "";
+	const words = firstLine.split(/\s+/).slice(0, SLUG_WORDS).join(" ");
+	return words === "" ? "Shaping" : words;
+}
+
+function isEEXIST(error: unknown): boolean {
+	return (error as NodeJS.ErrnoException)?.code === "EEXIST";
+}
+
+async function createShapeThread(prompt: string): Promise<Attach> {
+	const repoPath = managedRepo().path;
+	const title = shapeSeedTitle(prompt);
+	const base = slugify(title);
+	let slug = base;
+	for (let n = 2; ; n++) {
+		try {
+			await enqueueWrite(() =>
+				createShapingThread(repoPath, slug, title, prompt),
+			);
+			return { type: "shaping", id: slug };
+		} catch (error) {
+			if (!isEEXIST(error)) throw error;
+			slug = `${base}-${n}`;
+		}
+	}
+}
+
+function shapingPath(slug: string): string {
+	return join(shapingDir(managedRepo().path), `${slug}.md`);
 }
 
 function findStory(id: string) {
@@ -244,12 +296,23 @@ function findStory(id: string) {
 	return story;
 }
 
-function findEpic(id: string) {
+// Snapshot lookup with a disk fallback: an epic created moments ago (the `n`
+// entry spawns its define chat right after `epic.create`) can precede the
+// watcher's next snapshot by a few hundred milliseconds.
+async function findEpicPath(id: string): Promise<string> {
 	const epic = boardSnapshot().epics.find((epic) => epic.id === id);
-	if (epic === undefined) {
-		throw new ApiError("NOT_FOUND", { message: `no epic with id ${id}` });
+	if (epic !== undefined) return epic.path;
+	const dir = boardDir(managedRepo().path);
+	try {
+		for (const name of await readdir(dir)) {
+			if (EPIC_DIR_RE.exec(name)?.[1] === id) {
+				return epicFilePath(join(dir, name));
+			}
+		}
+	} catch (error) {
+		if (!isENOENT(error)) throw error;
 	}
-	return epic;
+	throw new ApiError("NOT_FOUND", { message: `no epic with id ${id}` });
 }
 
 function findOnBoard(sessionId: string): SessionInfo | undefined {
@@ -266,6 +329,12 @@ function findOnBoard(sessionId: string): SessionInfo | undefined {
 	if (epic !== undefined) {
 		return { kind: "define", attach: { type: "epic", id: epic.id } };
 	}
+	const thread = board.shaping.find(
+		(thread) => thread.frontmatter.sessions.shape === sessionId,
+	);
+	if (thread !== undefined) {
+		return { kind: "shape", attach: { type: "shaping", id: thread.slug } };
+	}
 	return undefined;
 }
 
@@ -275,9 +344,13 @@ async function persistAttach(attach: Attach, sessionId: string): Promise<void> {
 		await enqueueWrite(() =>
 			attachStorySession(story.path, story.epicId, "refine", sessionId),
 		);
+	} else if (attach.type === "epic") {
+		const path = await findEpicPath(attach.id);
+		await enqueueWrite(() => attachEpicSession(path, "define", sessionId));
 	} else {
-		const epic = findEpic(attach.id);
-		await enqueueWrite(() => attachEpicSession(epic.path, "define", sessionId));
+		await enqueueWrite(() =>
+			attachShapingSession(shapingPath(attach.id), sessionId),
+		);
 	}
 }
 
@@ -286,8 +359,10 @@ async function readCardRaw(attach: Attach): Promise<string> {
 		const story = findStory(attach.id);
 		return (await readStoryFile(story.path, story.epicId)).raw;
 	}
-	const epic = findEpic(attach.id);
-	return (await readEpicFile(epic.path)).raw;
+	if (attach.type === "epic") {
+		return (await readEpicFile(await findEpicPath(attach.id))).raw;
+	}
+	return (await readShapingFile(shapingPath(attach.id))).raw;
 }
 
 export default defineService({

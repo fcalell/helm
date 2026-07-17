@@ -1,8 +1,14 @@
+import { join } from "node:path";
 import { z } from "@fcalell/plugin-api/schema";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { isENOENT, readShapingFile, shapingDir } from "../../board/store.ts";
 import type { BoardToolName, SessionKind } from "../../sessions/kinds.ts";
-import { boardSnapshot } from "../services/board.ts";
-import { recordProposal, recordQuestion } from "../services/proposals.ts";
+import { boardSnapshot, managedRepo } from "../services/board.ts";
+import {
+	hasPendingDecision,
+	recordProposal,
+	recordQuestion,
+} from "../services/proposals.ts";
 import type { ReadyBinding } from "./registry.ts";
 import type { Proposal } from "./schemas.ts";
 import {
@@ -45,6 +51,31 @@ function recordedProposal(proposal: Proposal): CallToolResult {
 const RECORDED_SINGLE =
 	"Recorded. The user will resolve it; continue or end your turn.";
 
+// The shape gate: a breakdown never outruns the thinking. Open checklist
+// items are read from disk (the snapshot can trail an accept by the
+// watcher's debounce window); pending raise_decision proposals count too.
+async function openDecisions(binding: ReadyBinding): Promise<string[]> {
+	const open: string[] = [];
+	if (binding.attach?.type === "shaping") {
+		const path = join(
+			shapingDir(managedRepo().path),
+			`${binding.attach.id}.md`,
+		);
+		try {
+			const thread = await readShapingFile(path);
+			for (const decision of thread.decisions) {
+				if (!decision.checked) open.push(decision.text);
+			}
+		} catch (error) {
+			if (!isENOENT(error)) throw error;
+		}
+	}
+	if (hasPendingDecision(binding.sessionId)) {
+		open.push("(a raised decision the user has not resolved yet)");
+	}
+	return open;
+}
+
 export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 	propose_epics: {
 		description:
@@ -55,6 +86,13 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 		handle: async (binding, args) => {
 			const parsed = proposeEpicsPayloadSchema.safeParse(args);
 			if (!parsed.success) return err(z.prettifyError(parsed.error));
+			const open = await openDecisions(binding);
+			if (open.length > 0) {
+				return err(
+					"propose_epics is refused while decisions are open. Settle these " +
+						`first:\n${open.map((each) => `- ${each}`).join("\n")}`,
+				);
+			}
 			return recordedProposal(
 				recordProposal(binding, "propose_epics", parsed.data.epics),
 			);
@@ -76,8 +114,11 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 				if (binding.attach?.type !== "epic") {
 					return err("this session is not bound to an epic");
 				}
+				const { goal, rationale } = parsed.data;
 				return recordedProposal(
-					recordProposal(binding, "propose_stories", parsed.data.stories),
+					recordProposal(binding, "propose_stories", parsed.data.stories, {
+						epicBody: { goal, rationale },
+					}),
 				);
 			}
 			const parsed = proposeStoriesShapePayloadSchema.safeParse(args);
@@ -92,12 +133,9 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 				return err(`epic slug ${parsed.data.epic} is ambiguous`);
 			}
 			return recordedProposal(
-				recordProposal(
-					binding,
-					"propose_stories",
-					parsed.data.stories,
-					parsed.data.epic,
-				),
+				recordProposal(binding, "propose_stories", parsed.data.stories, {
+					epic: parsed.data.epic,
+				}),
 			);
 		},
 	},

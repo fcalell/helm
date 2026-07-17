@@ -34,13 +34,21 @@ export const proposeEpicsPayloadSchema = z.object({
 	epics: z.array(epicDraftSchema).min(1),
 });
 // Two variants of propose_stories: shape names the target epic by slug,
-// define is bound to its epic and must not name one.
+// define is bound to its epic and must not name one. A define proposal also
+// carries the epic's goal and breakdown rationale; accepting completes the
+// epic body alongside the story writes.
 export const proposeStoriesShapePayloadSchema = z.object({
 	epic: slugSchema,
 	stories: z.array(storyDraftSchema).min(1),
 });
+export const epicBodySchema = z.object({
+	goal: z.string().min(1),
+	rationale: z.string().min(1),
+});
+export type EpicBody = z.infer<typeof epicBodySchema>;
 export const proposeStoriesDefinePayloadSchema = z.object({
 	stories: z.array(storyDraftSchema).min(1),
+	...epicBodySchema.shape,
 });
 export const updateBriefPayloadSchema = z.object({
 	section: z.enum(BRIEF_SECTIONS),
@@ -59,6 +67,7 @@ export const raiseDecisionPayloadSchema = z.object({
 	context: z.string().optional(),
 	settledBy: z.enum(["human", "research"]),
 });
+export type RaiseDecisionPayload = z.infer<typeof raiseDecisionPayloadSchema>;
 export const flagRiskPayloadSchema = z.object({
 	title: z.string().min(1),
 	detail: z.string().min(1),
@@ -104,6 +113,7 @@ export const proposalSchema = z.discriminatedUnion("tool", [
 		...proposalBase,
 		tool: z.literal("propose_stories"),
 		epic: slugSchema.optional(),
+		epicBody: epicBodySchema.optional(),
 		items: itemsOf(storyDraftSchema),
 	}),
 	z.object({

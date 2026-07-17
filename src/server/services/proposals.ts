@@ -1,20 +1,33 @@
 import { randomUUID } from "node:crypto";
-import { basename, dirname } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { ApiError } from "@fcalell/plugin-api/error";
 import { z } from "@fcalell/plugin-api/schema";
 import { type ChannelHandle, defineService } from "@fcalell/plugin-node/server";
 import { createEpic, createStory } from "../../board/create.ts";
-import { checkQuestion, replaceBriefSection } from "../../board/markdown.ts";
+import {
+	appendDecision,
+	buildEpicBody,
+	checkQuestion,
+	replaceBriefSection,
+	resolveDecision,
+} from "../../board/markdown.ts";
 import { nextEpicOrdinal, nextStoryOrdinal } from "../../board/ordinals.ts";
 import {
+	epicFilePath,
 	InvalidBoardFileError,
 	isENOENT,
+	readEpicFile,
+	readShapingFile,
 	readStoryFile,
 	STORY_FILE_RE,
+	shapingDir,
+	writeEpic,
+	writeShaping,
 	writeStory,
 } from "../../board/store.ts";
 import type { BoardToolName } from "../../sessions/kinds.ts";
 import {
+	decisionResolvedPrompt,
 	proposalOutcomePrompt,
 	questionAnswerPrompt,
 } from "../../sessions/prompts.ts";
@@ -22,6 +35,7 @@ import { proposalChannel } from "../../shared/channels.ts";
 import type { ReadyBinding } from "../mcp/registry.ts";
 import type {
 	AskUserPayload,
+	EpicBody,
 	Proposal,
 	ProposalResolution,
 	Question,
@@ -47,11 +61,13 @@ import {
 
 // In-memory only: a pending proposal or question dies with the process (the
 // chat resumes and re-proposes). `contexts` carries per-proposal state the wire
-// schema does not: the bound card and the slug -> minted id map that resolves
-// `depends` across accepted items.
+// schema does not: the bound card, the slug -> minted id map that resolves
+// `depends` across accepted items, and whether a define proposal's epic body
+// was already completed (one write per proposal, not per accepted story).
 interface ProposalContext {
 	attach?: Attach;
 	accepted: Map<string, string>;
+	epicCompleted?: boolean;
 }
 const proposals = new Map<string, Proposal>();
 const questions = new Map<string, Question>();
@@ -83,7 +99,7 @@ export function recordProposal(
 	binding: ReadyBinding,
 	tool: Exclude<BoardToolName, "ask_user">,
 	items: unknown[],
-	epic?: string,
+	extra?: { epic?: string; epicBody?: EpicBody },
 ): Proposal {
 	const proposal = proposalSchema.parse({
 		id: randomUUID(),
@@ -91,7 +107,8 @@ export function recordProposal(
 		kind: binding.kind,
 		createdAt: new Date().toISOString(),
 		tool,
-		...(epic !== undefined ? { epic } : {}),
+		...(extra?.epic !== undefined ? { epic: extra.epic } : {}),
+		...(extra?.epicBody !== undefined ? { epicBody: extra.epicBody } : {}),
 		items: items.map((payload) => ({ payload })),
 	});
 	proposals.set(proposal.id, proposal);
@@ -135,10 +152,7 @@ export async function resolveProposalItem(input: {
 		});
 	}
 	const { resolution } = input;
-	if (
-		proposal.tool === "flag_risk" ||
-		(proposal.tool === "raise_decision" && resolution.type === "accept")
-	) {
+	if (proposal.tool === "flag_risk") {
 		throw new ApiError("UNSUPPORTED_RESOLUTION", {
 			status: 501,
 			message: `${proposal.tool} resolution is not implemented yet`,
@@ -185,10 +199,87 @@ export async function answerQuestion(input: {
 	}
 	questions.delete(input.questionId);
 	broadcast();
+	// A shape question that quotes an open decision is that decision's ask_user
+	// surface: answering it checks the item off and folds the answer into the
+	// agreed notes before the session resumes.
+	if (question.kind === "shape") {
+		await tryResolveDecision(
+			question.sessionId,
+			question.question,
+			input.answer,
+		);
+	}
 	await dispatchResume(
 		question.sessionId,
 		questionAnswerPrompt(question.question, input.answer),
 	);
+}
+
+// True while the session has an unresolved raise_decision proposal: a raised
+// decision the user has not filed onto the checklist yet still blocks the
+// breakdown.
+export function hasPendingDecision(sessionId: string): boolean {
+	for (const proposal of proposals.values()) {
+		if (proposal.tool !== "raise_decision") continue;
+		if (proposal.sessionId !== sessionId) continue;
+		if (proposal.items.some((item) => item.resolution === undefined)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+async function tryResolveDecision(
+	sessionId: string,
+	decision: string,
+	answer: string,
+): Promise<boolean> {
+	const thread = boardSnapshot().shaping.find(
+		(each) => each.frontmatter.sessions.shape === sessionId,
+	);
+	if (thread === undefined) return false;
+	return await enqueueWrite(async () => {
+		const current = await readShapingThread(thread.slug);
+		const body = resolveDecision(current.body, decision, answer);
+		if (body === undefined) return false;
+		await writeShaping({
+			path: current.path,
+			frontmatter: current.frontmatter,
+			body,
+		});
+		return true;
+	});
+}
+
+// The checklist path: answering a Decisions item directly in the shaping
+// drawer. The write checks the item off and folds the answer into the agreed
+// notes, then the thread's shape session resumes with the resolution.
+export async function resolveShapingDecision(input: {
+	slug: string;
+	decision: string;
+	answer: string;
+}): Promise<void> {
+	const sessionId = await enqueueWrite(async () => {
+		const thread = await readShapingThread(input.slug);
+		const body = resolveDecision(thread.body, input.decision, input.answer);
+		if (body === undefined) {
+			throw new ApiError("NOT_FOUND", {
+				message: `no open decision matching "${input.decision}"`,
+			});
+		}
+		await writeShaping({
+			path: thread.path,
+			frontmatter: thread.frontmatter,
+			body,
+		});
+		return thread.frontmatter.sessions.shape;
+	});
+	if (sessionId !== undefined) {
+		await dispatchResume(
+			sessionId,
+			decisionResolvedPrompt(input.decision, input.answer),
+		);
+	}
 }
 
 async function applyItem(proposal: Proposal, index: number): Promise<void> {
@@ -227,6 +318,10 @@ async function applyItem(proposal: Proposal, index: number): Promise<void> {
 			if (draft === undefined) return;
 			const { epicId, dir } = resolveTargetEpic(proposal);
 			const context = contexts.get(proposal.id);
+			if (proposal.epicBody !== undefined && context?.epicCompleted !== true) {
+				await completeEpicBody(dir, proposal.epicBody);
+				if (context !== undefined) context.epicCompleted = true;
+			}
 			const existing = existingStorySlugs(epicId);
 			const depends = resolveDepends(
 				draft.depends,
@@ -274,12 +369,67 @@ async function applyItem(proposal: Proposal, index: number): Promise<void> {
 			});
 			return;
 		}
-		// raise_decision's accept write lands with 001-04; an edit takes the
-		// generic resume path and writes nothing. flag_risk never reaches here
-		// (every outcome is gated to UNSUPPORTED_RESOLUTION).
-		case "raise_decision":
+		case "raise_decision": {
+			const payload = proposal.items[index]?.payload;
+			if (payload === undefined) return;
+			const attach = contexts.get(proposal.id)?.attach;
+			if (attach?.type !== "shaping") {
+				throw new ApiError("BAD_REQUEST", {
+					message: "this proposal is not bound to a shaping thread",
+				});
+			}
+			const thread = await readShapingThread(attach.id);
+			await writeShaping({
+				path: thread.path,
+				frontmatter: thread.frontmatter,
+				body: appendDecision(thread.body, payload.decision, payload.settledBy),
+			});
+			return;
+		}
+		// flag_risk never reaches here (every outcome is gated to
+		// UNSUPPORTED_RESOLUTION).
 		case "flag_risk":
 			return;
+	}
+}
+
+// Completing a define breakdown rewrites the epic body from its accepted
+// goal and rationale, keeping the title the `n` entry wrote.
+async function completeEpicBody(
+	dir: string,
+	epicBody: EpicBody,
+): Promise<void> {
+	const path = epicFilePath(dir);
+	const epic = await readEpicFile(path);
+	await writeEpic({
+		path,
+		frontmatter: epic.frontmatter,
+		body: buildEpicBody(epic.title, epicBody.goal, epicBody.rationale),
+	});
+}
+
+function shapingPath(slug: string): string {
+	return join(shapingDir(managedRepo().path), `${slug}.md`);
+}
+
+async function readShapingThread(
+	slug: string,
+): Promise<Awaited<ReturnType<typeof readShapingFile>>> {
+	try {
+		return await readShapingFile(shapingPath(slug));
+	} catch (error) {
+		if (isENOENT(error)) {
+			throw new ApiError("NOT_FOUND", {
+				message: `no shaping thread with slug ${slug}`,
+			});
+		}
+		if (error instanceof InvalidBoardFileError) {
+			throw new ApiError("INVALID_FILE", {
+				status: 409,
+				message: error.message,
+			});
+		}
+		throw error;
 	}
 }
 

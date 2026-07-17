@@ -1,9 +1,12 @@
 import { type ChannelHandle, defineService } from "@fcalell/plugin-node/server";
+import { createEpic, slugify } from "../../board/create.ts";
+import { nextEpicOrdinal } from "../../board/ordinals.ts";
 import type { Board } from "../../board/schema.ts";
 import { ensureBoard } from "../../board/store.ts";
 import { type BoardWatcher, watchBoard } from "../../board/watcher.ts";
 import { boardChannel } from "../../shared/channels.ts";
 import { loadManagedRepo, type ManagedRepo } from "../config.ts";
+import { enqueueWrite } from "../write-queue.ts";
 
 // Collapse a burst of filesystem events into one broadcast.
 const BROADCAST_DEBOUNCE_MS = 100;
@@ -21,6 +24,24 @@ export function boardSnapshot(): Board {
 export function managedRepo(): ManagedRepo {
 	if (repo === null) throw new Error("board service is not running");
 	return repo;
+}
+
+// The `n` entry: mint the next epic ordinal and write `<NNN>-<slug>/epic.md`
+// with the title and rough goal; the define chat completes the body later.
+export async function createEpicEntry(input: {
+	title: string;
+	goal: string;
+}): Promise<{ epicId: string }> {
+	const repoPath = managedRepo().path;
+	return enqueueWrite(async () => {
+		const ordinal = await nextEpicOrdinal(repoPath);
+		const { epicId } = await createEpic(repoPath, ordinal, {
+			slug: slugify(input.title),
+			title: input.title,
+			goal: input.goal,
+		});
+		return { epicId };
+	});
 }
 
 export default defineService({
