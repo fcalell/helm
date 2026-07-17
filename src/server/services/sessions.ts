@@ -230,8 +230,7 @@ async function runTurn(options: TurnOptions): Promise<{ sessionId: string }> {
 }
 
 // A fresh refine turn (first spawn or reseed) is seeded with the epic's
-// conclusions and the card through the system prompt, so the seed never
-// clutters the transcript.
+// conclusions and the card through the system prompt.
 async function seedFor(
 	kind: SessionKind,
 	attach: Attach | undefined,
@@ -366,8 +365,7 @@ function findOnBoard(sessionId: string): SessionInfo | undefined {
 
 async function persistAttach(attach: Attach, sessionId: string): Promise<void> {
 	if (attach.type === "story") {
-		// One write attaches the session and enters refining: `r` on a Backlog
-		// card flips it in the same move.
+		// One write attaches the session and enters refining.
 		const story = findStory(attach.id);
 		await enqueueWrite(async () => {
 			const current = await readStoryFile(story.path, story.epicId);

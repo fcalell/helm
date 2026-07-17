@@ -56,9 +56,6 @@ export default function Home() {
 		setDrawerOpen(true);
 	}
 
-	// The refine entry: on a Backlog card it spawns the refine chat (the server
-	// flips the card into refining in the same move); on a Refining card it
-	// reopens the chat.
 	function refineSelected(): void {
 		const id = selectedStoryId();
 		const story = id ? boardStore.stories[id] : undefined;
@@ -71,7 +68,7 @@ export default function Home() {
 			status === "backlog" &&
 			story.frontmatter.sessions.refine === undefined
 		) {
-			void spawnRefineSession(id).catch(() => {});
+			void spawnRefineSession(id);
 		}
 	}
 

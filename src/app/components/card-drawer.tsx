@@ -20,7 +20,6 @@ interface CardDrawerProps {
 	story: Story | undefined;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	// Overrides the status-derived default tab (the `r` entry lands on chat).
 	initialTab?: string;
 }
 
@@ -68,9 +67,6 @@ function ChecklistSection(props: {
 	);
 }
 
-// The brief in template order, rendered from the story file: hand edits and
-// accepted chat proposals look the same. Doubles as the chat tab's
-// artifact-under-construction pane.
 export function BriefView(props: { story: Story }) {
 	return (
 		<div class="flex flex-col gap-4 text-sm">

@@ -1,5 +1,4 @@
-// UI heuristic flagging unmeasurable acceptance-criteria phrasing: deliberate
-// friction before the ready gate, a warning marker, never a blocker.
+// UI heuristic flagging unmeasurable acceptance-criteria phrasing.
 
 const VAGUE_PHRASES = [
 	"works? well",

@@ -360,9 +360,9 @@ export async function spawnDefineSession(
 
 const REFINE_KICKOFF = "Refine this story into an implementation brief.";
 
-// The `r` entry: the server seeds the session from the card and flips the
-// story into refining in the same move.
-export async function spawnRefineSession(storyId: string): Promise<string> {
+export async function spawnRefineSession(
+	storyId: string,
+): Promise<string | undefined> {
 	setStore("refineSpawns", storyId, {});
 	try {
 		const result = await api.session.spawn({
@@ -385,7 +385,6 @@ export async function spawnRefineSession(storyId: string): Promise<string> {
 				? error.message
 				: "failed to start the refine chat",
 		);
-		throw error;
 	}
 }
 

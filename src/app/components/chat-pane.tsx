@@ -4,6 +4,7 @@ import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
 import {
 	createEffect,
+	createMemo,
 	createSignal,
 	For,
 	type JSX,
@@ -25,8 +26,6 @@ import { QuestionWidget } from "./question-widget.tsx";
 
 const BOARD_TOOL_PREFIX = `mcp__${MCP_SERVER_NAME}__`;
 
-// Canned prompts for the recurring refinement moves, available to every chat
-// kind: typing the command sends its prompt.
 const SLASH_COMMANDS = [
 	{
 		name: "/split",
@@ -179,6 +178,7 @@ export interface ChatPaneProps {
 export function ChatPane(props: ChatPaneProps) {
 	const chat = () => chatFor(props.sessionId);
 	const [draft, setDraft] = createSignal("");
+	const matches = createMemo(() => slashMatches(draft()));
 	let transcriptRef: HTMLDivElement | undefined;
 
 	createEffect(() => {
@@ -236,9 +236,9 @@ export function ChatPane(props: ChatPaneProps) {
 					<Loader text="assistant is working" class="text-xs" />
 				</Show>
 			</div>
-			<Show when={slashMatches(draft()).length > 0}>
+			<Show when={matches().length > 0}>
 				<div class="shrink-0 rounded-md border bg-popover p-1">
-					<For each={slashMatches(draft())}>
+					<For each={matches()}>
 						{(command) => (
 							<button
 								type="button"
