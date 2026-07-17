@@ -4,7 +4,16 @@ import { STATUSES } from "../../board/schema.ts";
 import { BoardGrid } from "../components/board-grid.tsx";
 import { BoardHeader } from "../components/board-header.tsx";
 import { CardDrawer } from "../components/card-drawer.tsx";
+import {
+	DefineDrawer,
+	type DefineTarget,
+} from "../components/define-drawer.tsx";
 import { InvalidBanner } from "../components/invalid-banner.tsx";
+import { NewEpicDialog } from "../components/new-epic-dialog.tsx";
+import {
+	ShapingDrawer,
+	type ShapingTarget,
+} from "../components/shaping-drawer.tsx";
 import {
 	boardStore,
 	connectBoard,
@@ -29,6 +38,13 @@ export default function Home() {
 	);
 	const [drawerOpen, setDrawerOpen] = createSignal(false);
 	const [epicView, setEpicView] = createSignal(false);
+	const [shapingTarget, setShapingTarget] = createSignal<ShapingTarget | null>(
+		null,
+	);
+	const [defineTarget, setDefineTarget] = createSignal<DefineTarget | null>(
+		null,
+	);
+	const [newEpicOpen, setNewEpicOpen] = createSignal(false);
 
 	connectBoard();
 	connectSessions();
@@ -63,6 +79,10 @@ export default function Home() {
 
 		if (event.key === "e") {
 			setEpicView((value) => !value);
+			return;
+		}
+		if (event.key === "n") {
+			setNewEpicOpen(true);
 			return;
 		}
 		if (event.key === "Escape") {
@@ -109,7 +129,10 @@ export default function Home() {
 
 	return (
 		<div class="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-			<BoardHeader connected={boardStore.connected} />
+			<BoardHeader
+				connected={boardStore.connected}
+				onOpenShaping={setShapingTarget}
+			/>
 			<InvalidBanner invalid={boardStore.invalid} />
 			<BoardGrid
 				epics={boardStore.epics}
@@ -118,11 +141,29 @@ export default function Home() {
 				selectedStoryId={selectedStoryId()}
 				onSelect={setSelectedStoryId}
 				onOpen={openStory}
+				onOpenEpicChat={(epicId) => setDefineTarget({ epicId })}
 			/>
 			<CardDrawer
 				story={selectedStory()}
 				open={drawerOpen()}
 				onOpenChange={setDrawerOpen}
+			/>
+			<ShapingDrawer
+				target={shapingTarget()}
+				onOpenChange={(open) => {
+					if (!open) setShapingTarget(null);
+				}}
+			/>
+			<DefineDrawer
+				target={defineTarget()}
+				onOpenChange={(open) => {
+					if (!open) setDefineTarget(null);
+				}}
+			/>
+			<NewEpicDialog
+				open={newEpicOpen()}
+				onOpenChange={setNewEpicOpen}
+				onCreated={setDefineTarget}
 			/>
 		</div>
 	);

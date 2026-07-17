@@ -7,6 +7,7 @@ import type {
 	EpicDraft,
 	Proposal,
 	ProposalResolution,
+	RaiseDecisionPayload,
 	StoryDraft,
 } from "../../server/mcp/schemas.ts";
 import {
@@ -75,6 +76,22 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 									</Badge>
 								</Show>
 							</div>
+						</div>
+					);
+				})()}
+			</Match>
+			<Match when={props.proposal.tool === "raise_decision"}>
+				{(() => {
+					const draft = payload() as RaiseDecisionPayload;
+					return (
+						<div class="flex flex-col gap-1">
+							<div class="flex items-center gap-1.5">
+								<p class="text-sm font-semibold">{draft.decision}</p>
+								<Badge variant="outline">{draft.settledBy}</Badge>
+							</div>
+							<Show when={draft.context}>
+								<p class="text-sm text-muted-foreground">{draft.context}</p>
+							</Show>
 						</div>
 					);
 				})()}

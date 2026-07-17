@@ -132,6 +132,7 @@ export interface ChatPaneProps {
 	sessionId: string;
 	// The artifact-under-construction slot the chat stories fill.
 	artifact?: JSX.Element;
+	artifactTitle?: string;
 }
 
 export function ChatPane(props: ChatPaneProps) {
@@ -164,7 +165,7 @@ export function ChatPane(props: ChatPaneProps) {
 		<div class="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
 			<div class="shrink-0 rounded-lg border bg-card p-3">
 				<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-					Artifact
+					{props.artifactTitle ?? "Artifact"}
 				</h3>
 				<div class="mt-1 text-sm text-muted-foreground">
 					{props.artifact ?? <p>Nothing under construction yet.</p>}

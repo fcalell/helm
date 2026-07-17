@@ -25,6 +25,7 @@ interface BoardGridProps {
 	selectedStoryId: string | null;
 	onSelect: (id: string) => void;
 	onOpen: (id: string) => void;
+	onOpenEpicChat: (epicId: string) => void;
 }
 
 export function BoardGrid(props: BoardGridProps) {
@@ -72,6 +73,7 @@ export function BoardGrid(props: BoardGridProps) {
 										selectedStoryId={props.selectedStoryId}
 										onSelect={props.onSelect}
 										onOpen={props.onOpen}
+										onOpenChat={props.onOpenEpicChat}
 									/>
 								)}
 							</For>

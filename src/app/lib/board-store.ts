@@ -1,6 +1,13 @@
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createStore, reconcile } from "solid-js/store";
-import type { Board, Epic, Notice, Status, Story } from "../../board/schema.ts";
+import type {
+	Board,
+	Epic,
+	Notice,
+	ShapingThread,
+	Status,
+	Story,
+} from "../../board/schema.ts";
 import { canTransition } from "../../board/transitions.ts";
 import { boardChannel } from "../../shared/channels.ts";
 import { api } from "./api.ts";
@@ -9,6 +16,8 @@ import { wsClient } from "./ws.ts";
 export interface BoardState {
 	epics: Record<string, Epic>;
 	stories: Record<string, Story>;
+	// Shaping threads keyed by slug.
+	shaping: Record<string, ShapingThread>;
 	invalid: Record<string, string>;
 	connected: boolean;
 }
@@ -27,6 +36,7 @@ export const STATUS_LABELS: Record<Status, string> = {
 const [store, setStore] = createStore<BoardState>({
 	epics: {},
 	stories: {},
+	shaping: {},
 	invalid: {},
 	connected: false,
 });
@@ -64,6 +74,9 @@ function applySnapshot(board: Board): void {
 	}
 	setStore("epics", reconcile(byId(board.epics)));
 	setStore("stories", reconcile(stories));
+	const shaping: Record<string, ShapingThread> = {};
+	for (const thread of board.shaping) shaping[thread.slug] = thread;
+	setStore("shaping", reconcile(shaping));
 	const invalid: Record<string, string> = {};
 	for (const file of board.invalid) invalid[file.path] = file.message;
 	setStore("invalid", reconcile(invalid));
@@ -108,6 +121,12 @@ export function moveStory(id: string, to: Status): void {
 			error instanceof Error ? error.message : "failed to move story",
 		);
 	});
+}
+
+export function sortedShaping(
+	shaping: Record<string, ShapingThread>,
+): ShapingThread[] {
+	return Object.values(shaping).sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 export function sortedEpics(epics: Record<string, Epic>): Epic[] {

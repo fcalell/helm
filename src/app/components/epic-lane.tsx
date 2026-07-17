@@ -1,5 +1,6 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
-import { For } from "solid-js";
+import { Button } from "@fcalell/plugin-solid-ui/components/button";
+import { For, Show } from "solid-js";
 import type { Epic, Story } from "../../board/schema.ts";
 import { STATUSES } from "../../board/schema.ts";
 import { epicProgress, storiesByStatus } from "../lib/board-store.ts";
@@ -13,6 +14,8 @@ interface EpicLaneProps {
 	selectedStoryId: string | null;
 	onSelect: (id: string) => void;
 	onOpen: (id: string) => void;
+	// Absent on orphan lanes (no epic file, so no chat to open).
+	onOpenChat?: (epicId: string) => void;
 }
 
 export function EpicLane(props: EpicLaneProps) {
@@ -23,6 +26,17 @@ export function EpicLane(props: EpicLaneProps) {
 			<div class="flex items-center gap-2">
 				<h2 class="text-sm font-semibold text-foreground">{props.title}</h2>
 				<Badge variant="secondary">{`${progress().done}/${progress().total}`}</Badge>
+				<Show when={props.onOpenChat}>
+					{(open) => (
+						<Button
+							size="sm"
+							variant="ghost"
+							onClick={() => open()(props.epicId)}
+						>
+							Chat
+						</Button>
+					)}
+				</Show>
 			</div>
 			<div class="flex gap-4 overflow-x-auto pb-2">
 				<For each={STATUSES}>

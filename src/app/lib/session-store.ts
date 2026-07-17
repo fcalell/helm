@@ -335,18 +335,29 @@ export async function sendChatMessage(
 	}
 }
 
-export async function spawnDefineSession(
-	epicId: string,
-	prompt: string,
-): Promise<void> {
-	const result = await api.session.spawn({ kind: "define", epicId, prompt });
-	ensureChat(result.sessionId);
-	editItems(result.sessionId, (items) => {
+function seedSpawnedChat(sessionId: string, prompt: string): void {
+	ensureChat(sessionId);
+	editItems(sessionId, (items) => {
 		const echoed = items.some(
 			(item) => item.type === "user" && item.text === prompt,
 		);
 		if (!echoed) items.unshift({ type: "user", text: prompt });
 	});
+}
+
+export async function spawnDefineSession(
+	epicId: string,
+	prompt: string,
+): Promise<string> {
+	const result = await api.session.spawn({ kind: "define", epicId, prompt });
+	seedSpawnedChat(result.sessionId, prompt);
+	return result.sessionId;
+}
+
+export async function spawnShapeSession(goal: string): Promise<string> {
+	const result = await api.session.spawn({ kind: "shape", prompt: goal });
+	seedSpawnedChat(result.sessionId, goal);
+	return result.sessionId;
 }
 
 export async function resolveProposalItem(

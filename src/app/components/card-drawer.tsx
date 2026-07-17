@@ -1,15 +1,11 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
-import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Checkbox } from "@fcalell/plugin-solid-ui/components/checkbox";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Sheet } from "@fcalell/plugin-solid-ui/components/sheet";
 import { Tabs } from "@fcalell/plugin-solid-ui/components/tabs";
-import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
-import { toast } from "@fcalell/plugin-solid-ui/components/toast";
-import { createSignal, For, Show } from "solid-js";
+import { For, Show } from "solid-js";
 import type { Status, Story } from "../../board/schema.ts";
 import { boardStore, STATUS_LABELS } from "../lib/board-store.ts";
-import { spawnDefineSession } from "../lib/session-store.ts";
 import { ChatPane } from "./chat-pane.tsx";
 
 interface CardDrawerProps {
@@ -84,52 +80,6 @@ function BriefTab(props: { story: Story }) {
 	);
 }
 
-// TODO: remove once define/refine entry points land
-function DevChatEntry(props: { epicId: string }) {
-	const [prompt, setPrompt] = createSignal("");
-	const [spawning, setSpawning] = createSignal(false);
-	return (
-		<form
-			class="flex flex-col gap-2"
-			onSubmit={(event) => {
-				event.preventDefault();
-				const text = prompt().trim();
-				if (text === "") return;
-				setSpawning(true);
-				spawnDefineSession(props.epicId, text)
-					.catch((error: unknown) => {
-						toast.error(
-							error instanceof Error
-								? error.message
-								: "failed to spawn session",
-						);
-					})
-					.finally(() => setSpawning(false));
-			}}
-		>
-			<p class="text-sm text-muted-foreground">
-				No chat session on this card yet. Start a define chat on epic{" "}
-				{props.epicId} (dev only).
-			</p>
-			<Textarea
-				size="sm"
-				value={prompt()}
-				onInput={(event) => setPrompt(event.currentTarget.value)}
-				placeholder="First message to the define chat…"
-				aria-label="First message"
-			/>
-			<Button
-				type="submit"
-				size="sm"
-				class="self-start"
-				disabled={spawning() || prompt().trim() === ""}
-			>
-				{spawning() ? "Spawning…" : "Start define chat (dev)"}
-			</Button>
-		</form>
-	);
-}
-
 function ChatTab(props: { story: Story }) {
 	const epic = () => boardStore.epics[props.story.epicId];
 	// The pane binds to whatever session the frontmatter names, never to a
@@ -141,14 +91,7 @@ function ChatTab(props: { story: Story }) {
 		<Show
 			when={sessionId()}
 			fallback={
-				import.meta.env.DEV ? (
-					<DevChatEntry epicId={props.story.epicId} />
-				) : (
-					<EmptyState
-						title="Chat"
-						description="Arrives with define and refine chats"
-					/>
-				)
+				<EmptyState title="Chat" description="Arrives with the refine chat" />
 			}
 		>
 			{(id) => <ChatPane sessionId={id()} />}
