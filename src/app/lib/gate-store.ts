@@ -16,8 +16,6 @@ interface GateState {
 
 const [store, setStore] = createStore<GateState>({ attempts: {} });
 
-export const gateStore = store;
-
 function applySnapshot(snapshot: GateSnapshot): void {
 	const attempts: Record<string, GateAttempt> = {};
 	for (const attempt of snapshot.attempts) {

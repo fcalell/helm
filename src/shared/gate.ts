@@ -15,9 +15,6 @@ export const gateFlagSchema = z.object({
 	// The refine session's counter-argument; absent on a flag it left
 	// unanswered at turn end.
 	argument: z.string().optional(),
-	// An update_brief fix naming this flag is pending user resolution; the
-	// flag is answered, so it never concedes to contested while this holds.
-	pendingFix: z.boolean().optional(),
 });
 export type GateFlag = z.infer<typeof gateFlagSchema>;
 

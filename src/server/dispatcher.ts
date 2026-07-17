@@ -1,6 +1,4 @@
-// The serial dispatcher every non-chat kind rides (`adversary` today,
-// `research` and runs later): one session at a time, spawned in enqueue
-// order. Chat kinds bypass it — a person is waiting on those.
+// One session at a time, spawned in enqueue order; chat kinds bypass it.
 let tail: Promise<unknown> = Promise.resolve();
 
 export function dispatch<T>(task: () => Promise<T>): Promise<T> {

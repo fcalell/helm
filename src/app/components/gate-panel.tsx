@@ -182,9 +182,6 @@ function RoundHistory(props: { rounds: GateRound[]; overrides: string[] }) {
 	);
 }
 
-// The gate surface in a refining card's drawer: phase line, the contested
-// flags awaiting the user, and the round history once the automatic rounds
-// are spent.
 export function GatePanel(props: { storyId: string }) {
 	const attempt = () => gateFor(props.storyId);
 	const contested = () =>
@@ -231,8 +228,6 @@ export function GatePanel(props: { storyId: string }) {
 	);
 }
 
-// Sub-state badge on the card: the wait is visible without opening the
-// drawer.
 export function gateBadgeLabel(attempt: GateAttempt): string {
 	if (attempt.phase === "queued" || attempt.phase === "adversary") {
 		return "gating";

@@ -44,6 +44,8 @@ interface Attempt {
 	overrides: string[];
 	adversarySessionId?: string;
 	refineSessionId?: string;
+	// Flags answered by a pending fix proposal; never concede these at turn end.
+	pendingFixes: Set<string>;
 	// The flags prompt hit a mid-turn refine session; retried on its close.
 	pendingFlags?: boolean;
 }
@@ -86,6 +88,11 @@ function logError(error: unknown): void {
 	log?.error(`gate: ${String(error)}`);
 }
 
+function logAndAbort(attempt: Attempt, error: unknown): void {
+	logError(error);
+	abort(attempt);
+}
+
 async function readFresh(storyId: string): Promise<Story> {
 	const known = boardSnapshot().stories.find((story) => story.id === storyId);
 	if (known === undefined) {
@@ -119,8 +126,6 @@ function illegal(from: Status, reason: string) {
 	});
 }
 
-// The move-to-ready entry: completeness first, then the recorded verdict (an
-// unchanged brief re-enters Ready for free), else a cold adversary round.
 export async function requestReady(id: string): Promise<{ gating: boolean }> {
 	return enqueueWrite(async () => {
 		const current = await readFresh(id);
@@ -142,7 +147,7 @@ export async function requestReady(id: string): Promise<{ gating: boolean }> {
 		if (from !== "refining") {
 			throw illegal(
 				from,
-				"the brief changed since the gate passed; refine and re-run it",
+				"no adversary verdict for this brief; move the story to refining and run the ready gate",
 			);
 		}
 		const existing = attempts.get(id);
@@ -157,6 +162,7 @@ export async function requestReady(id: string): Promise<{ gating: boolean }> {
 			briefHash: briefHash(current.body),
 			rounds: [],
 			overrides: [],
+			pendingFixes: new Set(),
 		};
 		attempts.set(id, attempt);
 		enqueueRound(attempt);
@@ -235,22 +241,16 @@ async function routeFlags(attempt: Attempt): Promise<void> {
 }
 
 // A flag left unanswered when the refine turn ends renders contested with no
-// counter-argument, so a round never idles. A pending fix proposal is an
-// answer: that flag stays open until the user resolves the proposal.
-function concedeOpenFlags(attempt: Attempt): boolean {
-	let changed = false;
+// counter-argument, so a round never idles. A flag with a pending fix proposal
+// is answered; it stays open until the user resolves the proposal.
+function concedeOpenFlags(attempt: Attempt): void {
 	for (const flag of currentRound(attempt)?.flags ?? []) {
-		if (flag.status !== "open" || flag.pendingFix === true) continue;
+		if (flag.status !== "open" || attempt.pendingFixes.has(flag.title))
+			continue;
 		flag.status = "contested";
-		changed = true;
 	}
-	return changed;
 }
 
-// Round resolution: runs after every flag change, brief edit, and refine turn
-// end. A round ends when every flag is settled and the brief is complete;
-// dismissals alone pass on the standing verdict, any edit re-enqueues a fresh
-// cold pass, capped at two automatic rounds.
 async function evaluate(attempt: Attempt): Promise<void> {
 	if (attempts.get(attempt.storyId) !== attempt) return;
 	if (attempt.phase !== "refine" && attempt.phase !== "review") return;
@@ -283,31 +283,33 @@ async function evaluate(attempt: Attempt): Promise<void> {
 	setPhase(attempt, "exhausted");
 }
 
-// A pass writes the gate block and flips status through the transition
-// machine, inside the write queue like every board write; a hash or
-// transition failure discards the attempt instead.
 async function writePass(attempt: Attempt): Promise<void> {
-	await enqueueWrite(async () => {
-		const story = await readFresh(attempt.storyId).catch(() => undefined);
-		if (story === undefined) return;
-		if (briefHash(story.body) !== attempt.briefHash) return;
-		const gate: Gate = {
-			passed: new Date().toISOString(),
-			brief: attempt.briefHash,
-			overrides: [...attempt.overrides],
-		};
-		const check = canTransition(story.frontmatter.status, "ready", {
-			brief: story.brief,
-			body: story.body,
-			gate,
+	try {
+		await enqueueWrite(async () => {
+			const story = await readFresh(attempt.storyId).catch(() => undefined);
+			if (story === undefined) return;
+			if (briefHash(story.body) !== attempt.briefHash) return;
+			const gate: Gate = {
+				passed: new Date().toISOString(),
+				brief: attempt.briefHash,
+				overrides: [...attempt.overrides],
+			};
+			const check = canTransition(story.frontmatter.status, "ready", {
+				brief: story.brief,
+				body: story.body,
+				gate,
+			});
+			if (!check.ok) return;
+			await writeStory({
+				path: story.path,
+				frontmatter: { ...story.frontmatter, status: "ready", gate },
+				body: story.body,
+			});
 		});
-		if (!check.ok) return;
-		await writeStory({
-			path: story.path,
-			frontmatter: { ...story.frontmatter, status: "ready", gate },
-			body: story.body,
-		});
-	});
+	} catch (error) {
+		abort(attempt);
+		throw error;
+	}
 	abort(attempt);
 }
 
@@ -385,11 +387,11 @@ export function gateBriefEdited(storyId: string, resolves?: string): void {
 		if (flag !== undefined) {
 			flag.status = "fixed";
 			flag.argument = undefined;
-			flag.pendingFix = undefined;
+			attempt.pendingFixes.delete(resolves);
 			broadcast();
 		}
 	}
-	void evaluate(attempt).catch(logError);
+	void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 }
 
 // The refine session answered a flag with an update_brief fix; while the
@@ -402,8 +404,8 @@ export function gateFixProposed(storyId: string, resolves: string): void {
 			each.title === resolves &&
 			(each.status === "open" || each.status === "contested"),
 	);
-	if (flag === undefined || flag.pendingFix === true) return;
-	flag.pendingFix = true;
+	if (flag === undefined || attempt.pendingFixes.has(resolves)) return;
+	attempt.pendingFixes.add(resolves);
 	broadcast();
 }
 
@@ -412,14 +414,14 @@ export function gateFixProposed(storyId: string, resolves: string): void {
 export function gateFixRejected(storyId: string, resolves: string): void {
 	const attempt = attempts.get(storyId);
 	if (attempt === undefined) return;
+	if (!attempt.pendingFixes.has(resolves)) return;
+	attempt.pendingFixes.delete(resolves);
 	const flag = currentRound(attempt)?.flags.find(
-		(each) => each.title === resolves && each.pendingFix === true,
+		(each) => each.title === resolves,
 	);
-	if (flag === undefined) return;
-	flag.pendingFix = undefined;
-	if (flag.status === "open") flag.status = "contested";
+	if (flag !== undefined && flag.status === "open") flag.status = "contested";
 	broadcast();
-	void evaluate(attempt).catch(logError);
+	void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 }
 
 const SINGLE_LINE = /\s*\n\s*/g;
@@ -451,7 +453,7 @@ export async function resolveGateFlag(input: {
 		flag.status = "dismissed";
 		attempt.overrides.push(`${flag.title}: ${input.resolution.reason}`);
 		broadcast();
-		void evaluate(attempt).catch(logError);
+		void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 		return;
 	}
 	await enqueueWrite(async () => {
@@ -467,7 +469,7 @@ export async function resolveGateFlag(input: {
 	});
 	flag.status = "accepted";
 	broadcast();
-	void evaluate(attempt).catch(logError);
+	void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 }
 
 function onClosed({ sessionId }: { sessionId?: string; stale: boolean }): void {
@@ -481,10 +483,10 @@ function onClosed({ sessionId }: { sessionId?: string; stale: boolean }): void {
 		}
 		if (attempt.phase !== "refine" && attempt.phase !== "review") continue;
 		concedeOpenFlags(attempt);
-		// The answering turn is over; whatever remains waits on the user.
+		// direct assign: one broadcast for the phase flip and the flag change together
 		if (attempt.phase === "refine") attempt.phase = "review";
 		broadcast();
-		void evaluate(attempt).catch(logError);
+		void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 	}
 }
 

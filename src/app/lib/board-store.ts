@@ -118,9 +118,6 @@ export function moveStory(id: string, to: Status): void {
 	};
 	const check = canTransition(from, to, transitionStory);
 	if (!check.ok) {
-		// A refining story with a complete brief but no valid verdict is the
-		// gate path: the server enqueues the adversary and the card stays put
-		// behind the gating badge, so no optimism and no error.
 		const gates =
 			to === "ready" &&
 			from === "refining" &&
