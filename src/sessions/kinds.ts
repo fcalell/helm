@@ -117,7 +117,7 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 	},
 	run: {
 		model: "fable",
-		effort: "high",
+		effort: "medium",
 		context: "compact-under-pressure",
 	},
 	review: {

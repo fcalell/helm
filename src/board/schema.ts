@@ -48,7 +48,6 @@ export const storyFrontmatterSchema = z.strictObject({
 	id: storyIdSchema,
 	status: statusSchema,
 	depends: z.array(storyIdSchema).default([]),
-	size: z.literal("trivial").optional(),
 	branch: z.string().optional(),
 	gate: gateSchema.optional(),
 	sessions: z.strictObject({ refine: z.uuid().optional() }).default({}),

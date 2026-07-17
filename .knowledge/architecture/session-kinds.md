@@ -19,7 +19,7 @@ Helm stays a single fixed workflow; the kinds are its stages, never user-authore
 | `define`    | epic → stories                           | read-only + `propose_stories`                   | Fable  | medium | reseed on stale       |
 | `refine`    | story → brief                            | read-only + `update_brief` / `resolve_question` (+ `contest_flag` during a gate round) | Fable  | medium | reseed on stale       |
 | `adversary` | ready gate: attack the brief             | read-only + `flag_risk`                         | Fable  | high   | always cold           |
-| `run`       | implement a Ready story                  | permission preset + `update_card`               | Fable  | high (adaptive) | compact under pressure |
+| `run`       | implement a Ready story                  | permission preset + `update_card`               | Fable  | medium (adaptive) | compact under pressure |
 | `review`    | grade + test a finished run              | read-only + test-command Bash                   | Sonnet | high   | cold                  |
 | `conflict`  | rebase conflict resolution               | worktree tools                                  | Fable  | high   | cold                  |
 
@@ -68,29 +68,29 @@ at the cheapest point that clears its quality bar, weighed by four factors: what
 output downstream, the kind's token volume, how steep the effort payoff is (Fable climbs with
 effort; Sonnet's extraction work barely does), and interactive latency (the chat kinds bypass the
 queue because a person is waiting, so their ceiling is a turn the user will sit through). High
-goes where output is unchecked, stakes peak, or thoroughness is the product: `run` (highest
-stakes and volume), `adversary` (reasoning-dense, tiny sessions), `shape` (unchecked omissions at
-the frame, low volume), `init` (one-time), `conflict` (rare, and a failed rebase wastes a queue
-slot), `research` (tiny volume, and a wrong finding bakes into the epic structure with no later
-gate re-reading it), and `review` (effort buys tool-call thoroughness, and evidence is review's
-whole product; a confidently wrong grade miscalibrates the trust the approver puts in every other
-grade). Medium goes where a stronger stage re-checks the work: `refine` and `define`
-(gate-checked, and Fable at medium still clears every Opus setting on the published curves). When
-the pool binds, the tune-down lever is `run`'s effort; when quality disappoints, the tune-up
-order is the medium cells first. One cost to watch: long-run thinking
-fills the context window sooner, so it raises compaction pressure, the least-verified mechanic
+goes where output is unchecked, stakes peak, or thoroughness is the product: `adversary`
+(reasoning-dense, tiny sessions), `shape` (unchecked omissions at the frame, low volume), `init`
+(one-time), `conflict` (rare, and a failed rebase wastes a queue slot), `research` (tiny volume,
+and a wrong finding bakes into the epic structure with no later gate re-reading it), and `review`
+(effort buys tool-call thoroughness, and evidence is review's whole product; a confidently wrong
+grade miscalibrates the trust the approver puts in every other grade). Medium goes where a
+stronger stage re-checks the work: `refine`, `define`, and `run` (gate-checked or review-checked,
+and Fable at medium still clears every Opus setting on the published curves — `run`'s volume made
+it the obvious extension of the same argument, and a miss is caught by review rather than shipped
+unchecked). When quality disappoints, the tune-up order is the medium cells first; `run` also
+escalates itself on evidence of failure (below). One cost to watch: long-run thinking fills the
+context window sooner, so it raises compaction pressure, the least-verified mechanic
 ([claude-integration](./claude-integration.md) §Context management).
 
-**`run`'s effort adapts per story; its model never does.** The registry cell is the default, and
-two signals move it, both riding artifacts that already exist. Refine stamps a size hint on the
-story while writing the brief ([board-storage](./board-storage.md) §Story file); a `trivial` hint
-drops the run to medium, safe because Fable at medium still clears every Opus setting and a wrong
-hint costs at most one review cycle. A request-changes exit raises the follow-up run to xhigh
-([review](../product/features/review.md) §Three exits): escalation reacts to evidence of failure,
-which beats predicting difficulty from a brief. Dynamic model routing is rejected. The stage
-already classifies the work, so a classifier session would spend pool tokens re-deriving a known
-label, and its failure mode, a hard story routed to Sonnet, costs a failed run plus rework, the
-same asymmetry that sets the Sonnet floor.
+**`run`'s effort adapts per story; its model never does.** The registry cell (medium) is the
+default. One signal moves it, riding an artifact that already exists: a request-changes exit
+raises the follow-up run to xhigh ([review](../product/features/review.md) §Three exits),
+reacting to evidence of failure rather than predicting difficulty from a brief. Refine's `trivial`
+size hint is retired: it existed only to drop a high-default run to medium, which is now the
+unconditional default, so the hint has nothing left to do. Dynamic model routing is rejected. The
+stage already classifies the work, so a classifier session would spend pool tokens re-deriving a
+known label, and its failure mode, a hard story routed to Sonnet, costs a failed run plus rework,
+the same asymmetry that sets the Sonnet floor.
 
 Two resources are easy to conflate. The **rate-limit pool** is priced per model: Fable burns it
 roughly twice as fast as Opus per token (pool weighting follows per-token price) while finishing

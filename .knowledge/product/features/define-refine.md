@@ -95,11 +95,6 @@ scope · open questions), the canonical generation template for a brief
    ("sync should work well" ⚠). Deliberate friction: the implementation run is graded against them
    ([review](./review.md)).
 
-Refine also stamps a size hint on the card's frontmatter as it writes the brief. The refine
-session has already read the code and the whole brief, so the hint costs no extra session; a
-trivial story's run drops to medium effort
-([session-kinds](../../architecture/session-kinds.md) §Model per kind).
-
 ## Ready gate
 
 "Move to Ready" runs the **adversary review** and enables only when it passes and the brief is
