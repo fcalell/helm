@@ -38,12 +38,15 @@ snapshot are excluded, same as 001-01's orchestration.
 | Session                              | Model / effort | Fresh input | Output      | Cache reads    | Modeled cost |
 | ------------------------------------ | -------------- | ----------- | ----------- | -------------- | ------------ |
 | Run 1: implementation                | Fable / medium | 214,872     | 88,188      | 14,191,935     | $22.90       |
+| Run 1 browser-verify subagent        | Fable / medium | 126         | 7,624       | 3,184,159      | $3.57        |
 | Nested define session (verification) | Fable / medium | 23,957      | 2,812       | 914,051        | $1.53        |
 | Review: spec axis                    | Sonnet / high  | 42,319      | 11,911      | 552,509        | $0.60        |
 | Review: standards axis               | Sonnet / high  | 44,298      | 20,132      | 420,201        | $0.69        |
 | Run 1 follow-up: review fix-up       | Fable / xhigh  | 207,702     | 2,494       | 682,516        | $4.96        |
-| **Total**                            |                | **533,148** | **125,537** | **16,761,212** | **$30.68**   |
+| **Total**                            |                | **533,274** | **133,161** | **19,945,371** | **$34.25**   |
 
-The first run at the medium default: run 1 includes its in-browser verification sidechain, and the
-nested define session is the live target its widget checks drove. The follow-up resumed the same
-session at xhigh, so its fresh input is mostly the transcript re-entering cache.
+The first run at the medium default. The browser-verify subagent is the run's in-browser check,
+recorded in its own transcript under the session's `subagents/` directory (a blind spot in the
+first cut of this table); the nested define session is the live target its widget checks drove.
+The follow-up resumed the same session at xhigh, so its fresh input is the full transcript
+re-entering cache: the effort switch changes the request shape, which forfeits the warm prefix.
