@@ -110,11 +110,13 @@ changed.
 
 `epic.md` has the same shape: frontmatter holds `sessions: { define: <uuid> }` (the epic chat);
 the body is `# Title`, the goal, and the breakdown rationale. A shaping thread under
-`.helm/board/shaping/` holds `sessions: { shape: <uuid> }`, the agreed roadmap notes, and a Decisions
-checklist (the
-feature-level open questions the breakdown waits on,
-[define-refine](../product/features/define-refine.md) §Shaping the roadmap); accepting its proposals
-writes new epics, so it is a source of cards rather than a card.
+`.helm/board/shaping/` holds `sessions: { shape: <uuid> }`, an `## Agreed notes` section (seeded
+with the rough goal; decision resolutions append `- <decision>: <answer>` lines), and a
+`## Decisions` checklist (the feature-level open questions the breakdown waits on,
+[define-refine](../product/features/define-refine.md) §Shaping the roadmap). A research-tagged
+decision carries a trailing `(research)` marker on its checklist line; untagged items are human
+decisions. Accepting the thread's proposals writes new epics, so it is a source of cards rather
+than a card.
 
 ## Mutation rules
 
