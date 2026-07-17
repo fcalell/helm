@@ -24,7 +24,6 @@ const TOOL_LABELS: Record<Proposal["tool"], string> = {
 	update_brief: "Brief update",
 	resolve_question: "Question resolution",
 	raise_decision: "Decision",
-	flag_risk: "Risk flag",
 };
 
 type Item = LoggedProposal["items"][number];
@@ -87,9 +86,14 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 					const draft = payload() as UpdateBriefPayload;
 					return (
 						<div class="flex flex-col gap-1">
-							<Badge variant="outline" class="self-start">
-								{draft.section}
-							</Badge>
+							<div class="flex items-center gap-1.5">
+								<Badge variant="outline">{draft.section}</Badge>
+								<Show when={draft.resolves}>
+									{(flag) => (
+										<Badge variant="warning">resolves: {flag()}</Badge>
+									)}
+								</Show>
+							</div>
 							<p class="whitespace-pre-wrap text-sm">{draft.content}</p>
 						</div>
 					);
@@ -229,7 +233,11 @@ function BriefEditForm(props: EditFormProps) {
 			onSubmit={(event) => {
 				event.preventDefault();
 				props.onSubmit(
-					{ section: draft.section, content: content().trim() },
+					{
+						section: draft.section,
+						content: content().trim(),
+						resolves: draft.resolves,
+					},
 					note().trim() === "" ? undefined : note().trim(),
 				);
 			}}

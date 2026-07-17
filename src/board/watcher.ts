@@ -117,7 +117,11 @@ export async function watchBoard(
 			) {
 				const from = previous.frontmatter.status;
 				const to = story.frontmatter.status;
-				const check = canTransition(from, to, story.brief);
+				const check = canTransition(from, to, {
+					brief: story.brief,
+					body: story.body,
+					gate: story.frontmatter.gate,
+				});
 				if (!check.ok) {
 					callbacks.onNotice({
 						kind: "illegal-transition",

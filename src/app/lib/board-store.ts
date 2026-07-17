@@ -8,7 +8,11 @@ import type {
 	Status,
 	Story,
 } from "../../board/schema.ts";
-import { canTransition } from "../../board/transitions.ts";
+import {
+	canTransition,
+	checkReadyGate,
+	verdictValid,
+} from "../../board/transitions.ts";
 import { boardChannel } from "../../shared/channels.ts";
 import { api } from "./api.ts";
 import { wsClient } from "./ws.ts";
@@ -106,9 +110,31 @@ export function moveStory(id: string, to: Status): void {
 	const story = store.stories[id];
 	if (!story) return;
 
-	const check = canTransition(story.frontmatter.status, to, story.brief);
+	const from = story.frontmatter.status;
+	const transitionStory = {
+		brief: story.brief,
+		body: story.body,
+		gate: story.frontmatter.gate,
+	};
+	const check = canTransition(from, to, transitionStory);
 	if (!check.ok) {
-		toast.error(check.reason);
+		// A refining story with a complete brief but no valid verdict is the
+		// gate path: the server enqueues the adversary and the card stays put
+		// behind the gating badge, so no optimism and no error.
+		const gates =
+			to === "ready" &&
+			from === "refining" &&
+			checkReadyGate(story.brief).ok &&
+			!verdictValid(story.frontmatter.gate, story.body);
+		if (!gates) {
+			toast.error(check.reason);
+			return;
+		}
+		api.story.move({ id, to }).catch((error: unknown) => {
+			toast.error(
+				error instanceof Error ? error.message : "failed to move story",
+			);
+		});
 		return;
 	}
 

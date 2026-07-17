@@ -94,6 +94,48 @@ export function reseedPrompt(cardRaw: string, message: string): string {
 	].join("\n");
 }
 
+// The cold adversary pass: the finished brief plus the attempt's override
+// register (dismissed flags it must not re-raise). No chat history — the
+// cold read is the point.
+export function adversaryPrompt(
+	briefBody: string,
+	overrides: string[],
+): string {
+	const parts = [
+		"Attack the implementation brief below.",
+		"",
+		"<brief>",
+		briefBody.trimEnd(),
+		"</brief>",
+	];
+	if (overrides.length > 0) {
+		parts.push(
+			"",
+			"The user has already accepted these risks; do not re-raise them:",
+			...overrides.map((override) => `- ${override}`),
+		);
+	}
+	return parts.join("\n");
+}
+
+// Routes a round's flags to the story's refine session.
+export function gateFlagsPrompt(
+	flags: { title: string; detail: string }[],
+): string {
+	return [
+		"The ready-gate adversary reviewed this brief cold and raised the",
+		"flags below. Answer every flag this turn, each with exactly one of:",
+		"- a fix: an update_brief proposal for the affected section whose",
+		'  "resolves" field names the flag title verbatim;',
+		"- a contest: a contest_flag call naming the flag title verbatim,",
+		"  carrying your counter-argument.",
+		"A flag you leave unanswered is shown to the user as contested with",
+		"no counter-argument.",
+		"",
+		...flags.map((flag) => `- ${flag.title}: ${flag.detail}`),
+	].join("\n");
+}
+
 // Steering after a kill: the resumed model believes the interrupted tool
 // call never ran even though its side effects may have partially landed, so
 // the message states the interruption.

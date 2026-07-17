@@ -5,6 +5,7 @@ import {
 	sessionClosedSchema,
 	sessionWireEventSchema,
 } from "../sessions/events.ts";
+import { gateSnapshotSchema } from "./gate.ts";
 
 // The board channel: the server sends a full board snapshot on every
 // (re)subscribe and on every change, plus `notice` toasts for reasons a
@@ -35,5 +36,14 @@ export const sessionChannel = defineChannel("session", {
 // Resolutions go over RPC.
 export const proposalChannel = defineChannel("proposal", {
 	server: { snapshot: proposalSnapshotSchema },
+	client: {},
+});
+
+// The gate channel: every active ready-gate attempt (story id, phase, rounds),
+// sent as a full snapshot on every (re)subscribe and on every change, so a
+// late subscriber replays the current gate state. Flag resolutions go over
+// RPC.
+export const gateChannel = defineChannel("gate", {
+	server: { snapshot: gateSnapshotSchema },
 	client: {},
 });

@@ -330,6 +330,11 @@ export function replaceBriefSection(
 	return `${rebuilt.trimEnd()}\n`;
 }
 
+// File an accepted gate flag as a new unchecked open question.
+export function appendOpenQuestion(body: string, question: string): string {
+	return appendToSection(body, "Open questions", `- [ ] ${question.trim()}`);
+}
+
 // Set the matching `- [ ] <question>` under Open questions to `- [x]`;
 // undefined when no unchecked item matches the text exactly.
 function checkQuestion(body: string, question: string): string | undefined {

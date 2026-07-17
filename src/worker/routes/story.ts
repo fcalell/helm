@@ -10,12 +10,18 @@ import {
 } from "../../board/store.ts";
 import { canTransition } from "../../board/transitions.ts";
 import { boardSnapshot } from "../../server/services/board.ts";
+import { requestReady } from "../../server/services/gate.ts";
 import { enqueueWrite } from "../../server/write-queue.ts";
 
 export const story = {
+	// Every move but into Ready validates and writes; a move into Ready runs
+	// the ready gate: free on a valid recorded verdict, else it enqueues a
+	// cold adversary pass and returns `gating: true` with the card still
+	// `refining`.
 	move: procedure()
 		.input(z.object({ id: storyIdSchema, to: statusSchema }))
-		.handler(async ({ input }) => {
+		.handler(async ({ input }): Promise<{ gating: boolean }> => {
+			if (input.to === "ready") return requestReady(input.id);
 			// The snapshot trails disk, so use it only to resolve id -> path;
 			// validate and write from fresh content read inside the queue.
 			const known = boardSnapshot().stories.find(
@@ -47,7 +53,11 @@ export const story = {
 				}
 
 				const from = current.frontmatter.status;
-				const check = canTransition(from, input.to, current.brief);
+				const check = canTransition(from, input.to, {
+					brief: current.brief,
+					body: current.body,
+					gate: current.frontmatter.gate,
+				});
 				if (!check.ok) {
 					throw new ApiError("ILLEGAL_TRANSITION", {
 						status: 409,
@@ -63,5 +73,6 @@ export const story = {
 					body: current.body,
 				});
 			});
+			return { gating: false };
 		}),
 };

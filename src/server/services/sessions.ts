@@ -81,12 +81,41 @@ export interface SpawnSessionInput {
 export async function spawnSession(
 	input: SpawnSessionInput,
 ): Promise<{ sessionId: string }> {
+	if (KIND_REGISTRY[input.kind].context !== "reseed-on-stale") {
+		throw new ApiError("BAD_REQUEST", {
+			message: `${input.kind} sessions dispatch through the queue, not session.spawn`,
+		});
+	}
 	const attach =
 		input.kind === "shape"
 			? await createShapeThread(input.prompt)
 			: await resolveAttach(input);
 	try {
-		return await runTurn({ kind: input.kind, prompt: input.prompt, attach });
+		const { sessionId } = await runTurn({
+			kind: input.kind,
+			prompt: input.prompt,
+			attach,
+		});
+		return { sessionId };
+	} catch (error) {
+		throw asSpawnFailed(error);
+	}
+}
+
+// The dispatcher path for the always-cold kinds: spawns outside the chat
+// entrypoints and exposes the process's completion, which the caller (the
+// gate today) awaits to hold its dispatcher slot.
+export async function runColdSession(input: {
+	kind: SessionKind;
+	prompt: string;
+	attach?: Attach;
+}): Promise<{ sessionId: string; done: Promise<void> }> {
+	try {
+		return await runTurn({
+			kind: input.kind,
+			prompt: input.prompt,
+			attach: input.attach,
+		});
 	} catch (error) {
 		throw asSpawnFailed(error);
 	}
@@ -118,12 +147,13 @@ export async function messageSession(input: {
 		? steeringPrompt(input.prompt)
 		: input.prompt;
 	try {
-		return await runTurn({
+		const { sessionId } = await runTurn({
 			kind: info.kind,
 			prompt,
 			resume: input.sessionId,
 			attach: info.attach,
 		});
+		return { sessionId };
 	} catch (error) {
 		if (!(error instanceof SessionSpawnError) || !error.stale) {
 			throw asSpawnFailed(error);
@@ -139,11 +169,12 @@ export async function messageSession(input: {
 		interrupted.delete(input.sessionId);
 		const raw = await readCardRaw(info.attach);
 		try {
-			return await runTurn({
+			const { sessionId } = await runTurn({
 				kind: info.kind,
 				prompt: reseedPrompt(raw, input.prompt),
 				attach: info.attach,
 			});
+			return { sessionId };
 		} catch (reseedError) {
 			throw asSpawnFailed(reseedError);
 		}
@@ -167,7 +198,9 @@ interface TurnOptions {
 	attach?: Attach;
 }
 
-async function runTurn(options: TurnOptions): Promise<{ sessionId: string }> {
+async function runTurn(
+	options: TurnOptions,
+): Promise<{ sessionId: string; done: Promise<void> }> {
 	const runId = randomUUID();
 	const { kind, attach } = options;
 	const mcpToken = randomUUID();
@@ -223,10 +256,16 @@ async function runTurn(options: TurnOptions): Promise<{ sessionId: string }> {
 	const init = await child.started;
 	live.set(init.sessionId, child);
 	known.set(init.sessionId, { kind, attach });
-	if (attach !== undefined && options.resume !== init.sessionId) {
+	// Only the resumable chat kinds persist their id on the card; a cold
+	// kind's attach exists so its board tools resolve the story, nothing more.
+	if (
+		attach !== undefined &&
+		options.resume !== init.sessionId &&
+		KIND_REGISTRY[kind].context === "reseed-on-stale"
+	) {
 		await persistAttach(attach, init.sessionId);
 	}
-	return { sessionId: init.sessionId };
+	return { sessionId: init.sessionId, done: child.done.then(() => undefined) };
 }
 
 // A fresh refine turn (first spawn or reseed) is seeded with the epic's

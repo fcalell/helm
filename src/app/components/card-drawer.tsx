@@ -1,4 +1,5 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
+import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Checkbox } from "@fcalell/plugin-solid-ui/components/checkbox";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
@@ -11,10 +12,11 @@ import {
 	type Status,
 	type Story,
 } from "../../board/schema.ts";
-import { boardStore, STATUS_LABELS } from "../lib/board-store.ts";
+import { boardStore, moveStory, STATUS_LABELS } from "../lib/board-store.ts";
 import { weakCriterion } from "../lib/criteria.ts";
 import { refineSpawnFor } from "../lib/session-store.ts";
 import { ChatPane } from "./chat-pane.tsx";
+import { GatePanel } from "./gate-panel.tsx";
 
 interface CardDrawerProps {
 	story: Story | undefined;
@@ -111,30 +113,35 @@ function ChatTab(props: { story: Story }) {
 		refineSpawnFor(props.story.id)?.sessionId ??
 		epic()?.frontmatter.sessions.define;
 	return (
-		<Show
-			when={sessionId()}
-			fallback={
+		<div class="flex h-full min-h-0 flex-col gap-3">
+			<GatePanel storyId={props.story.id} />
+			<div class="min-h-0 flex-1">
 				<Show
-					when={refineSpawnFor(props.story.id)}
+					when={sessionId()}
 					fallback={
-						<EmptyState
-							title="Chat"
-							description="Press r on a Backlog card to start refining"
-						/>
+						<Show
+							when={refineSpawnFor(props.story.id)}
+							fallback={
+								<EmptyState
+									title="Chat"
+									description="Press r on a Backlog card to start refining"
+								/>
+							}
+						>
+							<Loader text="starting the refine chat" class="text-xs" />
+						</Show>
 					}
 				>
-					<Loader text="starting the refine chat" class="text-xs" />
+					{(id) => (
+						<ChatPane
+							sessionId={id()}
+							artifactTitle="Brief"
+							artifact={<BriefView story={props.story} />}
+						/>
+					)}
 				</Show>
-			}
-		>
-			{(id) => (
-				<ChatPane
-					sessionId={id()}
-					artifactTitle="Brief"
-					artifact={<BriefView story={props.story} />}
-				/>
-			)}
-		</Show>
+			</div>
+		</div>
 	);
 }
 
@@ -156,6 +163,15 @@ export function CardDrawer(props: CardDrawerProps) {
 									{story.id} · {story.brief.title || story.id}
 								</Sheet.Title>
 								<Badge>{STATUS_LABELS[story.frontmatter.status]}</Badge>
+								<Show when={story.frontmatter.status === "refining"}>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => moveStory(story.id, "ready")}
+									>
+										Move to Ready
+									</Button>
+								</Show>
 							</div>
 						</Sheet.Header>
 						<Tabs

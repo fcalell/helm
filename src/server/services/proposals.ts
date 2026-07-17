@@ -26,7 +26,6 @@ import {
 	writeShaping,
 	writeStory,
 } from "../../board/store.ts";
-import type { BoardToolName } from "../../sessions/kinds.ts";
 import {
 	decisionResolvedPrompt,
 	proposalOutcomePrompt,
@@ -43,7 +42,6 @@ import type {
 } from "../mcp/schemas.ts";
 import {
 	epicDraftSchema,
-	flagRiskPayloadSchema,
 	proposalSchema,
 	questionSchema,
 	raiseDecisionPayloadSchema,
@@ -53,6 +51,7 @@ import {
 } from "../mcp/schemas.ts";
 import { enqueueWrite } from "../write-queue.ts";
 import { boardSnapshot, managedRepo } from "./board.ts";
+import { gateBriefEdited, gateFixRejected } from "./gate.ts";
 import {
 	type Attach,
 	isSessionLive,
@@ -82,7 +81,6 @@ const ITEM_SCHEMA: Record<Proposal["tool"], z.ZodType> = {
 	update_brief: updateBriefPayloadSchema,
 	resolve_question: resolveQuestionPayloadSchema,
 	raise_decision: raiseDecisionPayloadSchema,
-	flag_risk: flagRiskPayloadSchema,
 };
 
 function snapshot(): { proposals: Proposal[]; questions: Question[] } {
@@ -98,7 +96,7 @@ function broadcast(): void {
 
 export function recordProposal(
 	binding: ReadyBinding,
-	tool: Exclude<BoardToolName, "ask_user">,
+	tool: Proposal["tool"],
 	items: unknown[],
 	extra?: { epic?: string; epicBody?: EpicBody },
 ): Proposal {
@@ -153,12 +151,6 @@ export async function resolveProposalItem(input: {
 		});
 	}
 	const { resolution } = input;
-	if (proposal.tool === "flag_risk") {
-		throw new ApiError("UNSUPPORTED_RESOLUTION", {
-			status: 501,
-			message: `${proposal.tool} resolution is not implemented yet`,
-		});
-	}
 	if (resolution.type === "edit") {
 		const parsed = ITEM_SCHEMA[proposal.tool].safeParse(resolution.payload);
 		if (!parsed.success) {
@@ -172,6 +164,13 @@ export async function resolveProposalItem(input: {
 	}
 	if (resolution.type === "accept") {
 		await enqueueWrite(() => applyItem(proposal, input.item));
+		notifyGate(proposal, input.item);
+	} else if (resolution.type === "reject" && proposal.tool === "update_brief") {
+		const attach = contexts.get(proposal.id)?.attach;
+		const resolves = proposal.items[input.item]?.payload.resolves;
+		if (attach?.type === "story" && resolves !== undefined) {
+			gateFixRejected(attach.id, resolves);
+		}
 	}
 	item.resolution = resolution;
 	broadcast();
@@ -381,10 +380,18 @@ async function applyItem(proposal: Proposal, index: number): Promise<void> {
 			});
 			return;
 		}
-		// flag_risk never reaches here (every outcome is gated to
-		// UNSUPPORTED_RESOLUTION).
-		case "flag_risk":
-			return;
+	}
+}
+
+// An accepted brief edit re-evaluates the story's gate round; a fix's
+// `resolves` settles its flag first.
+function notifyGate(proposal: Proposal, index: number): void {
+	const attach = contexts.get(proposal.id)?.attach;
+	if (attach?.type !== "story") return;
+	if (proposal.tool === "update_brief") {
+		gateBriefEdited(attach.id, proposal.items[index]?.payload.resolves);
+	} else if (proposal.tool === "resolve_question") {
+		gateBriefEdited(attach.id);
 	}
 }
 
@@ -530,8 +537,6 @@ function itemSummary(proposal: Proposal, index: number): string {
 			return proposal.items[index]?.payload.question ?? "";
 		case "raise_decision":
 			return proposal.items[index]?.payload.decision ?? "";
-		case "flag_risk":
-			return proposal.items[index]?.payload.title ?? "";
 	}
 }
 

@@ -5,6 +5,11 @@ import { isENOENT, readShapingFile, shapingDir } from "../../board/store.ts";
 import type { BoardToolName, SessionKind } from "../../sessions/kinds.ts";
 import { boardSnapshot, managedRepo } from "../services/board.ts";
 import {
+	contestGateFlag,
+	gateFixProposed,
+	recordAdversaryFlag,
+} from "../services/gate.ts";
+import {
 	hasPendingDecision,
 	recordProposal,
 	recordQuestion,
@@ -13,6 +18,7 @@ import type { ReadyBinding } from "./registry.ts";
 import type { Proposal } from "./schemas.ts";
 import {
 	askUserPayloadSchema,
+	contestFlagPayloadSchema,
 	flagRiskPayloadSchema,
 	proposeEpicsPayloadSchema,
 	proposeStoriesDefinePayloadSchema,
@@ -148,9 +154,11 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 			if (binding.attach?.type !== "story") {
 				return err("this session is not bound to a story");
 			}
-			return recordedProposal(
-				recordProposal(binding, "update_brief", [parsed.data]),
-			);
+			const proposal = recordProposal(binding, "update_brief", [parsed.data]);
+			if (parsed.data.resolves !== undefined) {
+				gateFixProposed(binding.attach.id, parsed.data.resolves);
+			}
+			return recordedProposal(proposal);
 		},
 	},
 	resolve_question: {
@@ -202,8 +210,25 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 		handle: async (binding, args) => {
 			const parsed = flagRiskPayloadSchema.safeParse(args);
 			if (!parsed.success) return err(z.prettifyError(parsed.error));
-			recordProposal(binding, "flag_risk", [parsed.data]);
-			return ok(RECORDED_SINGLE);
+			const failure = recordAdversaryFlag(binding, parsed.data);
+			if (failure !== undefined) return err(failure);
+			return ok("Flag recorded. Continue, or end your turn when done.");
+		},
+	},
+	contest_flag: {
+		description:
+			"Contest a gate flag instead of fixing the brief: name the flag and " +
+			"carry your counter-argument to the user.",
+		inputSchema: () => contestFlagPayloadSchema,
+		handle: async (binding, args) => {
+			const parsed = contestFlagPayloadSchema.safeParse(args);
+			if (!parsed.success) return err(z.prettifyError(parsed.error));
+			const failure = contestGateFlag(binding, parsed.data);
+			if (failure !== undefined) return err(failure);
+			return ok(
+				"Contest recorded. The user will accept the risk as an open " +
+					"question or dismiss the flag.",
+			);
 		},
 	},
 	ask_user: {

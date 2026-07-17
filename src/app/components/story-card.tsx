@@ -5,6 +5,8 @@ import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
 import { createDraggable } from "@thisbeyond/solid-dnd";
 import { Show } from "solid-js";
 import type { Epic, Story } from "../../board/schema.ts";
+import { gateFor } from "../lib/gate-store.ts";
+import { gateBadgeLabel } from "./gate-panel.tsx";
 
 interface StoryCardProps {
 	story: Story;
@@ -23,6 +25,7 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 		props.story.brief.openQuestions.filter((item) => !item.checked).length;
 	const depends = () => props.story.frontmatter.depends;
 	const isRefining = () => props.story.frontmatter.status === "refining";
+	const gate = () => (isRefining() ? gateFor(props.story.id) : undefined);
 
 	return (
 		<>
@@ -31,6 +34,13 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 			</p>
 			<div class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
 				<Badge variant="outline">{epicLabel()}</Badge>
+				<Show when={gate()}>
+					{(attempt) => (
+						<Badge variant="warning" data-gate-badge>
+							{gateBadgeLabel(attempt())}
+						</Badge>
+					)}
+				</Show>
 				<Show when={criteria().length > 0}>
 					<span>
 						{checkedCount() > 0

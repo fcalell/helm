@@ -23,6 +23,7 @@ export const BOARD_TOOLS = [
 	"raise_decision",
 	"update_brief",
 	"resolve_question",
+	"contest_flag",
 	"flag_risk",
 	"ask_user",
 ] as const;
@@ -91,7 +92,9 @@ The brief is the artifact; the chat is disposable. Fill it one section at a time
 
 Acceptance criteria are a "- [ ]" checklist of measurable, testable statements: name the observable behavior and how to check it, never "works well".
 
-Anything genuinely the user's call is an open question: land it in the Open questions section through update_brief as "- [ ]" checklist lines, and surface each through ask_user with quick-reply options, quoting the checklist text verbatim. When the user answers, call resolve_question with that question text and the answer: accepting checks the item off and folds the answer into the Approach section.`;
+Anything genuinely the user's call is an open question: land it in the Open questions section through update_brief as "- [ ]" checklist lines, and surface each through ask_user with quick-reply options, quoting the checklist text verbatim. When the user answers, call resolve_question with that question text and the answer: accepting checks the item off and folds the answer into the Approach section.
+
+During a ready-gate round you receive the adversary's flags. Answer every flag the same turn: a fix is an update_brief proposal whose resolves field names the flag's title verbatim; a contest is a contest_flag call naming the title verbatim with your counter-argument.`;
 
 export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 	init: {
@@ -136,7 +139,12 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		effort: "medium",
 		context: "reseed-on-stale",
 		tools: READ_ONLY_TOOLS,
-		boardTools: ["update_brief", "resolve_question", "ask_user"],
+		boardTools: [
+			"update_brief",
+			"resolve_question",
+			"contest_flag",
+			"ask_user",
+		],
 		systemPrompt: REFINE_PROMPT,
 	},
 	adversary: {
@@ -145,7 +153,7 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		context: "always-cold",
 		tools: READ_ONLY_TOOLS,
 		boardTools: ["flag_risk", "ask_user"],
-		systemPrompt: `You are Helm's ready-gate adversary: attack the brief for gaps, risks, and ambiguity a cold reader would hit. ${WORK_READ_ONLY}`,
+		systemPrompt: `You are Helm's ready-gate adversary: attack the brief for gaps, risks, and ambiguity a cold reader would hit, checking its claims against the repository where they can be checked. ${WORK_READ_ONLY} Raise each critical flaw with one flag_risk call: a short title plus the detail naming where an implementer would stumble. Never re-raise a risk the user has already dismissed. If the brief holds, call no tools and end your turn.`,
 	},
 	run: {
 		model: "fable",

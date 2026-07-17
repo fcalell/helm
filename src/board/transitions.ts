@@ -1,4 +1,10 @@
-import { BRIEF_SECTIONS, type Brief, type Status } from "./schema.ts";
+import { briefHash } from "./hash.ts";
+import {
+	BRIEF_SECTIONS,
+	type Brief,
+	type Gate,
+	type Status,
+} from "./schema.ts";
 
 export const LEGAL_TRANSITIONS = {
 	backlog: ["refining", "blocked"],
@@ -34,15 +40,36 @@ export function checkReadyGate(brief: Brief): TransitionCheck {
 	return { ok: true };
 }
 
+// The recorded adversary verdict binds to the brief body by hash: any edit
+// (chat accepts and hand edits alike) stales it.
+export function verdictValid(gate: Gate | undefined, body: string): boolean {
+	return gate !== undefined && gate.brief === briefHash(body);
+}
+
+export interface TransitionStory {
+	brief: Brief;
+	body: string;
+	gate: Gate | undefined;
+}
+
 export function canTransition(
 	from: Status,
 	to: Status,
-	brief: Brief,
+	story: TransitionStory,
 ): TransitionCheck {
 	const targets: readonly Status[] = LEGAL_TRANSITIONS[from];
 	if (!targets.includes(to)) {
 		return { ok: false, reason: `a ${from} story cannot move to ${to}` };
 	}
-	if (to === "ready" && from !== "review") return checkReadyGate(brief);
+	if (to === "ready") {
+		const complete = checkReadyGate(story.brief);
+		if (!complete.ok) return complete;
+		if (!verdictValid(story.gate, story.body)) {
+			return {
+				ok: false,
+				reason: "no adversary verdict for this brief; run the ready gate",
+			};
+		}
+	}
 	return { ok: true };
 }

@@ -53,6 +53,9 @@ export const proposeStoriesDefinePayloadSchema = z.object({
 export const updateBriefPayloadSchema = z.object({
 	section: z.enum(BRIEF_SECTIONS),
 	content: z.string().min(1),
+	// Gate-round fixes name the flag title they resolve; accepting the edit
+	// settles that flag.
+	resolves: z.string().optional(),
 });
 export type UpdateBriefPayload = z.infer<typeof updateBriefPayloadSchema>;
 export const resolveQuestionPayloadSchema = z.object({
@@ -72,6 +75,12 @@ export const flagRiskPayloadSchema = z.object({
 	title: z.string().min(1),
 	detail: z.string().min(1),
 });
+export type FlagRiskPayload = z.infer<typeof flagRiskPayloadSchema>;
+export const contestFlagPayloadSchema = z.object({
+	flag: z.string().min(1),
+	argument: z.string().min(1),
+});
+export type ContestFlagPayload = z.infer<typeof contestFlagPayloadSchema>;
 export const askUserPayloadSchema = z.object({
 	question: z.string().min(1),
 	recommendation: z.string().min(1),
@@ -130,11 +139,6 @@ export const proposalSchema = z.discriminatedUnion("tool", [
 		...proposalBase,
 		tool: z.literal("raise_decision"),
 		items: itemsOf(raiseDecisionPayloadSchema),
-	}),
-	z.object({
-		...proposalBase,
-		tool: z.literal("flag_risk"),
-		items: itemsOf(flagRiskPayloadSchema),
 	}),
 ]);
 export type Proposal = z.infer<typeof proposalSchema>;
