@@ -184,6 +184,10 @@ export function CardDrawer(props: CardDrawerProps) {
 						<Tabs
 							defaultValue={defaultTab(story.frontmatter.status)}
 							class="mt-4 flex min-h-0 flex-1 flex-col"
+							// Without `relative` the active-tab indicator anchors to the
+							// sheet (its nearest positioned ancestor) and paints at the
+							// drawer's bottom edge.
+							listClass="relative shrink-0"
 							contentClass="mt-4 min-h-0 flex-1 overflow-y-auto"
 							tabs={[
 								{

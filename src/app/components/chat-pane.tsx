@@ -140,9 +140,14 @@ export function ChatPane(props: ChatPaneProps) {
 	let transcriptRef: HTMLDivElement | undefined;
 
 	createEffect(() => {
-		// Track everything that grows the transcript, then pin to the bottom.
-		chat().items.length;
-		chat().items.at(-1);
+		// Track everything that grows the transcript — including the streaming
+		// tail's text, which mutates without changing the item count — then pin
+		// to the bottom.
+		const items = chat().items;
+		const last = items[items.length - 1];
+		if (last?.type === "assistant") last.text;
+		if (last?.type === "tool") last.done;
+		chat().busy;
 		if (transcriptRef !== undefined) {
 			transcriptRef.scrollTop = transcriptRef.scrollHeight;
 		}
@@ -156,7 +161,7 @@ export function ChatPane(props: ChatPaneProps) {
 	}
 
 	return (
-		<div class="flex h-full min-h-0 flex-col gap-3">
+		<div class="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
 			<div class="shrink-0 rounded-lg border bg-card p-3">
 				<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
 					Artifact
