@@ -258,9 +258,42 @@ export function buildEpicBody(
 	return `${parts.join("\n\n")}\n`;
 }
 
+// Fold lines under Approach (`- <question>: <answer>`, written by
+// resolveQuestion) whose question is a checked Open questions item.
+function questionFolds(body: string): string[] {
+	const checked: string[] = [];
+	const folds: string[] = [];
+	let section = "";
+	for (const line of body.split("\n")) {
+		const heading = HEADING_RE.exec(line);
+		if (heading !== null) {
+			section = heading[1] === "##" ? (heading[2]?.trim() ?? "") : "";
+			continue;
+		}
+		if (section !== "Open questions") continue;
+		const match = CHECKLIST_RE.exec(line);
+		if (match?.[1] === "x") checked.push((match[2] ?? "").trim());
+	}
+	if (checked.length === 0) return [];
+	section = "";
+	for (const line of body.split("\n")) {
+		const heading = HEADING_RE.exec(line);
+		if (heading !== null) {
+			section = heading[1] === "##" ? (heading[2]?.trim() ?? "") : "";
+			continue;
+		}
+		if (section !== "Approach") continue;
+		if (checked.some((question) => line.startsWith(`- ${question}:`)))
+			folds.push(line);
+	}
+	return folds;
+}
+
 // Replace the `## <section>` block (up to the next `## ` heading or EOF). A
 // missing heading is inserted at its BRIEF_SECTIONS position relative to the
-// headings already present.
+// headings already present. Replacing Approach keeps the fold lines of
+// resolved open questions, so a section accept never erases a resolution
+// recorded between the proposal and the accept.
 export function replaceBriefSection(
 	body: string,
 	section: BriefSection,
@@ -275,9 +308,14 @@ export function replaceBriefSection(
 			text,
 		};
 	});
+	const kept =
+		section === "Approach"
+			? questionFolds(body).filter((line) => !content.includes(line))
+			: [];
+	const filled = [content.trim(), ...kept].join("\n");
 	const block = {
 		name: section,
-		text: `## ${section}\n\n${content.trim()}\n\n`,
+		text: `## ${section}\n\n${filled}\n\n`,
 	};
 	const at = blocks.findIndex((b) => b.name === section);
 	if (at !== -1) {
