@@ -1,8 +1,13 @@
 ---
 id: 001-01
-status: ready
+status: done
 depends: []
+branch: helm/001-01-session-runner
 gate: { passed: 2026-07-16T21:49:22Z, brief: 6a0ac2c4d1264bf5, overrides: [] }
+sessions: {}
+runs:
+  - { n: 1, session: 541581bf-933b-4fc6-a49a-fa57ddea0a92, brief: 6a0ac2c4d1264bf5, started: 2026-07-16T23:04:06Z, outcome: review, grades: 0/5, tokens: 347965, minutes: 22 }
+  - { n: 2, session: 541581bf-933b-4fc6-a49a-fa57ddea0a92, brief: 6a0ac2c4d1264bf5, started: 2026-07-17T07:19:50Z, outcome: review, grades: 7/7, tokens: 148972, minutes: 1 }
 ---
 # Session runner & kind registry
 
