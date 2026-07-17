@@ -121,8 +121,6 @@ export function serializeEpic(
 	return `---\n${stringifyFrontmatter({ sessions: frontmatter.sessions })}---\n${body}`;
 }
 
-const SECTION_HEADING_RE = /^##\s+(.*)$/;
-
 // The six brief headings in template order, Goal filled and the rest empty.
 export function buildStoryBody(title: string, goal: string): string {
 	const blocks = BRIEF_SECTIONS.map((section) =>
@@ -152,11 +150,13 @@ export function replaceBriefSection(
 ): string {
 	const parts = body.split(/(?=^##\s)/m);
 	const preamble = parts[0] ?? "";
-	const blocks = parts.slice(1).map((text) => ({
-		name:
-			SECTION_HEADING_RE.exec(text.split("\n", 1)[0] ?? "")?.[1]?.trim() ?? "",
-		text,
-	}));
+	const blocks = parts.slice(1).map((text) => {
+		const heading = HEADING_RE.exec(text.split("\n", 1)[0] ?? "");
+		return {
+			name: heading?.[1] === "##" ? (heading[2]?.trim() ?? "") : "",
+			text,
+		};
+	});
 	const block = {
 		name: section,
 		text: `## ${section}\n\n${content.trim()}\n\n`,
@@ -185,9 +185,10 @@ export function checkQuestion(
 	let inSection = false;
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i] ?? "";
-		const heading = SECTION_HEADING_RE.exec(line);
+		const heading = HEADING_RE.exec(line);
 		if (heading !== null) {
-			inSection = heading[1]?.trim() === "Open questions";
+			inSection =
+				heading[1] === "##" && heading[2]?.trim() === "Open questions";
 			continue;
 		}
 		if (!inSection) continue;

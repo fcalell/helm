@@ -19,7 +19,7 @@ import {
 	questionAnswerPrompt,
 } from "../../sessions/prompts.ts";
 import { proposalChannel } from "../../shared/channels.ts";
-import type { SpawnBinding } from "../mcp/registry.ts";
+import type { ReadyBinding } from "../mcp/registry.ts";
 import type {
 	AskUserPayload,
 	Proposal,
@@ -80,7 +80,7 @@ function broadcast(): void {
 }
 
 export function recordProposal(
-	binding: SpawnBinding & { sessionId: string },
+	binding: ReadyBinding,
 	tool: Exclude<BoardToolName, "ask_user">,
 	items: unknown[],
 	epic?: string,
@@ -101,7 +101,7 @@ export function recordProposal(
 }
 
 export function recordQuestion(
-	binding: SpawnBinding & { sessionId: string },
+	binding: ReadyBinding,
 	payload: AskUserPayload,
 ): Question {
 	const question = questionSchema.parse({

@@ -27,7 +27,16 @@ export function buildMcpServer(binding: SpawnBinding): McpServer {
 				description: def.description,
 				inputSchema: def.inputSchema(binding.kind),
 			},
-			(args) => def.handle(binding, args),
+			async (args) => {
+				const { sessionId } = binding;
+				if (sessionId === undefined) {
+					return {
+						content: [{ type: "text", text: "session is not initialized yet" }],
+						isError: true,
+					};
+				}
+				return def.handle({ ...binding, sessionId }, args);
+			},
 		);
 	}
 	return mcp;

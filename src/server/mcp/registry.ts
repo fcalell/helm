@@ -11,6 +11,9 @@ export interface SpawnBinding {
 	sessionId?: string;
 }
 
+// A binding whose session has announced its id; tool handlers require it.
+export type ReadyBinding = SpawnBinding & { sessionId: string };
+
 const bindings = new Map<string, SpawnBinding>();
 let port: number | undefined;
 
