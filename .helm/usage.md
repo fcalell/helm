@@ -32,3 +32,18 @@ This loop ran as the 001-02 experiment (Fable plan, Opus build; ledgers in
 `usage-experiment-001-02-*.md`), so run 1 and the orchestration are one session: its numbers are
 the build-end snapshot, deduped by message id, and the closing loop's own turns after that
 snapshot are excluded, same as 001-01's orchestration.
+
+## 001-03 Drawer chat & proposal widgets (2026-07-17)
+
+| Session                              | Model / effort | Fresh input | Output      | Cache reads    | Modeled cost |
+| ------------------------------------ | -------------- | ----------- | ----------- | -------------- | ------------ |
+| Run 1: implementation                | Fable / medium | 214,872     | 88,188      | 14,191,935     | $22.90       |
+| Nested define session (verification) | Fable / medium | 23,957      | 2,812       | 914,051        | $1.53        |
+| Review: spec axis                    | Sonnet / high  | 42,319      | 11,911      | 552,509        | $0.60        |
+| Review: standards axis               | Sonnet / high  | 44,298      | 20,132      | 420,201        | $0.69        |
+| Run 1 follow-up: review fix-up       | Fable / xhigh  | 207,702     | 2,494       | 682,516        | $4.96        |
+| **Total**                            |                | **533,148** | **125,537** | **16,761,212** | **$30.68**   |
+
+The first run at the medium default: run 1 includes its in-browser verification sidechain, and the
+nested define session is the live target its widget checks drove. The follow-up resumed the same
+session at xhigh, so its fresh input is mostly the transcript re-entering cache.
