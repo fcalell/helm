@@ -50,3 +50,20 @@ recorded in its own transcript under the session's `subagents/` directory (a bli
 first cut of this table); the nested define session is the live target its widget checks drove.
 The follow-up resumed the same session at xhigh, so its fresh input is the full transcript
 re-entering cache: the effort switch changes the request shape, which forfeits the warm prefix.
+
+## 001-04 Shape & define chats (2026-07-17)
+
+| Session                                  | Model / effort  | Fresh input | Output      | Cache reads    | Modeled cost |
+| ---------------------------------------- | --------------- | ----------- | ----------- | -------------- | ------------ |
+| Run 1: implementation                    | Fable / medium  | 274,363     | 115,925     | 26,950,539     | $34.23       |
+| Run 1 browser-verify subagent            | Fable / medium  | 43,493      | 11,288      | 631,361        | $2.07        |
+| Nested verification sessions (4, scratch repo) | Fable / medium | 58,708 | 3,892       | 626,835        | $2.00        |
+| Review: spec axis                        | Sonnet / high   | 62,808      | 18,109      | 970,954        | $0.94        |
+| Review: standards axis                   | Sonnet / high   | 82,175      | 26,541      | 1,571,651      | $1.36        |
+| Run 1 follow-up: review fix-up           | Sonnet / medium | 87,972      | 12,136      | 2,006,521      | $1.31        |
+| **Total**                                |                 | **609,519** | **187,891** | **32,757,861** | **$41.91**   |
+
+First data point for the outcome-routed follow-up: the standards-only round resumed on Sonnet at
+medium and cost $1.31 against 001-03's $4.96 at a Fable escalation, with the same cache reseed in
+the price. The nested rows are the run's live verification targets, four shape/define sessions
+spawned on the scratch repo plus the in-browser subagent check.
