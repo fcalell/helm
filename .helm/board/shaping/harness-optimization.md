@@ -7,20 +7,43 @@ levers that move it. Model/effort specifics and the measured evidence live in
 
 ## Objective
 
-Minimize total pool spend plus wall-clock per shipped story, subject to each stage clearing its
-quality floor, counting rework. The per-stage form of this is the matrix decision rule.
+One hard constraint and two minimands, not a single sum. The **hard constraint** is staying within
+each rate-limit pool's cap (a Max subscription bills nothing but caps usage); a pool-out halts that
+pool's kinds regardless of how cheap each call was. Under it, **minimize pool spend** (the primary
+minimand, what the matrix rule and most levers below target) and **wall-clock per shipped story** (a
+secondary minimand only a few levers touch: concurrent slice dispatch and pool-aware scheduling). The
+two align near the cap (exhausting a pool is a hard stop, not a throttle: it blocks that pool's kinds
+until reset, a wall-clock cliff, so spending less to stay under the cap also avoids the stall) and
+trade off otherwise; they are different units and are never added. The matrix decision rule is the
+per-stage form of the spend minimand only, the cheapest (model, effort) clearing each stage's quality
+floor, counting rework; it has no time term, so wall-clock is handled by those few levers, not the
+rule.
 
-Three measured facts order the levers:
+**Cost is measured in the wrong unit, deliberately.** Every dollar figure in these docs is the CLI's
+notional `total_cost_usd`, not a bill (the Max subscription has no API billing). It is a proxy for
+token volume. The resource that actually runs out is a pool's usage cap, seen directly when Fable hit
+its limit mid-testing. Dollars track volume *within* a pool acceptably, but do **not** compare *across*
+pools: a cross-pool "$X cheaper" (e.g. Opus below Fable) says nothing about pool survival, because the
+two draw different capped buckets. Read every cross-pool dollar comparison as a token-volume note,
+never a which-to-run verdict; the pool it draws decides that.
 
-1. **Cost lives in iterations, not per-call price.** The first dogfood loop's gate was ~$86 of $122;
-   round count is the multiplier on everything downstream.
-2. **Within a stage, cache-read scales with context length and dominates**: ~90% of run cost, 84% of
-   the refine gate-answering. Long context is expensive even at a cheap tier.
-3. **Pools are separate and capped** (Fable draws its own, apart from Sonnet/Opus). Spend is bounded
-   per pool, so spreading burn matters as much as reducing it.
+Three facts order the levers:
+
+1. **Cost lives in iterations, not per-call price** `measured`. The first dogfood loop's gate was
+   ~$86 of $122; round count is the multiplier on everything downstream.
+2. **Within a stage, cache-read scales with context length and dominates** `measured`. Cache-read was
+   ~90% of run cost. Refine's cost was dominated the same way at one remove: ~78% of the chat went to
+   re-answering the 12 gate rounds rather than building the brief, and 84% of its cache-reads fell in
+   that gate-answering (each round re-reads the accumulated transcript). Long context is expensive
+   even at a cheap tier.
+3. **Pools are separate and capped** `partly measured`. Fable drawing its own pool is observed (it
+   capped out while the others ran); Sonnet and Opus sharing one pool is an assumption, not yet
+   confirmed. Either way spend is bounded per pool, so spreading burn across pools matters as much as
+   reducing it, and the fallback strategy must not assume a spare Opus pool is large.
 
 So the heavy levers cut iterations and context length; per-call tier and effort are fine-tuning on
-top. "Pick a cheaper model" is near the bottom of the list, not the top.
+top. "Pick a cheaper model" is near the bottom of the list, and on a capped pool it can even be
+wrong: the cheaper-in-dollars model can draw more of a scarcer pool.
 
 ## Levers
 
@@ -38,8 +61,10 @@ principle, not a build item).
   flags, so rounds end as early as the work allows.
 - **Minimize human round-trips** `designed`. `ask_user` only when code cannot settle, one question in
   dependency order, each carrying a recommended answer so the user confirms rather than authors.
-- **Skip or shorten stages by complexity** `idea`. Not every story needs a full gate. The safe form
-  is right-sizing at shaping, not a predictive skip (the retired `trivial` hint was the unsafe form).
+- **No predictive stage-skipping** `idea` (guardrail, not a separate lever). Not every story needs a
+  full gate, but the only safe way to spend fewer stages is right-sizing at shaping (below); skipping a
+  gate on a *predicted*-trivial story is the unsafe form the retired `trivial` hint took. Kept here to
+  mark the rejected shortcut so it is not re-proposed.
 
 ### Right agent for the task (cuts per-invocation cost and rework)
 
@@ -56,58 +81,86 @@ principle, not a build item).
 
 ### Run the loops optimally (cuts iterations and context, the heavy axis)
 
-- **Right-size stories at shaping** `planned`. Cuts the gate and refine lines super-linearly: gate
-  cost is ~ rounds × brief-length, and splitting a monolith shrinks both terms (fewer coupled attack
-  surfaces to keep airtight in one round, shorter cold re-read per round). The dogfood loop's
-  6-surface brief took 12 rounds; six one-surface slices converge in ~2-3 each and dispatch
-  concurrently. Run and review are conserved (slightly worse: each story pays a per-story cold
-  repo-read, context load, and separate review), so the split is a net win only while the gate
-  dominates cost. Over-splitting inverts it, per-story overhead wins, so the optimum is the smallest
-  coherent vertical slice, not maximum story count. This is a substitute for gate-efficiency, not an
-  independent lever: a cheap gate shrinks its payoff.
+- **Right-size stories at shaping** `planned`. Attacks the gate and refine lines, which dominate when
+  a story couples many surfaces. Gate cost per story is ~ rounds × brief-length, and a monolith's
+  round count grows *super-linearly in coupled surfaces*: the dogfood loop's 6-surface, 28KB brief
+  took 12 rounds because it could not pass until all six were airtight at once, far more than 6× a
+  single surface's ~2. Slicing removes that coupling penalty. It does **not** cut aggregate passes:
+  six one-surface slices at ~2-3 rounds each total 12-18 adversary passes, flat-to-higher than the
+  monolith's 12. The saving is the length term: each of those passes reads a ~5KB slice instead of the
+  28KB whole, a ~5× cheaper cold read per pass, so gate spend drops by roughly the round-factor
+  (12 → ~2.5 per gate) as a bounded constant, not without limit. Run and review are conserved to
+  slightly worse (each slice pays a per-story cold repo-read, context load, and separate review), so
+  the split wins only while the gate dominates, and over-splitting inverts it once per-slice overhead
+  outweighs the gate saving; the optimum is the smallest coherent vertical slice, not maximum story
+  count. Slices also dispatch concurrently, but that buys wall-clock, not spend, and only up to a
+  pool's rate ceiling (six concurrent Fable gates share one Fable pool). This is a substitute for
+  gate-efficiency, not an independent lever: a cheaper gate (the Opus adversary, now merged; its
+  end-to-end round saving still to be confirmed, matrix experiment 2) shrinks its payoff.
 - **Depth-per-pass on iterated critique** `live`. Opus adversary compresses rounds (one pass covered
   Fable rounds 7-14). On any iterated step per-pass quality pays twice: better output and fewer
   iterations.
-- **Warm the iterative middle** `planned`. The gate re-reads the brief cold every round; one warm
-  adversary session across the back-and-forth, cold pass only for sign-off, cuts the per-round
-  re-read tax that is 84% of gate-answer cost.
+- **Warm the iterative middle** `planned`. The adversary re-reads the full brief cold every pass (it
+  is always-cold by design), which is why its line was $52.54 of the $86 gate. One warm adversary
+  session across the back-and-forth, with a single cold pass only for sign-off, cuts that per-pass
+  cold-read tax. (Distinct from refine's gate-answering cache-reads in fact 2: those are the reseed
+  chat re-reading a growing transcript, not the adversary's cold reads; warm-the-middle attacks the
+  adversary line, context-policy tuning attacks refine's.)
 - **Context policy per kind** `live`. Cold vs reseed vs compact sets the cache-read bill: compact a
   long run, cold-read only where freshness is the product.
 - **Escalate on evidence, not prediction** `live`. Run escalates itself on a review failure; nothing
   predicts difficulty from a brief.
-- **Pool-aware scheduling** `planned`. Spread burn across the Fable and Sonnet/Opus pools, use queue
-  backpressure to ride out caps. The fallback strategy (matrix) is this lever's first instance.
+- **Pool-aware scheduling** `planned`. Spread burn across pools and use queue backpressure to ride out
+  caps. Note the asymmetry: the Fable fallback does not *spread* load, it *relocates* all six Fable
+  kinds onto the other (assumption-sized) pool already carrying adversary, research, and review, so it
+  can cascade into a second pool-out. Scheduling must cap or queue the relocated load, not fire it all
+  at once. The fallback strategy (matrix) is this lever's first instance and its hardest case.
 
 ### Cross-cutting
 
-- **Verification placement lowers the upstream floor** `rule`. A cheap downstream check lets a cheaper
-  or faster upstream model clear the bar. The permanent shape gate pays this way: it lets the shaping
-  model be lighter because omissions get caught. Every gate added is a tier lowered upstream.
+- **Verification placement lowers the upstream floor** `rule`, when the gate is cheaper than the
+  rework it prevents. A cheap downstream check lets a cheaper or faster upstream model clear the bar,
+  but the check is not free: by fact 1 a gate that iterates is itself a round multiplier, so it pays
+  off only when it converges fast and catches errors that would otherwise cost a failed run plus
+  fix-up. The permanent shape gate fits (a cold completeness pass, ideally one-shot per proposal,
+  guarding a high-error-cost stage that has no other check); a gate that needed many rounds to clear
+  would not. "Every gate added lowers a tier upstream" holds only under that convergence condition,
+  not unconditionally.
 - **Measurement is the meta-lever** `live`. The per-stage usage ledger keeps the matrix evidence-fed.
   Every stage records cost, tokens, and rounds, so the levers get pulled on evidence, not intuition.
 
 ## Ranked leverage
 
-Highest first, for sequencing the work:
+Ordered by *gross* leverage on the spend minimand (wall-clock ranks separately, under concurrency and
+scheduling), **not** a build sequence and not remaining leverage: several of these are already banked
+`live`, which lowers what is left to gain (deterministic-over-agentic at 6 is foundational but mostly
+built; the Opus adversary has already taken part of 1 and 2). Read the number as "how much this axis
+moves the objective," then discount by what is already `live`.
 
-1. **Story sizing**: cuts the gate/refine lines super-linearly, but conserved on run/review, so a net
-   win only while the gate dominates cost.
+1. **Story sizing**: cuts the gate/refine lines by a bounded constant factor (removes the coupled-
+   surface round penalty), but conserved on run/review, so a net win only while the gate dominates.
 2. **Iteration reduction on gates**: depth-per-pass, warm iteration, convergence automation.
 3. **Context and cache discipline**: length is the hidden 80-90% of cost.
-4. **Verification placement**: buys cheaper upstream tiers.
+4. **Verification placement**: buys cheaper upstream tiers, when the gate itself converges cheaply.
 5. **Tier, effort, and prompt fit per kind**: the matrix.
 6. **Deterministic-over-agentic automation**: never spawn for what code settles.
-7. **Pool-aware fallback and scheduling**: bounded-pool survival.
+7. **Pool-aware fallback and scheduling**: bounded-pool survival. (The exception on this list: it
+   serves the hard constraint, not the spend minimand, and ranks last because it is a fallback to ride
+   out a cap, not a spend optimizer.)
 
-Levers 1 and 2 both attack gate cost and are substitutes, not additive: a cheap gate shrinks the
-story-sizing payoff. Build whichever is cheaper to reach; do not count both savings.
+Levers 1 and 2 both attack gate cost and are substitutes, not additive: a cheaper gate shrinks the
+story-sizing payoff. The `adversary` → Opus change (levers 2 and 5) is merged, and measured ~3× depth
+per pass; the end-to-end round-count saving is still projected, not yet confirmed (matrix experiment
+2). Even on the per-pass measurement alone, lever 1's remaining payoff is smaller than the raw 002-01
+numbers suggest. Build whichever of 1/2 is cheaper to reach next; do not count both savings, and
+re-measure the gate end-to-end after Opus before investing in story-sizing machinery.
 
 ## How current decisions map
 
 The decisions taken so far are pulls on this frame, not separate initiatives:
 
 - **adversary to Opus/high**: levers 2 (depth-per-pass) and 5 (tier fit). `live`.
-- **Fable fallback strategy**: lever 7 (pool-aware), with the Opus scope overlay as lever 3 (prompt).
-  Detail in the matrix. `planned`.
+- **Fable fallback strategy**: lever 7 (pool-aware), with the Opus scope overlay as the prompt half of
+  lever 5 (tier, effort, and prompt fit). Detail in the matrix. `planned`.
 - **Permanent shape gate**: lever 4 (verification placement), a new gate stage that folds into
   session-kinds.md and the roadmap when built. `planned`.

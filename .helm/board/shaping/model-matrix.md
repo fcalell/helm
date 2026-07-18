@@ -87,10 +87,19 @@ What the measured cells support. Effort is held at each kind's current value (tu
 ## Fable fallback strategy
 
 Fable draws a separate pool from Sonnet/Opus, so it exhausts on its own while the other pool stays
-full. The loop is multi-pool: `research`/`review` (Sonnet) and `adversary` (Opus) never touch Fable,
-so a Fable-out stalls only the six synthesis/execution kinds (`shape`, `define`, `refine`, `run`,
-`conflict`, `init`), not the pipeline. First move is drain the non-Fable stages and queue the Fable
-ones for reset; the strategy below is for the Fable stages that must run before reset.
+full. (Fable-separate is observed; Sonnet and Opus sharing one pool is assumed, not confirmed, so the
+"other pool" may in fact be two.) The loop is multi-pool: `research`/`review` (Sonnet) and `adversary`
+(Opus) never touch Fable, so a Fable-out stalls only the six synthesis/execution kinds (`shape`,
+`define`, `refine`, `run`, `conflict`, `init`), not the pipeline. First move is drain the non-Fable
+stages and queue the Fable ones for reset; the strategy below is for the Fable stages that must run
+before reset.
+
+**The fallback relocates load, it does not spread it.** Routing all six Fable kinds to Opus/Sonnet
+piles the entire remaining loop onto the pool already carrying adversary, research, and review, so the
+fallback can itself trigger a second pool-out. That pool's size is an assumption (above), so treat
+fallback capacity as unknown-and-small: run fallback kinds one at a time or queue them, not at full
+Fable concurrency, and prefer draining and queueing over eagerly re-running everything on the spare
+pool. This is why the fallback is a survival mode to ride out a reset, not a steady state.
 
 **Principle: move work from the model into the harness.** Fable is a faithful executor that dominates
 coding; the fallback tiers are stronger critics but worse executors (Opus over-builds, Sonnet is
