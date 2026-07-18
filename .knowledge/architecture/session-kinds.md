@@ -18,7 +18,7 @@ Helm stays a single fixed workflow; the kinds are its stages, never user-authore
 | `research`  | resolve a shaping decision by investigation | read-only                                    | Sonnet | high   | always cold           |
 | `define`    | epic → stories                           | read-only + `propose_stories`                   | Fable  | medium | reseed on stale       |
 | `refine`    | story → brief                            | read-only + `update_brief` / `resolve_question` (+ `contest_flag` during a gate round) | Fable  | medium | reseed on stale       |
-| `adversary` | ready gate: attack the brief             | read-only + `flag_risk`                         | Fable  | high   | always cold           |
+| `adversary` | ready gate: attack the brief             | read-only + `flag_risk`                         | Opus   | high   | always cold           |
 | `run`       | implement a Ready story                  | permission preset + `update_card`               | Fable  | medium (adaptive) | compact under pressure |
 | `review`    | grade + test a finished run              | read-only + test-command Bash                   | Sonnet | high   | cold                  |
 | `conflict`  | rebase conflict resolution               | worktree tools                                  | Fable  | high   | cold                  |
@@ -38,7 +38,7 @@ queue; every other kind dispatches through it
 Each kind names a model, passed as `--model`; the rate-limit pool is shared with interactive use,
 so the cheapest model that does the job is the default ([vision](../product/vision.md) §The
 constraint that shapes everything). **Sonnet is the floor**: Haiku is never assigned, because a
-weak proposal or a missed fact costs more rework than the tier saves. Two models cover the
+weak proposal or a missed fact costs more rework than the tier saves. Three models cover the
 registry:
 
 - **Sonnet** (`research`, `review`): extraction and verification against something that exists:
@@ -46,19 +46,27 @@ registry:
   approves. Each output is re-checked downstream or mechanically checkable, so the floor does the
   job. Review is re-tiered when v2 self-grading makes it autonomous
   ([roadmap](../product/roadmap.md)).
-- **Fable** (`shape`, `define`, `refine`, `adversary`, `run`, `conflict`, `init`): every kind
-  that synthesizes structure or attacks it, plus `conflict`: a rebase that applies cleanly can
-  still drop one side's intent, no later gate re-reads the merge itself (review grades the
-  story's criteria, not the other branch's), and the kind is rare enough that the tier costs
-  nothing. Opus is absent by dominance, not oversight: published effort-curve benchmarks put
-  Fable at *low* effort above Opus at its highest setting on agentic coding, at roughly half the
-  per-task cost, because Opus barely improves with added effort while Fable climbs steeply. Any
-  budget that affords Opus therefore affords a better Fable point. The curves are agentic-coding
-  benchmarks; reading them onto the chat kinds is extrapolation, re-verified with the other
-  fast-moving facts below. Opus is the recorded fallback for the synthesis kinds if Fable's
-  subscription-inclusion terms shift, and the retry model when a run hits Fable's
-  safety-classifier refusal (security-adjacent stories can false-positive; the CLI's headless
-  refusal behavior is unspiked).
+- **Fable** (`shape`, `define`, `refine`, `run`, `conflict`, `init`): every kind that synthesizes
+  structure, plus `conflict`: a rebase that applies cleanly can still drop one side's intent, no
+  later gate re-reads the merge itself (review grades the story's criteria, not the other branch's),
+  and the kind is rare enough that the tier costs nothing. Opus stays off these kinds by dominance,
+  not oversight: published effort-curve benchmarks put Fable at *low* effort above Opus at its
+  highest setting on agentic coding, at roughly half the per-task cost, because Opus barely improves
+  with added effort while Fable climbs steeply. Any budget that affords Opus therefore affords a
+  better Fable point. The curves are agentic-coding benchmarks; reading them onto the chat kinds is
+  extrapolation, re-verified with the other fast-moving facts below. Opus is the recorded fallback
+  for the synthesis kinds if Fable's subscription-inclusion terms shift, and the retry model when a
+  run hits Fable's safety-classifier refusal (security-adjacent stories can false-positive; the
+  CLI's headless refusal behavior is unspiked).
+- **Opus** (`adversary`): the ready gate is critique, not coding, so the coding-benchmark dominance
+  above does not reach it, and depth per pass pays twice here. The adversary runs once per gate
+  round and each round drives both an adversary pass and a refine answer, so a pass that surfaces
+  more real flaws cuts the round count itself. Opus front-loads the deep facets a cold reader hits:
+  on the 002-01 brief one Opus pass raised the flaws Fable took rounds 7-14 to find, roughly 3x the
+  depth, and it carries both Fable's mechanism recall and Sonnet's spec-completeness recall in one
+  model. The CLI's own cost accounting puts Opus below Fable on measured full-task runs, so the
+  deeper pass is also the cheaper one: the round compression and the per-token pool weighting (below)
+  both favor it.
 
 **Effort is the second axis, capped at high.** Models expose reasoning-effort levels (low ·
 medium · high · xhigh · max; the top levels vary by model): the tier sets the capability ceiling,

@@ -46,7 +46,7 @@ export type ContextPolicy =
 // command, `conflict` worktree tools); spawning one of those throws until
 // its mechanics land.
 export interface KindRow {
-	model: "fable" | "sonnet";
+	model: "fable" | "sonnet" | "opus";
 	effort: Effort;
 	context: ContextPolicy;
 	tools?: readonly string[];
@@ -177,7 +177,7 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		systemPrompt: REFINE_PROMPT,
 	},
 	adversary: {
-		model: "fable",
+		model: "opus",
 		effort: "high",
 		context: "always-cold",
 		tools: READ_ONLY_TOOLS,
