@@ -25,6 +25,7 @@ export const BOARD_TOOLS = [
 	"resolve_question",
 	"contest_flag",
 	"flag_risk",
+	"update_card",
 	"ask_user",
 ] as const;
 export const boardToolNameSchema = z.enum(BOARD_TOOLS);
@@ -41,9 +42,9 @@ export type ContextPolicy =
 
 // One registry row per kind, mirroring the table in
 // `.knowledge/architecture/session-kinds.md`. `tools`/`systemPrompt` are
-// absent on rows whose tooling is not built yet (`run` needs permission
-// presets, `review` a repo test command, `conflict` worktree tools);
-// spawning one of those throws until its mechanics land.
+// absent on rows whose tooling is not built yet (`review` needs a repo test
+// command, `conflict` worktree tools); spawning one of those throws until
+// its mechanics land.
 export interface KindRow {
 	model: "fable" | "sonnet";
 	effort: Effort;
@@ -55,6 +56,27 @@ export interface KindRow {
 }
 
 const READ_ONLY_TOOLS = ["Read", "Grep", "Glob"] as const;
+
+// The Auto preset's canonical allowlist: file edits, reads, and the
+// branch-local git the run contract demands — no push, no branch switching.
+// Bash rules use the `:*` prefix-wildcard form (spike-verified on 2.1.212:
+// it matches every argument-carrying variant, and a bare unlisted command
+// stays denied). The repo's check command joins per spawn via `extraTools`.
+export const AUTO_ALLOWLIST = [
+	"Edit",
+	"Write",
+	...READ_ONLY_TOOLS,
+	"Bash(git status:*)",
+	"Bash(git diff:*)",
+	"Bash(git log:*)",
+	"Bash(git show:*)",
+	"Bash(git add:*)",
+	"Bash(git commit:*)",
+	"Bash(git mv:*)",
+	"Bash(git rm:*)",
+] as const;
+
+const RUN_PROMPT = `You are Helm's implementation run: deliver the story brief in your prompt, working entirely inside this worktree. Commit your work on the current branch as Conventional Commits (feat/fix/chore/docs/refactor/test; header <= ~60 chars, body says the why). Never push, never switch branches, never edit files under .helm/ — note decisions and progress on your card through the update_card tool instead. Your prompt states the repo's check command when one is configured; run it to self-test before finishing, and when none is configured you cannot self-test — never guess a command. Your tool allowlist is fixed: a denied call means the action is outside the run contract, not a prompt to retry.`;
 
 const WORK_READ_ONLY =
 	"Work read-only: never edit files, never run commands. " +
@@ -166,6 +188,9 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		model: "fable",
 		effort: "medium",
 		context: "compact-under-pressure",
+		tools: AUTO_ALLOWLIST,
+		boardTools: ["update_card"],
+		systemPrompt: RUN_PROMPT,
 	},
 	review: {
 		model: "sonnet",

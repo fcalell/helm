@@ -40,16 +40,29 @@ export function parseInitEvent(event: SessionEvent): SessionInit | undefined {
 
 // The CLI's final `result` event: `result` carries the last assistant text
 // on success and is absent on the error subtypes (which set `is_error`).
+// `usage` counts the turn's non-cache-read tokens (cache reads are priced
+// differently, so the sum stays a lower-bound estimate) and `duration_ms`
+// the wall clock; both feed the run entry's `tokens`/`minutes`.
 const resultEventSchema = z.looseObject({
 	type: z.literal("result"),
 	subtype: z.string(),
 	result: z.string().optional(),
 	is_error: z.boolean().optional(),
+	duration_ms: z.number().optional(),
+	usage: z
+		.looseObject({
+			input_tokens: z.number().optional(),
+			cache_creation_input_tokens: z.number().optional(),
+			output_tokens: z.number().optional(),
+		})
+		.optional(),
 });
 
 export interface SessionResult {
 	text: string;
 	isError: boolean;
+	tokens?: number;
+	minutes?: number;
 }
 
 export function parseResultEvent(
@@ -57,9 +70,20 @@ export function parseResultEvent(
 ): SessionResult | undefined {
 	const result = resultEventSchema.safeParse(event);
 	if (!result.success) return undefined;
+	const usage = result.data.usage;
+	const tokens =
+		usage === undefined
+			? undefined
+			: (usage.input_tokens ?? 0) +
+				(usage.cache_creation_input_tokens ?? 0) +
+				(usage.output_tokens ?? 0);
+	const duration = result.data.duration_ms;
 	return {
 		text: result.data.result ?? result.data.subtype,
 		isError: result.data.is_error === true || result.data.subtype !== "success",
+		tokens,
+		minutes:
+			duration === undefined ? undefined : Math.round(duration / 6000) / 10,
 	};
 }
 

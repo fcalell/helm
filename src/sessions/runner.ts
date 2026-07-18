@@ -21,6 +21,16 @@ export interface SpawnSessionOptions {
 	// The orchestrator's per-spawn MCP endpoint; set enables the kind's board
 	// tools. Omit to run standalone with only the read-only allowlist.
 	mcpUrl?: string;
+	// Per-spawn settings file (`--settings`): run spawns carry the Stop hook
+	// and the `.helm/` deny rules there.
+	settingsPath?: string;
+	// Per-spawn additions to `--allowedTools` (the repo's check-command
+	// patterns); the registry constant cannot see runtime config.
+	extraTools?: readonly string[];
+	// Spawn the child as its own process-group leader, so a group kill can
+	// reach the tool subprocesses it spawned; single-pid SIGTERM would miss
+	// them.
+	detached?: boolean;
 	onEvent?: (event: SessionEvent) => void;
 }
 
@@ -34,6 +44,7 @@ export interface SessionOutcome {
 }
 
 export interface SessionProcess {
+	pid: number | undefined;
 	// Resolves with `system/init`; rejects (SessionSpawnError) if the process
 	// dies first, which is how a stale resume surfaces.
 	started: Promise<SessionInit>;
@@ -86,13 +97,12 @@ export function spawnSessionProcess(
 	options: SpawnSessionOptions,
 ): SessionProcess {
 	const row = spawnableRow(options.kind);
-	const allowedTools =
-		options.mcpUrl === undefined
-			? [...row.tools]
-			: [
-					...row.tools,
-					...row.boardTools.map((t) => `mcp__${MCP_SERVER_NAME}__${t}`),
-				];
+	const allowedTools = [...row.tools, ...(options.extraTools ?? [])];
+	if (options.mcpUrl !== undefined) {
+		allowedTools.push(
+			...row.boardTools.map((t) => `mcp__${MCP_SERVER_NAME}__${t}`),
+		);
+	}
 	const args = [
 		"-p",
 		options.prompt,
@@ -126,12 +136,16 @@ export function spawnSessionProcess(
 		});
 		args.push("--mcp-config", mcpConfig);
 	}
+	if (options.settingsPath !== undefined) {
+		args.push("--settings", options.settingsPath);
+	}
 	if (options.resume !== undefined) args.push("--resume", options.resume);
 
 	const child = spawn("claude", args, {
 		cwd: options.cwd,
 		env: sessionEnv(),
 		stdio: ["ignore", "pipe", "pipe"],
+		detached: options.detached === true,
 	});
 
 	let stderr = "";
@@ -184,6 +198,7 @@ export function spawnSessionProcess(
 	})();
 
 	return {
+		pid: child.pid,
 		started,
 		done,
 		kill: () => {
