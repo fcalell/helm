@@ -49,7 +49,10 @@ export const storyFrontmatterSchema = z.strictObject({
 	id: storyIdSchema,
 	status: statusSchema,
 	depends: z.array(storyIdSchema).default([]),
-	branch: z.string().optional(),
+	branch: z
+		.string()
+		.regex(/^[^-]/, "branch name must not start with -")
+		.optional(),
 	gate: gateSchema.optional(),
 	sessions: z.strictObject({ refine: z.uuid().optional() }).default({}),
 	runs: z.array(runSchema).default([]),

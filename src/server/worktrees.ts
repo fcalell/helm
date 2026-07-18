@@ -106,7 +106,7 @@ export async function helmDiffPaths(
 }
 
 // Converge on branch-plus-worktree from whatever mix exists: the branch is
-// the durable artifact, the worktree disposable. Never deletes (002-07).
+// the durable artifact, the worktree disposable.
 export async function ensureWorktree(input: {
 	repo: ManagedRepo;
 	storyId: string;

@@ -1,9 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 
-// Bounded escalation for a run's process group: pid-death alone doesn't quiet
-// the tree (a still-running build outlives its `claude` parent), and an
-// unbounded wait would let one wedged group stall its caller. Returns whether
-// the group is dead; a survivor is the caller's park-Blocked signal.
+// pid-death alone doesn't quiet the tree: a still-running build subprocess
+// outlives its `claude` parent. Returns false if the group survived SIGKILL.
 
 const SIGTERM_WAIT_MS = 5000;
 const SIGKILL_WAIT_MS = 2000;

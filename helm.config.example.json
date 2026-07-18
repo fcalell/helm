@@ -1,5 +1,5 @@
 {
-	"$comment": "checkCommand is optional and must be one simple command: no shell operators (&&, ||, ;, |, &) and no commas — compound commands and commas break the run's tool allowlist.",
+	"$comment": "checkCommand is optional and must be one simple command: no shell operators (&&, ||, ;, |, &) and no commas. Compound commands and commas break the run's tool allowlist.",
 	"repos": [
 		{
 			"path": "/absolute/path/to/target-repo",

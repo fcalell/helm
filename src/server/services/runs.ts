@@ -36,9 +36,7 @@ const INIT_TIMEOUT_MS = 60_000;
 
 const RESTART_ERROR = "orchestrator restarted mid-run";
 
-// Per-story run state, held for the run's whole lifetime (not just
-// start-to-init): the guard closes the double-run window that a mid-run
-// move out of `running` and back to `ready` would otherwise open.
+// Held for the run's whole lifetime, not just start-to-init.
 interface RunState {
 	storyId: string;
 	hookToken: string;
@@ -68,7 +66,7 @@ function settingsFilePath(storyId: string): string {
 // The per-spawn settings: the `.helm/` deny rules (spike-verified `//`
 // absolute anchoring; the file itself lives outside the worktree) and the
 // Stop-hook POST backstop.
-function runSettings(worktree: string, hookToken: string): object {
+function runSettings(worktree: string, hookToken: string) {
 	const helmGlob = `//${worktree.replace(/^\/+/, "")}/.helm/**`;
 	return {
 		permissions: { deny: [`Edit(${helmGlob})`, `Write(${helmGlob})`] },
@@ -260,11 +258,6 @@ async function start(
 				: [`Bash(${repo.checkCommand})`, `Bash(${repo.checkCommand}:*)`],
 	});
 	state.pid = handle.pid;
-	// The pid file lands before anything else, so a crash anywhere in the
-	// start window leaves an orphan reconciliation can find.
-	if (handle.pid !== undefined) {
-		await writeFile(pidFilePath(storyId), `${handle.pid}\n`);
-	}
 	const closed = handle.done.then((turn) => {
 		state.exited = true;
 		return turn;
@@ -274,14 +267,15 @@ async function start(
 		.catch((error) => {
 			log?.error(`run ${storyId}: close handling failed: ${errorText(error)}`);
 		});
+	if (handle.pid !== undefined) {
+		await writeFile(pidFilePath(storyId), `${handle.pid}\n`);
+	}
 
 	const init = await raceInit(handle, state);
 	state.sessionId = init.sessionId;
 
-	// The init write re-validates inside the queue: retraction moves and hand
-	// edits stay legal during the start window, and the user's move wins. An
-	// exit before the write lands also aborts, so a dead process can never
-	// gain a run entry.
+	// Re-validates inside the write queue: `state.exited` short-circuits a dead
+	// process, and a non-ready or stale story aborts without writing.
 	state.initWrite = enqueueWrite(async (): Promise<"armed" | "aborted"> => {
 		if (state.exited) return "aborted";
 		let current: Story;
@@ -533,9 +527,9 @@ async function reconcileRunning(
 			);
 		}
 	}
-	await enqueueWrite(async () => {
+	const parked = await enqueueWrite(async () => {
 		const current = await readStoryFile(story.path, story.epicId);
-		if (current.frontmatter.status !== "running") return;
+		if (current.frontmatter.status !== "running") return false;
 		const runs = [...current.frontmatter.runs];
 		// A hand-typed `running` with no open entry parks without inventing one.
 		const open = runs.findLastIndex((run) => run.outcome === undefined);
@@ -548,8 +542,9 @@ async function reconcileRunning(
 			frontmatter: { ...current.frontmatter, status: "blocked", runs },
 			body: current.body,
 		});
+		return true;
 	});
-	log?.info(`run reconciliation: parked ${story.id} in blocked`);
+	if (parked) log?.info(`run reconciliation: parked ${story.id} in blocked`);
 }
 
 export default defineService({

@@ -145,9 +145,7 @@ export async function messageSession(input: {
 			message: `${info.kind} sessions never resume; spawn a fresh one`,
 		});
 	}
-	// A chat-entrypoint resume would run in the main checkout (session lookup
-	// is cwd-scoped), and the stale-reseed branch would then fresh-spawn a
-	// write-capable Auto session outside the run lifecycle.
+	// cwd-scoped session lookup: run sessions bind to their worktree, not the main checkout.
 	if (info.kind === "run") {
 		throw new ApiError("SESSION_COLD", {
 			status: 409,
