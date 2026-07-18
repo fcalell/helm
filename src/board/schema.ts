@@ -34,6 +34,7 @@ export const runSchema = z.strictObject({
 		.optional(),
 	tokens: z.number().nonnegative().optional(),
 	minutes: z.number().nonnegative().optional(),
+	error: z.string().optional(),
 });
 export type Run = z.infer<typeof runSchema>;
 
@@ -74,6 +75,10 @@ export const decisionItemSchema = z.object({
 	settledBy: decisionSettlerSchema,
 });
 export type DecisionItem = z.infer<typeof decisionItemSchema>;
+
+// The one body section runs append to (through `update_card`); excluded from
+// `briefHash`, so notes never stale the gate verdict.
+export const RUN_NOTES_SECTION = "Run notes";
 
 export const BRIEF_SECTIONS = [
 	"Goal",

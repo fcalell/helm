@@ -22,6 +22,19 @@ export const story = {
 		.input(z.object({ id: storyIdSchema, to: statusSchema }))
 		.handler(async ({ input }): Promise<{ gating: boolean }> => {
 			if (input.to === "ready") return requestReady(input.id);
+			// A bare status write can never enter `running`: the run lifecycle
+			// (worktree, spawn, run entry) is `run.start`'s alone.
+			if (input.to === "running") {
+				throw new ApiError("ILLEGAL_TRANSITION", {
+					status: 409,
+					message: "stories enter running through run.start, never a move",
+					data: {
+						from: "ready",
+						to: "running",
+						reason: "stories enter running through run.start, never a move",
+					},
+				});
+			}
 			// The snapshot trails disk, so use it only to resolve id -> path;
 			// validate and write from fresh content read inside the queue.
 			const known = boardSnapshot().stories.find(

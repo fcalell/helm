@@ -7,6 +7,7 @@ import {
 	type DecisionItem,
 	type DecisionSettler,
 	type EpicFrontmatter,
+	RUN_NOTES_SECTION,
 	type ShapingFrontmatter,
 	type StoryFrontmatter,
 } from "./schema.ts";
@@ -328,6 +329,20 @@ export function replaceBriefSection(
 	}
 	const rebuilt = preamble + blocks.map((b) => b.text).join("");
 	return `${rebuilt.trimEnd()}\n`;
+}
+
+// Append a run's note as one bullet under the trailing `## Run notes`
+// section (created on first use). The note is collapsed to a single line and
+// stripped of leading heading markers, so by construction it can never carry
+// a heading (`parseBrief` is last-occurrence-wins) or a frontmatter fence.
+export function appendRunNote(body: string, note: string): string {
+	const sanitized = note
+		.split("\n")
+		.map((line) => line.replace(/^\s*#+\s*/, "").trim())
+		.filter((line) => line !== "" && !/^-{3,}$/.test(line))
+		.join(" ");
+	if (sanitized === "") return body;
+	return appendToSection(body, RUN_NOTES_SECTION, `- ${sanitized}`);
 }
 
 // File an accepted gate flag as a new unchecked open question.
