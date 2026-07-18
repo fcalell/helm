@@ -107,3 +107,27 @@ The run also ran the longest (45 minutes, 185 turns) against the milestone's wid
 round's two blockers split on adjudication — the attempt-leak fix landed, while the suggested
 `review/blocked → ready` reopening was rejected as a gate bypass and reduced to a message reword.
 The Sonnet-medium follow-up held the cosmetic-round price at $1.54 for a ten-item payload.
+
+## 002-01 Run kind & worktree lifecycle (2026-07-17 to 2026-07-18)
+
+| Session                                    | Model / effort  | Fresh input   | Output      | Cache reads    | Modeled cost |
+| ------------------------------------------ | --------------- | ------------- | ----------- | -------------- | ------------ |
+| Refine chat (app-driven)                   | Fable / medium  | 879,336       | 213,164     | 15,370,681     | $43.62       |
+| Adversary passes (15, cold)                | Fable / high    | 1,240,588     | 345,786     | 10,435,562     | $52.54       |
+| Run 1: implementation                      | Fable / medium  | 217,668       | 94,158      | 13,053,355     | $22.11       |
+| Nested verification runs (4, scratch repo) | Fable / medium  | 28,552        | 2,747       | 486,477        | $1.19        |
+| Review: spec axis                          | Sonnet / high   | 79,679        | 18,548      | 1,594,823      | $1.23        |
+| Review: standards axis                     | Sonnet / high   | 58,277        | 27,337      | 431,884        | $0.89        |
+| Run 1 follow-up: review fix-up             | Sonnet / medium | 66,756        | 11,146      | 978,210        | $0.86        |
+| **Total**                                  |                 | **2,570,856** | **712,886** | **42,350,992** | **$122.44**  |
+
+The first loop whose refinement ran through Helm itself, and the first ledger that can price it:
+epic 1 refined inside the orchestration session, whose draw is excluded as unreadable, so the two
+new rows surface a cost that always existed off the books. They dominate the loop at $96 against
+the run's $22: the refine chat answered eleven gate rounds on top of building the brief, and the
+gate spawned fifteen cold Fable-high passes (eleven flag rounds across a server restart, one
+verdict discarded on a mid-flight edit, one clean pass, two lost to the restart) that accepted 22
+brief fixes and recorded two overrides. The build side stayed cheap: the run finished in 23
+minutes and 144 turns with all ten criteria verified live against a scratch repo, the four nested
+rows are its tiny Auto runs driving the review, blocked, kill, and reconciliation paths, and the
+standards-only follow-up held the Sonnet-medium price at $0.86 for a ten-item payload.
