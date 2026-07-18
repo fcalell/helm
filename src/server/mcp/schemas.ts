@@ -81,6 +81,10 @@ export const contestFlagPayloadSchema = z.object({
 	argument: z.string().min(1),
 });
 export type ContestFlagPayload = z.infer<typeof contestFlagPayloadSchema>;
+export const updateCardPayloadSchema = z.object({
+	note: z.string().min(1),
+});
+export type UpdateCardPayload = z.infer<typeof updateCardPayloadSchema>;
 export const askUserPayloadSchema = z.object({
 	question: z.string().min(1),
 	recommendation: z.string().min(1),

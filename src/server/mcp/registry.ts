@@ -26,6 +26,13 @@ export function mcpEndpointUrl(token: string): string {
 	return `http://127.0.0.1:${port}/mcp/${token}`;
 }
 
+// The Stop-hook backstop's POST target, token-addressed like the MCP
+// endpoints; served beside them by the mcp service.
+export function runHookUrl(token: string): string {
+	if (port === undefined) throw new Error("MCP port is not set");
+	return `http://127.0.0.1:${port}/hooks/run/${token}`;
+}
+
 export function registerSpawn(
 	token: string,
 	binding: { kind: SessionKind; attach?: Attach },

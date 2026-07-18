@@ -17,7 +17,11 @@ import {
 	shapingPath,
 	writeStory,
 } from "../../board/store.ts";
-import { parseResultEvent, type SessionResult } from "../../sessions/events.ts";
+import {
+	parseResultEvent,
+	type SessionInit,
+	type SessionResult,
+} from "../../sessions/events.ts";
 import { KIND_REGISTRY, type SessionKind } from "../../sessions/kinds.ts";
 import {
 	refineSeedPrompt,
@@ -25,6 +29,7 @@ import {
 	steeringPrompt,
 } from "../../sessions/prompts.ts";
 import {
+	type SessionOutcome,
 	type SessionProcess,
 	SessionSpawnError,
 	spawnSessionProcess,
@@ -36,6 +41,7 @@ import {
 	registerSpawn,
 	releaseSpawn,
 } from "../mcp/registry.ts";
+import { killProcessGroup } from "../process-group.ts";
 import { enqueueWrite } from "../write-queue.ts";
 import { boardSnapshot, managedRepo } from "./board.ts";
 
@@ -139,6 +145,16 @@ export async function messageSession(input: {
 			message: `${info.kind} sessions never resume; spawn a fresh one`,
 		});
 	}
+	// A chat-entrypoint resume would run in the main checkout (session lookup
+	// is cwd-scoped), and the stale-reseed branch would then fresh-spawn a
+	// write-capable Auto session outside the run lifecycle.
+	if (info.kind === "run") {
+		throw new ApiError("SESSION_COLD", {
+			status: 409,
+			message:
+				"run sessions resume only through the run lifecycle, never chat messaging",
+		});
+	}
 	if (live.has(input.sessionId)) {
 		throw new ApiError("SESSION_BUSY", {
 			status: 409,
@@ -190,6 +206,12 @@ export function killSession(sessionId: string): void {
 			message: `no live session with id ${sessionId}`,
 		});
 	}
+	// A run dies as a whole process group (bounded escalation): its tool
+	// subprocesses outlive a single-pid SIGTERM.
+	if (known.get(sessionId)?.kind === "run" && child.pid !== undefined) {
+		void killProcessGroup(child.pid);
+		return;
+	}
 	child.kill();
 }
 
@@ -200,9 +222,29 @@ interface TurnOptions {
 	attach?: Attach;
 }
 
-async function runTurn(
-	options: TurnOptions,
-): Promise<{ sessionId: string; done: Promise<SessionResult | undefined> }> {
+interface TrackedTurn {
+	child: SessionProcess;
+	done: Promise<{
+		outcome: SessionOutcome;
+		result: SessionResult | undefined;
+		resultSeen: boolean;
+	}>;
+}
+
+// The plumbing every spawn shares: MCP token binding, live/interrupted
+// bookkeeping, session-channel broadcast. Returns synchronously so the run
+// path can record the pid before anything else.
+function spawnTracked(options: {
+	kind: SessionKind;
+	prompt: string;
+	attach?: Attach;
+	resume?: string;
+	seedSystemPrompt?: string;
+	cwd?: string;
+	settingsPath?: string;
+	extraTools?: readonly string[];
+	detached?: boolean;
+}): TrackedTurn {
 	const runId = randomUUID();
 	const { kind, attach } = options;
 	const mcpToken = randomUUID();
@@ -210,15 +252,17 @@ async function runTurn(
 	let sessionId = options.resume;
 	let resultSeen = false;
 	let result: SessionResult | undefined;
-	let child: ReturnType<typeof spawnSessionProcess>;
+	let child: SessionProcess;
 	try {
 		child = spawnSessionProcess({
 			kind,
-			cwd: managedRepo().path,
+			cwd: options.cwd ?? managedRepo().path,
 			prompt: options.prompt,
 			resume: options.resume,
-			seedSystemPrompt:
-				options.resume === undefined ? await seedFor(kind, attach) : undefined,
+			seedSystemPrompt: options.seedSystemPrompt,
+			settingsPath: options.settingsPath,
+			extraTools: options.extraTools,
+			detached: options.detached,
 			mcpUrl: mcpEndpointUrl(mcpToken),
 			onEvent: (event) => {
 				if (event.session_id !== undefined) {
@@ -238,7 +282,13 @@ async function runTurn(
 		releaseSpawn(mcpToken);
 		throw error;
 	}
-	void child.done.then((outcome) => {
+	child.started
+		.then((init) => {
+			live.set(init.sessionId, child);
+			known.set(init.sessionId, { kind, attach });
+		})
+		.catch(() => {});
+	const done = child.done.then((outcome) => {
 		releaseSpawn(mcpToken);
 		if (sessionId !== undefined) {
 			live.delete(sessionId);
@@ -258,10 +308,24 @@ async function runTurn(
 			signal: outcome.signal,
 			stale: outcome.stale,
 		});
+		return { outcome, result, resultSeen };
 	});
-	const init = await child.started;
-	live.set(init.sessionId, child);
-	known.set(init.sessionId, { kind, attach });
+	return { child, done };
+}
+
+async function runTurn(
+	options: TurnOptions,
+): Promise<{ sessionId: string; done: Promise<SessionResult | undefined> }> {
+	const { kind, attach } = options;
+	const tracked = spawnTracked({
+		kind,
+		prompt: options.prompt,
+		attach,
+		resume: options.resume,
+		seedSystemPrompt:
+			options.resume === undefined ? await seedFor(kind, attach) : undefined,
+	});
+	const init = await tracked.child.started;
 	// Only the resumable chat kinds persist their id on the card; a cold
 	// kind's attach exists so its board tools resolve the story, nothing more.
 	if (
@@ -271,7 +335,42 @@ async function runTurn(
 	) {
 		await persistAttach(attach, init.sessionId);
 	}
-	return { sessionId: init.sessionId, done: child.done.then(() => result) };
+	return {
+		sessionId: init.sessionId,
+		done: tracked.done.then((turn) => turn.result),
+	};
+}
+
+export interface RunTurnHandle {
+	pid: number | undefined;
+	started: Promise<SessionInit>;
+	done: TrackedTurn["done"];
+}
+
+// The run-spawn path: per-spawn cwd (the worktree), hook settings, the check
+// command's extra tools, and a detached process-group leader. The runs
+// service owns the lifecycle; nothing persists here.
+export function spawnRunSession(input: {
+	storyId: string;
+	prompt: string;
+	cwd: string;
+	settingsPath: string;
+	extraTools: readonly string[];
+}): RunTurnHandle {
+	const tracked = spawnTracked({
+		kind: "run",
+		prompt: input.prompt,
+		attach: { type: "story", id: input.storyId },
+		cwd: input.cwd,
+		settingsPath: input.settingsPath,
+		extraTools: input.extraTools,
+		detached: true,
+	});
+	return {
+		pid: tracked.child.pid,
+		started: tracked.child.started,
+		done: tracked.done,
+	};
 }
 
 // A fresh refine turn (first spawn or reseed) is seeded with the epic's
@@ -404,6 +503,14 @@ function findOnBoard(sessionId: string): SessionInfo | undefined {
 	);
 	if (thread !== undefined) {
 		return { kind: "shape", attach: { type: "shaping", id: thread.slug } };
+	}
+	// Run entries keep their session ids in frontmatter; found here only so
+	// `messageSession` rejects them deliberately instead of NOT_FOUND.
+	const runStory = board.stories.find((story) =>
+		story.frontmatter.runs.some((run) => run.session === sessionId),
+	);
+	if (runStory !== undefined) {
+		return { kind: "run", attach: { type: "story", id: runStory.id } };
 	}
 	return undefined;
 }

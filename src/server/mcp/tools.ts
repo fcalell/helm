@@ -1,7 +1,14 @@
 import { join } from "node:path";
 import { z } from "@fcalell/plugin-api/schema";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { isENOENT, readShapingFile, shapingDir } from "../../board/store.ts";
+import { appendRunNote } from "../../board/markdown.ts";
+import {
+	isENOENT,
+	readShapingFile,
+	readStoryFile,
+	shapingDir,
+	writeStory,
+} from "../../board/store.ts";
 import type { BoardToolName, SessionKind } from "../../sessions/kinds.ts";
 import { boardSnapshot, managedRepo } from "../services/board.ts";
 import {
@@ -14,6 +21,7 @@ import {
 	recordProposal,
 	recordQuestion,
 } from "../services/proposals.ts";
+import { enqueueWrite } from "../write-queue.ts";
 import type { ReadyBinding } from "./registry.ts";
 import type { Proposal } from "./schemas.ts";
 import {
@@ -26,6 +34,7 @@ import {
 	raiseDecisionPayloadSchema,
 	resolveQuestionPayloadSchema,
 	updateBriefPayloadSchema,
+	updateCardPayloadSchema,
 } from "./schemas.ts";
 
 export interface ToolDefinition {
@@ -229,6 +238,34 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 				"Contest recorded. The user will accept the risk as an open " +
 					"question or dismiss the flag.",
 			);
+		},
+	},
+	update_card: {
+		description:
+			"Append a short markdown note to your story card's Run notes: a " +
+			"decision taken or progress made. The one way a run writes its card; " +
+			"never edit .helm/ files.",
+		inputSchema: () => updateCardPayloadSchema,
+		handle: async (binding, args) => {
+			const parsed = updateCardPayloadSchema.safeParse(args);
+			if (!parsed.success) return err(z.prettifyError(parsed.error));
+			const attach = binding.attach;
+			if (attach?.type !== "story") {
+				return err("this session is not bound to a story");
+			}
+			const story = boardSnapshot().stories.find(
+				(each) => each.id === attach.id,
+			);
+			if (story === undefined) return err(`no story with id ${attach.id}`);
+			await enqueueWrite(async () => {
+				const current = await readStoryFile(story.path, story.epicId);
+				await writeStory({
+					path: current.path,
+					frontmatter: current.frontmatter,
+					body: appendRunNote(current.body, parsed.data.note),
+				});
+			});
+			return ok("Note recorded on your card.");
 		},
 	},
 	ask_user: {

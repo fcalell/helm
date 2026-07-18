@@ -2,9 +2,22 @@ import { readFile } from "node:fs/promises";
 import { z } from "@fcalell/plugin-api/schema";
 import { isENOENT } from "../board/store.ts";
 
+// One simple command: the CLI checks each component of a compound command
+// against the allowlist separately (operators break), and the runner joins
+// `--allowedTools` into one comma-separated argument the CLI splits on
+// commas (a comma would shred the command's own pattern).
+const checkCommandSchema = z
+	.string()
+	.min(1)
+	.refine((cmd) => !/[;,|&]/.test(cmd), {
+		message:
+			"checkCommand must be one simple command: no shell operators (&&, ||, ;, |, &) and no commas",
+	});
+
 const managedRepoSchema = z.object({
 	path: z.string().min(1),
 	mainBranch: z.string().min(1),
+	checkCommand: checkCommandSchema.optional(),
 });
 export type ManagedRepo = z.infer<typeof managedRepoSchema>;
 
