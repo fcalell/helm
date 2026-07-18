@@ -79,6 +79,7 @@ gate: { passed: 2026-07-14T18:03:00Z, brief: <hash>, overrides: ["<flag>: <reaso
 sessions: { refine: <uuid> }
 runs:                 # one entry per implement session; request-changes follow-ups extend it
   - { n: 1, session: <uuid>, brief: <hash>, started: 2026-07-15T09:12:00Z, outcome: review, grades: 5/6, tokens: 184000, minutes: 22 }
+  - { n: 2, session: <uuid>, brief: <hash>, started: 2026-07-16T10:02:00Z, outcome: blocked, error: orchestrator restarted mid-run }
 ---
 # Sync engine
 ## Goal
@@ -97,9 +98,13 @@ checked question is resolved, and unresolved questions are what the ready gate c
 
 `gate` records the adversary pass: timestamp, the hash of the brief body it binds to, and the
 dismissed flags with their override reasons; any brief edit stales it
-([define-refine](../product/features/define-refine.md) §Ready gate). A run entry records the
+([define-refine](../product/features/define-refine.md) §Ready gate). The hash excludes the body's
+trailing `## Run notes` block (from the final such heading to the next `##` heading or end of
+body): run notes are bookkeeping appends, so they never stale the verdict, while anything a hand
+edit adds after the section re-enters the hash and stales it. A run entry records the
 brief hash the run was spawned with (the contract review grades against,
-[runs](../product/features/runs.md)) and, once graded, the self-grade tally the Review card
+[runs](../product/features/runs.md)), the outcome with its token/minute totals, the last error
+when the run ended blocked, and, once graded, the self-grade tally the Review card
 shows. One entry spans one implement session: request-changes follow-ups accumulate onto it, and
 a new entry starts when discard retires the session
 ([review](../product/features/review.md) §Three exits).

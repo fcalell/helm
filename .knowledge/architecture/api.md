@@ -9,7 +9,8 @@ group; `stack generate` regenerates the barrel that wires them into the router.
 | Procedure    | Behavior                                                                     |
 | ------------ | ----------------------------------------------------------------------------- |
 | `board.get`  | Returns the full `Board` snapshot (epics, stories, invalid files).            |
-| `story.move` | Re-reads the story from disk (the snapshot only resolves id → path), validates the transition with `canTransition`, writes the new status, and returns `{ gating }`; the `board` channel's snapshot is the authority. Serialized through a per-repo write queue. A move into `ready` runs the ready gate: an incomplete brief is refused, a valid recorded `gate` verdict (frontmatter hash matches the brief body) writes `ready` for free, and a `refining` story otherwise enqueues a cold adversary pass on the dispatcher and returns `gating: true` with the card unchanged; the round then streams on the `gate` channel. |
+| `story.move` | Re-reads the story from disk (the snapshot only resolves id → path), validates the transition with `canTransition`, writes the new status, and returns `{ gating }`; the `board` channel's snapshot is the authority. Serialized through a per-repo write queue. A move into `ready` runs the ready gate: an incomplete brief is refused, a valid recorded `gate` verdict (frontmatter hash matches the brief body) writes `ready` for free, and a `refining` story otherwise enqueues a cold adversary pass on the dispatcher and returns `gating: true` with the card unchanged; the round then streams on the `gate` channel. A move into `running` is always refused: stories enter `running` through `run.start` alone. |
+| `run.start` | Starts an implementation run on a Ready story: validates `ready → running` plus gate freshness (a stale verdict is refused), converges the story's branch + worktree, spawns the Auto-preset run session with the brief as its prompt, and writes `status: running` with a new `runs` entry once `system/init` lands. Returns `{ sessionId }`; the run streams on the `session` channel and the close path flips the card to Review or Blocked. One run per story at a time (`RUN_ACTIVE` while one is live). |
 | `gate.resolveFlag` | User resolution of a contested gate flag: `accept` appends it to the brief's Open questions (which blocks the gate until resolved), `dismiss` records the override reason for the eventual `gate` block. Returns nothing; the `gate` channel snapshot is the authority. |
 | `repo.get`   | Returns the managed repo's `{ path, name, mainBranch, branch }`; `branch` reads the checkout's current git branch. |
 | `epic.create` | The `n` entry: mints the next epic ordinal, writes `<NNN>-<slug>/epic.md` from the title and rough goal, and returns `{ epicId }`; the caller spawns the define chat against it. |
@@ -78,7 +79,9 @@ Registry:
 | `NOT_FOUND`          | Unknown story/epic/session id, or the story file vanished before the write (ENOENT on the fresh read). | none |
 | `ILLEGAL_TRANSITION` | `canTransition` rejected the move (HTTP 409).  | `{ from, to, reason }`  |
 | `INVALID_FILE`       | The story file on disk is malformed at write time — a hand edit broke it (HTTP 409). | none |
-| `SPAWN_FAILED`       | The `claude` process exited before `system/init`. | none |
+| `SPAWN_FAILED`       | The `claude` process exited before `system/init`, or a run spawn missed it within the init timeout. | none |
+| `RUN_ACTIVE`         | `run.start` on a story whose run process is still live (HTTP 409). | none |
+| `RUN_FAILED`         | A run's worktree/branch convergence failed (git error, or the branch already carries `.helm/` changes). | none |
 | `SESSION_BUSY`       | The session is mid-turn; kill it before steering (HTTP 409). | none |
 | `SESSION_COLD`       | The kind's context policy is always-cold, so the session never resumes (HTTP 409). | none |
 | `SESSION_STALE`      | The transcript is gone and the session has no card to reseed from (HTTP 410). | none |

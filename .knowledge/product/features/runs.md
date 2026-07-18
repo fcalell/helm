@@ -21,7 +21,8 @@ Set per story, before the run:
 - **Manual**: everything prompts.
 
 The Auto allowlist is data: Helm ships the canonical list (file edits, the repo's test/lint/build
-commands, read-only git) and a repo overrides or extends it under `.helm/`, the same
+commands, and branch-local git: the read-only queries plus `add`/`commit`/`mv`/`rm`, never push or
+branch switching) and a repo overrides or extends it under `.helm/`, the same
 shared-with-local-override model templates use ([templates](../../architecture/templates.md)).
 Init proposes the repo's own test commands into it ([init](./init.md)), and the review kind's
 test-command Bash reads the same per-repo list
