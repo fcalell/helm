@@ -87,8 +87,8 @@ What the measured cells support. Effort is held at each kind's current value (tu
 ## Fable fallback strategy
 
 Fable draws a separate pool from Sonnet/Opus, so it exhausts on its own while the other pool stays
-full. (Fable-separate is observed; Sonnet and Opus sharing one pool is assumed, not confirmed, so the
-"other pool" may in fact be two.) The loop is multi-pool: `research`/`review` (Sonnet) and `adversary`
+full. (Both confirmed: Fable capped out while the others ran, and Sonnet and Opus share one pool.) The
+loop is multi-pool: `research`/`review` (Sonnet) and `adversary`
 (Opus) never touch Fable, so a Fable-out stalls only the six synthesis/execution kinds (`shape`,
 `define`, `refine`, `run`, `conflict`, `init`), not the pipeline. First move is drain the non-Fable
 stages and queue the Fable ones for reset; the strategy below is for the Fable stages that must run
@@ -96,7 +96,7 @@ before reset.
 
 **The fallback relocates load, it does not spread it.** Routing all six Fable kinds to Opus/Sonnet
 piles the entire remaining loop onto the pool already carrying adversary, research, and review, so the
-fallback can itself trigger a second pool-out. That pool's size is an assumption (above), so treat
+fallback can itself trigger a second pool-out. That shared pool's size is unmeasured, so treat
 fallback capacity as unknown-and-small: run fallback kinds one at a time or queue them, not at full
 Fable concurrency, and prefer draining and queueing over eagerly re-running everything on the spare
 pool. This is why the fallback is a survival mode to ride out a reset, not a steady state.
@@ -245,6 +245,13 @@ surface issues and misses every substantive finding (adversary: the lifecycle bl
 false-confidence sign-off; review: both should-fix findings). The boundary is depth, not price. A
 role that rewards accurate reading can use Haiku; a role that rewards finding what is missing or
 broken cannot.
+
+The same split governs applying a reusable artifact, not just filling a role. A constraint that only
+narrows behavior (a scope-lock overlay) needs no attack-depth, so any tier can apply it; the cost is
+that a weak executor can read it as license to drop required scope, trading a false pass for a silent
+under-build. A check that asks the applier to find what is missing (a pre-flight checklist) inherits
+the depth floor of what it checks, so a cheap pre-filter cannot clear a gate the substantive-finding
+tier would.
 
 ## Gaps and experiment plan
 

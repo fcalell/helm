@@ -36,10 +36,11 @@ Three facts order the levers:
    re-answering the 12 gate rounds rather than building the brief, and 84% of its cache-reads fell in
    that gate-answering (each round re-reads the accumulated transcript). Long context is expensive
    even at a cheap tier.
-3. **Pools are separate and capped** `partly measured`. Fable drawing its own pool is observed (it
-   capped out while the others ran); Sonnet and Opus sharing one pool is an assumption, not yet
-   confirmed. Either way spend is bounded per pool, so spreading burn across pools matters as much as
-   reducing it, and the fallback strategy must not assume a spare Opus pool is large.
+3. **Pools are separate and capped** `measured`. Two pools, both confirmed: Fable draws its own (it
+   capped out while the others ran), and Sonnet and Opus share the second. Spend is bounded per pool,
+   so spreading burn across pools matters as much as reducing it. Because the gate's adversary (Opus)
+   and the Sonnet stages (research, review) draw the same bucket, the fallback must not assume a spare
+   Opus pool is large or free of the Sonnet load already on it.
 
 So the heavy levers cut iterations and context length; per-call tier and effort are fine-tuning on
 top. "Pick a cheaper model" is near the bottom of the list, and on a capped pool it can even be
@@ -103,7 +104,10 @@ principle, not a build item).
 - **Warm the iterative middle** `planned`. The adversary re-reads the full brief cold every pass (it
   is always-cold by design), which is why its line was $52.54 of the $86 gate. One warm adversary
   session across the back-and-forth, with a single cold pass only for sign-off, cuts that per-pass
-  cold-read tax. (Distinct from refine's gate-answering cache-reads in fact 2: those are the reseed
+  cold-read tax. Warmth is the fix, not a compressed artifact: carrying a distilled summary into each
+  cold pass multiplies the dominant cache-read term by the pass count, so on a cold-by-design stage a
+  warm session pays where a carried text artifact does not. (Distinct from refine's gate-answering
+  cache-reads in fact 2: those are the reseed
   chat re-reading a growing transcript, not the adversary's cold reads; warm-the-middle attacks the
   adversary line, context-policy tuning attacks refine's.)
 - **Context policy per kind** `live`. Cold vs reseed vs compact sets the cache-read bill: compact a
@@ -112,7 +116,7 @@ principle, not a build item).
   predicts difficulty from a brief.
 - **Pool-aware scheduling** `planned`. Spread burn across pools and use queue backpressure to ride out
   caps. Note the asymmetry: the Fable fallback does not *spread* load, it *relocates* all six Fable
-  kinds onto the other (assumption-sized) pool already carrying adversary, research, and review, so it
+  kinds onto the one shared Sonnet/Opus pool already carrying adversary, research, and review, so it
   can cascade into a second pool-out. Scheduling must cap or queue the relocated load, not fire it all
   at once. The fallback strategy (matrix) is this lever's first instance and its hardest case.
 
