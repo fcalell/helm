@@ -178,6 +178,19 @@ in this doc that use the old assumption are overstated; the quality findings are
 leans on Fable (refine, run, shape, define, init default to it), so the limit constrains both further
 Fable testing and the live loop until it resets.
 
+- **adversary / opus / high** (002-02 loop, end-to-end): 12 passes (1 warm + 11 cold) to a clean
+  cold verdict on a single-story brief, ~$2.0/pass, $23.95 total, 12 real flaws fixed, zero
+  dismissals. Experiment 2 verdict: the 4-5-pass estimate did not hold; each fix opens the next
+  seam whatever the pass depth (002-01's ratchet, reproduced on Opus). The gate line still fell
+  to less than half of 002-01's $52.54, from per-pass price plus refinement running inside the
+  orchestration session (no gate-answering refine line to pay). Warm-middle first sample: the one
+  warm resume cost $1.12 against ~$1.9 cold, but its transcript re-entered as ~100k fresh writes
+  anyway (no cache reuse observed on the resume), so the warmth saved output, not reads.
+- **Pool-draw unit** (002-02 + pool meter): after the loop both pools read ~5% used. With
+  Anthropic's stated 50% Fable/Opus cap ratio, the draws ($44.54 Fable vs $29.05 Opus/Sonnet
+  modeled; 33.8M vs 15.6M raw tokens) reconcile only as pool draw ≈ fresh input + output +
+  ~2%·cache-reads; implied caps ~23M / ~46M weighted tokens per window. One loop, one-digit meter
+  readings: re-fit on the next loop. Frame consequences in harness-optimization §Objective.
 - **adversary / fable / high** (loop): ~$3.50/pass, 2-4 flags/pass, 12-15 passes to converge.
   Ground-truth recall by definition. Its brief produced a clean first-try run.
 - **adversary / sonnet / high** (test): ~$5/pass. Matched ~1.5 of Fable's 5 pass-1 flags, 0 of 4
@@ -262,8 +275,11 @@ pre-gate commit, exact prompt from the transcript, `--model X --effort Y`, compa
    its cost is mostly gate rounds, so a model that writes a tighter brief (fewer rounds, cleaner run)
    could pay for itself. Measure brief quality by downstream gate rounds and run outcome, not by the
    refine session cost alone.
-2. **adversary: confirm the round compression end-to-end.** Run one full Opus gate on a fresh brief,
-   count actual rounds to convergence against the 12→~4 estimate.
+2. **adversary: round compression end-to-end.** Measured on 002-02: 12 passes to zero, so the
+   12→~4 estimate did not hold; the saving is per-pass price, not pass count. The open remainder:
+   whether a warm iterative middle cuts passes rather than only output, testable once cache
+   reuse on resumes is understood (the 002-02 warm pass re-entered its transcript as fresh
+   writes).
 3. **run: Opus vs Fable per token.** Does Opus finish in fewer turns, offsetting its rate? High error
    cost, single invocation, so quality floor is criteria-met and review-pass.
 4. **effort sweeps** on the chosen model for adversary (does high beat medium?) and run (does medium

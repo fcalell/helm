@@ -27,17 +27,32 @@ pools: a cross-pool "$X cheaper" (e.g. Opus below Fable) says nothing about pool
 two draw different capped buckets. Read every cross-pool dollar comparison as a token-volume note,
 never a which-to-run verdict; the pool it draws decides that.
 
+First calibration of the real unit `est` (002-02): the loop drew ~5% of each pool while its dollar
+split was $44.54 Fable against $29.05 Opus/Sonnet, and Anthropic sizes the Fable cap at 50% of the
+Opus one. The three facts reconcile only when pool draw ≈ fresh input + output + ~2% of cache reads
+(α in 0.015–0.03 under the readings' rounding). So dollars overweight cache-heavy stages even
+inside one loop: the run "cost" 1.9× the gate in dollars yet drew the same fraction of its pool.
+Pool spend is effectively fresh-plus-output volume, which is iteration count and cold re-reads, not
+context length. Single-loop estimate from one-digit meter readings; re-fit on the next loop's
+before/after readings before hardening it into a rule.
+
 Three facts order the levers:
 
 1. **Cost lives in iterations, not per-call price** `measured`. The first dogfood loop's gate was
    ~$86 of $122; round count is the multiplier on everything downstream.
-2. **Within a stage, cache-read scales with context length and dominates** `measured`. Cache-read was
-   ~90% of run cost. Refine's cost was dominated the same way at one remove: ~78% of the chat went to
-   re-answering the 12 gate rounds rather than building the brief, and 84% of its cache-reads fell in
-   that gate-answering (each round re-reads the accumulated transcript). Long context is expensive
-   even at a cheap tier.
+2. **Within a stage, cache-read scales with context length and dominates the dollar proxy**
+   `measured`. Cache-read was ~90% of run cost. Refine's cost was dominated the same way at one
+   remove: ~78% of the chat went to re-answering the 12 gate rounds rather than building the brief,
+   and 84% of its cache-reads fell in that gate-answering (each round re-reads the accumulated
+   transcript). Long context is expensive even at a cheap tier. Calibration caveat `est`: cache
+   reads bill ~2% into the pool (cost-unit paragraph above), so this fact governs modeled dollars
+   and latency, not pool survival; the pool-side face of the same stages is their fresh-input and
+   output volume.
 3. **Pools are separate and capped** `measured`. Two pools, both confirmed: Fable draws its own (it
-   capped out while the others ran), and Sonnet and Opus share the second. Spend is bounded per pool,
+   capped out while the others ran), and Sonnet and Opus share the second. Anthropic sizes the Fable
+   cap at 50% of the Opus/Sonnet one; under the α≈0.02 weighting, 002-02's readings imply ~23M
+   weighted tokens per window for Fable and ~46M for Opus/Sonnet `est`, about twenty such loops per
+   window per pool. Spend is bounded per pool,
    so spreading burn across pools matters as much as reducing it. Because the gate's adversary (Opus)
    and the Sonnet stages (research, review) draw the same bucket, the fallback must not assume a spare
    Opus pool is large or free of the Sonnet load already on it.
@@ -96,8 +111,9 @@ principle, not a build item).
   outweighs the gate saving; the optimum is the smallest coherent vertical slice, not maximum story
   count. Slices also dispatch concurrently, but that buys wall-clock, not spend, and only up to a
   pool's rate ceiling (six concurrent Fable gates share one Fable pool). This is a substitute for
-  gate-efficiency, not an independent lever: a cheaper gate (the Opus adversary, now merged; its
-  end-to-end round saving still to be confirmed, matrix experiment 2) shrinks its payoff.
+  gate-efficiency, not an independent lever: a cheaper gate shrinks its payoff, and the Opus
+  adversary already halved the per-pass price (matrix experiment 2, measured), so size the
+  remaining payoff at ~$2/pass, not 002-01's $3.50.
 - **Depth-per-pass on iterated critique** `live`. Opus adversary compresses rounds (one pass covered
   Fable rounds 7-14). On any iterated step per-pass quality pays twice: better output and fewer
   iterations.
@@ -144,7 +160,10 @@ moves the objective," then discount by what is already `live`.
 1. **Story sizing**: cuts the gate/refine lines by a bounded constant factor (removes the coupled-
    surface round penalty), but conserved on run/review, so a net win only while the gate dominates.
 2. **Iteration reduction on gates**: depth-per-pass, warm iteration, convergence automation.
-3. **Context and cache discipline**: length is the hidden 80-90% of cost.
+3. **Context and cache discipline**: length is the hidden 80-90% of *modeled* cost; on the pool
+   axis it demotes `est` (cache reads bill ~2%), so this lever buys dollars and latency while
+   levers 1 and 2, which cut fresh input and output, are what defend the caps. Re-rank once the
+   α fit survives a second loop.
 4. **Verification placement**: buys cheaper upstream tiers, when the gate itself converges cheaply.
 5. **Tier, effort, and prompt fit per kind**: the matrix.
 6. **Deterministic-over-agentic automation**: never spawn for what code settles.
@@ -153,11 +172,13 @@ moves the objective," then discount by what is already `live`.
    out a cap, not a spend optimizer.)
 
 Levers 1 and 2 both attack gate cost and are substitutes, not additive: a cheaper gate shrinks the
-story-sizing payoff. The `adversary` → Opus change (levers 2 and 5) is merged, and measured ~3× depth
-per pass; the end-to-end round-count saving is still projected, not yet confirmed (matrix experiment
-2). Even on the per-pass measurement alone, lever 1's remaining payoff is smaller than the raw 002-01
-numbers suggest. Build whichever of 1/2 is cheaper to reach next; do not count both savings, and
-re-measure the gate end-to-end after Opus before investing in story-sizing machinery.
+story-sizing payoff. The `adversary` → Opus change (levers 2 and 5) is merged and measured
+end-to-end (matrix experiment 2, 002-02): the projected 12→~4 pass compression did not
+materialize (12 passes to zero on a single-story brief; fix-then-re-attack ratchets one seam per
+pass whatever the depth), yet the adversary line still halved, $52.54 → $23.95, on per-pass price.
+Lever 2's remaining headroom is therefore convergence automation and a warm middle that actually
+cuts passes, not tier depth; lever 1's payoff prices at ~$2/pass. Build whichever of 1/2 is
+cheaper to reach next; do not count both savings.
 
 ## How current decisions map
 
