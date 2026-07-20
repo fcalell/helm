@@ -377,6 +377,9 @@ export interface RunTurnHandle {
 export function spawnRunSession(input: {
 	storyId: string;
 	prompt: string;
+	// The brief seed, forwarded on every segment (fresh start and resume) so
+	// each segment's system prompt is byte-identical.
+	seedSystemPrompt?: string;
 	cwd: string;
 	settingsPath: string;
 	tools: readonly string[];
@@ -390,6 +393,7 @@ export function spawnRunSession(input: {
 		prompt: input.prompt,
 		attach: { type: "story", id: input.storyId },
 		resume: input.resume,
+		seedSystemPrompt: input.seedSystemPrompt,
 		cwd: input.cwd,
 		settingsPath: input.settingsPath,
 		tools: input.tools,

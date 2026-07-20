@@ -27,6 +27,7 @@ import {
 } from "../../sessions/kinds.ts";
 import {
 	questionAnswerPrompt,
+	runBriefSeed,
 	runPrompt,
 	steeringPrompt,
 } from "../../sessions/prompts.ts";
@@ -104,12 +105,20 @@ function settingsFilePath(storyId: string): string {
 	return join(worktreesDir(managedRepo()), `${storyId}.settings.json`);
 }
 
+// The brief's spawn snapshot, written verbatim at every fresh start and read
+// back for each resume's seed; overwritten by the next fresh start.
+function briefFilePath(storyId: string): string {
+	return join(worktreesDir(managedRepo()), `${storyId}.brief.md`);
+}
+
 // The per-spawn settings: the `.helm/` deny rules (spike-verified `//`
-// absolute anchoring; the file itself lives outside the worktree) and the
-// Stop-hook POST backstop.
+// absolute anchoring; the file itself lives outside the worktree), the
+// Stop-hook POST backstop, and auto-compact forced on (`--settings` outranks
+// a user-global disable; the CLI owns the trigger).
 function runSettings(worktree: string, hookToken: string) {
 	const helmGlob = `//${worktree.replace(/^\/+/, "")}/.helm/**`;
 	return {
+		autoCompactEnabled: true,
 		permissions: { deny: [`Edit(${helmGlob})`, `Write(${helmGlob})`] },
 		hooks: {
 			Stop: [
@@ -411,10 +420,12 @@ async function start(
 		settingsPath,
 		`${JSON.stringify(runSettings(worktree, state.hookToken), null, "\t")}\n`,
 	);
+	await writeFile(briefFilePath(storyId), prepared.body);
 
 	const handle = spawnRunSession({
 		storyId,
-		prompt: runPrompt(prepared.body, repo.checkCommand, prepared.preset),
+		prompt: runPrompt(repo.checkCommand, prepared.preset),
+		seedSystemPrompt: runBriefSeed(prepared.body),
 		cwd: worktree,
 		settingsPath,
 		...spawn,
@@ -1031,6 +1042,7 @@ async function resume(
 	const handle = spawnRunSession({
 		storyId,
 		prompt: plan.prompt,
+		seedSystemPrompt: await resumeSeed(storyId, current),
 		cwd: worktree,
 		settingsPath,
 		resume: plan.session,
@@ -1065,6 +1077,37 @@ async function resume(
 		throw illegalTransition(spec.abort.from, "running", spec.abort.reason);
 	}
 	return { sessionId: init.sessionId };
+}
+
+// A resume's segment seed, read from the spawn snapshot file so it stays
+// byte-identical across segments (the card body is never re-read for the
+// seed: a mid-run hand edit must not rewrite the contract). When the file is
+// gone, the card body substitutes only while `briefHash` still matches the
+// open entry's snapshot hash; otherwise the segment spawns without the seed
+// (the transcript still carries the brief), never a rejection.
+async function resumeSeed(
+	storyId: string,
+	current: Story,
+): Promise<string | undefined> {
+	try {
+		return runBriefSeed(await readFile(briefFilePath(storyId), "utf8"));
+	} catch (error) {
+		if (!isENOENT(error)) {
+			log?.error(
+				`run ${storyId}: brief snapshot unreadable: ${errorText(error)}`,
+			);
+		}
+	}
+	const open = current.frontmatter.runs.findLast(
+		(run) => run.outcome === undefined,
+	);
+	if (open !== undefined && briefHash(current.body) === open.brief) {
+		return runBriefSeed(current.body);
+	}
+	log?.info(
+		`run ${storyId}: brief snapshot missing and the card body no longer matches; resuming without the seed`,
+	);
+	return undefined;
 }
 
 // A result event's usage counts only its own turn, so entry totals add

@@ -174,20 +174,16 @@ export function gateFlagsPrompt(
 	].join("\n");
 }
 
-// The run's prompt is the brief (card body). The check command must be
-// stated here: the config is the orchestrator's, invisible from the
-// worktree, and the static registry prompt cannot name it.
+// The run's user message: the kickoff plus the check command. The brief
+// itself rides the system prompt (`runBriefSeed`) so it survives compaction.
+// The check command must be stated here: the config is the orchestrator's,
+// invisible from the worktree, and the static registry prompt cannot name it.
 export function runPrompt(
-	briefBody: string,
 	checkCommand: string | undefined,
 	preset: Preset,
 ): string {
 	return [
-		"Implement the story brief below.",
-		"",
-		"<brief>",
-		briefBody.trimEnd(),
-		"</brief>",
+		"Implement the story brief in your system instructions.",
 		"",
 		checkCommand === undefined
 			? "No check command is configured for this repo: you cannot self-test. Do not guess one."
@@ -196,6 +192,19 @@ export function runPrompt(
 						? "It is on your allowlist; run"
 						: "It prompts for approval on this preset; run"
 				} it to self-test before finishing.`,
+	].join("\n");
+}
+
+// The brief seed rides every run segment's system prompt, byte-identical
+// across fresh start and resumes (built from the spawn snapshot file, never
+// a re-read card body), so the contract structurally survives compaction.
+export function runBriefSeed(briefBody: string): string {
+	return [
+		"The story brief you are implementing:",
+		"",
+		"<brief>",
+		briefBody.trimEnd(),
+		"</brief>",
 	].join("\n");
 }
 
