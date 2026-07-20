@@ -1,6 +1,6 @@
 ---
 id: 002-02
-status: review
+status: done
 depends: [002-01]
 branch: helm/002-02-permissions-needs-input
 gate: { passed: 2026-07-20T09:04:40.675Z, brief: 86277dc90a59f7f0, overrides: [] }
