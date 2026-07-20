@@ -35,11 +35,19 @@ inside one loop: the run "cost" 1.9× the gate in dollars yet drew the same frac
 The 002-03 re-fit **could not test the point estimate**: both readings carried unledgered draws, a
 parallel interactive Opus session on the shared pool plus the orchestration session's own Fable
 draw. Under α≈0.02 the ledger predicts ~2% per pool; the meter read ~4% on both, so the gap on
-each pool is its unledgered session's draw, size unknown. One-digit readings contaminated on both
-pools confirm nothing, so α stays a single-loop estimate. Hold pool draw as a bounds statement,
-fresh + output at minimum with cache reads weighted somewhere in 0–20%, never a point estimate.
-Two things survive any α: dollars overweight cache-heavy stages, and cutting iterations cuts
-every component at once.
+each pool is its unledgered session's draw, size unknown. The 002-04 readings **tightened the
+bounds**: the Fable pool moved 8% total while carrying 22.8M ledgered cache reads (the loop's run
+plus its high-tier fix-up) beside ~587k fresh + output and two unledgered Fable sessions — at
+α ≈ 0.10 the cache reads alone exceed that movement on every admissible cap, so the cache-read
+weight is bounded at roughly **α ≤ 0.05**, with α≈0.02 still the best fit (ledgered ~4.5%
+predicted, ~3.5% residual for the two unledgered sessions, in line with 002-03's
+orchestration-only residual). Hold pool draw as fresh + output + a small cache-read term,
+weighted somewhere in 0–5%. One tension opened: the shared pool was quiet for the first time
+(the parallel session was Fable) and read ~4% on ~827k weighted, implying a ~21M shared window —
+half the ~46M the 002-02 fit implied; either an unlogged Opus/Sonnet draw shared the window or
+the 002-02 reading overestimated it. The exact before/after readings protocol resolves this next
+loop. Two things survive any α: dollars overweight cache-heavy stages, and cutting iterations
+cuts every component at once.
 
 Three facts order the levers:
 
@@ -50,13 +58,15 @@ Three facts order the levers:
    remove: ~78% of the chat went to re-answering the 12 gate rounds rather than building the brief,
    and 84% of its cache-reads fell in that gate-answering (each round re-reads the accumulated
    transcript). Long context is expensive even at a cheap tier. Calibration caveat `est`: the
-   cache-read pool weight rests on the single 002-02 fit (cost-unit paragraph above), so
-   whether this fact reaches pool survival or only modeled dollars and latency is open; the
-   fresh-input and output volume of the same stages draws the pool under every candidate fit.
+   cache-read pool weight is bounded at α ≤ ~0.05 by the 002-04 Fable reading (cost-unit
+   paragraph above), so this fact reaches pool survival only weakly; it governs modeled dollars
+   and latency, while the fresh-input and output volume of the same stages is what draws the
+   pool under every admissible fit.
 3. **Pools are separate and capped** `measured`. Two pools, both confirmed: Fable draws its own (it
    capped out while the others ran), and Sonnet and Opus share the second. Anthropic sizes the Fable
-   cap at 50% of the Opus/Sonnet one; the ~23M/~46M weighted-token window sizes the α≈0.02 fit
-   implied rest on that single fit and stay unconfirmed `est`. Spend is bounded per pool,
+   cap at 50% of the Opus/Sonnet one; the window sizes stay unconfirmed `est`, and the 002-04
+   quiet-shared reading put them in tension: ~21M implied for the shared window against the ~46M
+   the 002-02 fit implied (cost-unit paragraph above). Spend is bounded per pool,
    so spreading burn across pools matters as much as reducing it. Because the gate's adversary (Opus)
    and the Sonnet stages (research, review) draw the same bucket, the fallback must not assume a spare
    Opus pool is large or free of the Sonnet load already on it.
@@ -176,10 +186,10 @@ moves the objective," then discount by what is already `live`.
    surface round penalty), but conserved on run/review, so a net win only while the gate dominates.
 2. **Iteration reduction on gates**: depth-per-pass, warm iteration, convergence automation.
 3. **Context and cache discipline**: length is the hidden 80-90% of *modeled* cost; its pool-axis
-   standing is open (the α≈0.02 fit that demoted it is a single-loop estimate the contaminated
-   002-03 re-fit could not confirm), so treat the lever as certain on dollars and latency and
-   undetermined on cap survival, where levers 1 and 2, which cut fresh input and output, defend
-   the caps under every candidate fit.
+   demotion now rests on measurement (the 002-04 Fable reading bounds the cache-read weight at
+   α ≤ ~0.05), so treat the lever as certain on dollars and latency and weak on cap survival,
+   where levers 1 and 2, which cut fresh input and output, defend the caps under every
+   admissible fit.
 4. **Verification placement**: buys cheaper upstream tiers, when the gate itself converges cheaply.
 5. **Tier, effort, and prompt fit per kind**: the matrix.
 6. **Deterministic-over-agentic automation**: never spawn for what code settles.

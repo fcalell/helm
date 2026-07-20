@@ -186,6 +186,11 @@ Fable testing and the live loop until it resets.
   orchestration session (no gate-answering refine line to pay). Warm-middle first sample: the one
   warm resume cost $1.12 against ~$1.9 cold, but its transcript re-entered as ~100k fresh writes
   anyway (no cache reuse observed on the resume), so the warmth saved output, not reads.
+- **adversary / opus / high, sized slice** (002-04 loop, end-to-end): 3 all-cold passes to a
+  clean verdict on a ~11KB multi-module brief, ~$2.1/pass, $6.21 total, 5 real flaws fixed
+  across two rounds (a priority-ordering race, an unverified wire shape, two self-contradictory
+  guards, an underspecified mechanism), zero dismissals. Second consecutive sized-slice
+  convergence in ≤4 passes; the lever's "~2-3 rounds per slice" band now has two points on it.
 - **adversary / opus / high, sized slice** (002-03 loop, end-to-end): 4 all-cold passes to a
   clean verdict on a single-surface ~10.5KB brief (a third of 002-02's), ~$1.8/pass, $7.17
   total, 5 real flaws fixed, zero dismissals. First measured point for the story-sizing lever:
@@ -200,10 +205,13 @@ Fable testing and the live loop until it resets.
   ~2%·cache-reads; implied caps ~23M / ~46M weighted tokens per window. The 002-03 re-fit could
   not test the fit: both readings carried unledgered draws (a parallel interactive Opus session on
   the shared pool, the orchestration session's own Fable draw), and the ~4% each pool read against
-  the ledger's ~2% prediction is that unledgered session's draw, size unknown. α stays a
-  single-loop estimate: hold pool draw as bounds (fresh + output at minimum, cache reads 0-20%),
-  and calibrate next on a quiet-pool loop with exact before/after meter values and the window
-  reset clock. Frame consequences in harness-optimization §Objective.
+  the ledger's ~2% prediction is that unledgered session's draw, size unknown. The 002-04
+  readings (8% Fable with 22.8M ledgered cache reads plus two unledgered Fable sessions; 4%
+  shared on a quiet pool at ~827k weighted) tightened the bounds: cache-read weight α ≤ ~0.05
+  with α≈0.02 still the best fit, and the quiet shared reading implies a ~21M shared window
+  against the ~46M this fit originally implied — an open tension (an unlogged Opus/Sonnet draw,
+  or an overestimated 002-02 reading). Calibrate next with exact before/after meter values and
+  the window reset clock. Frame consequences in harness-optimization §Objective.
 - **adversary / fable / high** (loop): ~$3.50/pass, 2-4 flags/pass, 12-15 passes to converge.
   Ground-truth recall by definition. Its brief produced a clean first-try run.
 - **adversary / sonnet / high** (test): ~$5/pass. Matched ~1.5 of Fable's 5 pass-1 flags, 0 of 4
@@ -256,6 +264,13 @@ Fable testing and the live loop until it resets.
   $0.89; the relative gap is the signal.)
 - **fix-up resume / sonnet / medium** (loop): $0.86, applied 10 standards fixes. A run resume, not
   the review kind; the only sonnet/medium data point.
+- **fix-up resume / fable / high** (002-04 loop): $9.18 for one located concurrency fix plus
+  cosmetics, 3.1 minutes. First measured escalation round: ~247k of the cost is the 21-minute
+  run transcript reseeding as fresh input on the effort switch (medium → high forfeits the warm
+  cache), exactly the priced-in cost the outcome routing predicts. Against 002-03's $1.61
+  sonnet/medium round: reserve the high tier for evidence-of-failure payloads; the reseed, not
+  the fix, is what you pay for — and it lands on the Fable pool where fresh input is the
+  expensive component under the α ≤ ~0.05 bound.
 - **research / {sonnet, haiku} / high** (test): posed a code-verifiable three-case decision
   (ready-gate staleness handling), graded against the code. Sonnet ~$0.55 gave the complete answer
   including the subtle Case 2 sub-cases (exhausted-retry vs already-running at gate.ts:153-158).
