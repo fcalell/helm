@@ -44,6 +44,9 @@ export const runSchema = z.strictObject({
 	started: z.iso.datetime(),
 	outcome: z.enum(["review", "blocked"]).optional(),
 	question: runQuestionSchema.optional(),
+	// Written only as `true` on the open entry (a user pause); the resume's
+	// init write deletes it, and a closing write never keeps it.
+	paused: z.boolean().optional(),
 	grades: z
 		.string()
 		.regex(/^\d+\/\d+$/)

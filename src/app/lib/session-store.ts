@@ -308,6 +308,41 @@ export async function answerRunQuestion(
 	}
 }
 
+// Rethrows so the steering box keeps its draft on failure.
+export async function steerRun(
+	storyId: string,
+	message?: string,
+): Promise<void> {
+	try {
+		await api.run.steer({ id: storyId, message });
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to steer the run",
+		);
+		throw error;
+	}
+}
+
+export async function pauseRun(storyId: string): Promise<void> {
+	try {
+		await api.run.pause({ id: storyId });
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to pause the run",
+		);
+	}
+}
+
+export async function stopRun(storyId: string): Promise<void> {
+	try {
+		await api.run.stop({ id: storyId });
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to stop the run",
+		);
+	}
+}
+
 export async function setStoryPreset(
 	storyId: string,
 	preset: Preset,

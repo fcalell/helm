@@ -118,6 +118,11 @@ the drawer's quick-reply form renders from it, and `run.answer` deletes it when 
 segments (each CLI result event counts only its own turn), so a needs-input round trip lands in
 Review with both segments counted on the same entry.
 
+A paused run carries `paused: true` on the open entry: the card stays `running` with no live
+process, restart reconciliation leaves it intact (its segment's safety commit ran at pause time),
+and the resume's init write deletes the flag. The field is written only as `true` and never
+survives onto a closed entry (the stop and finish writes drop it).
+
 The orchestrator writes frontmatter in fixed key order (id · status · depends · branch · preset ·
 gate · sessions · runs) with one flow-styled run per line, so a rewrite diffs as exactly the lines
 that changed. `preset` is optional; an absent field means Guarded, so pre-preset cards keep

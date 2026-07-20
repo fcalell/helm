@@ -16,6 +16,7 @@ import {
 import { boardStore, moveStory, STATUS_LABELS } from "../lib/board-store.ts";
 import { weakCriterion } from "../lib/criteria.ts";
 import { refineSpawnFor, setStoryPreset } from "../lib/session-store.ts";
+import { ActivityPane } from "./activity-pane.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { GatePanel } from "./gate-panel.tsx";
 import { RunQuestionPanel } from "./run-question-panel.tsx";
@@ -244,12 +245,7 @@ export function CardDrawer(props: CardDrawerProps) {
 								{
 									value: "activity",
 									label: "Activity",
-									content: (
-										<EmptyState
-											title="Activity"
-											description="Arrives with runs"
-										/>
-									),
+									content: <ActivityPane story={story} />,
 								},
 								{
 									value: "diff",

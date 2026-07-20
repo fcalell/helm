@@ -4,7 +4,12 @@ import { basename, join } from "node:path";
 import { ApiError } from "@fcalell/plugin-api/error";
 import { defineService } from "@fcalell/plugin-node/server";
 import { briefHash } from "../../board/hash.ts";
-import type { Preset, Run } from "../../board/schema.ts";
+import type {
+	Preset,
+	Run,
+	Status,
+	StoryFrontmatter,
+} from "../../board/schema.ts";
 import {
 	InvalidBoardFileError,
 	isENOENT,
@@ -20,7 +25,11 @@ import {
 	MANUAL_ALLOWLIST,
 	MCP_SERVER_NAME,
 } from "../../sessions/kinds.ts";
-import { questionAnswerPrompt, runPrompt } from "../../sessions/prompts.ts";
+import {
+	questionAnswerPrompt,
+	runPrompt,
+	steeringPrompt,
+} from "../../sessions/prompts.ts";
 import type { ManagedRepo } from "../config.ts";
 import { runHookUrl } from "../mcp/registry.ts";
 import type { AskUserPayload } from "../mcp/schemas.ts";
@@ -49,6 +58,10 @@ const INIT_TIMEOUT_MS = 60_000;
 const CLOSE_WAIT_MS = 60_000;
 
 const RESTART_ERROR = "orchestrator restarted mid-run";
+const STOPPED_ERROR = "stopped by the user";
+
+// The Resume button's bare steer still carries the interruption notice.
+const RESUME_MESSAGE = "Continue the run.";
 
 const PERMISSION_TOOL = `mcp__${MCP_SERVER_NAME}__approve`;
 
@@ -67,6 +80,9 @@ interface RunState {
 	sessionId?: string;
 	branch?: string;
 	worktree?: string;
+	// Set synchronously before a deliberate kill, so finishRun can tell a
+	// steer/pause/stop from a crash.
+	intent?: "steer" | "pause" | "stop";
 	// Resolves `armed` once the `running` write lands; the close handler
 	// awaits it to decide armed vs bypass instead of assuming order.
 	initWrite?: Promise<"armed" | "aborted">;
@@ -427,21 +443,22 @@ async function finishRun(
 
 	// Confirm the group is dead before touching the tree: the safety commit
 	// must never race a still-writing build subprocess.
-	let error: string | undefined;
+	let teardownError: string | undefined;
 	let groupDead = true;
 	if (state.pid !== undefined && groupAlive(state.pid)) {
 		groupDead = await killProcessGroup(state.pid);
 	}
 	if (!groupDead) {
-		error = "run process group survived SIGKILL; leftovers not committed";
-		log?.error(`run ${state.storyId}: ${error}`);
+		teardownError =
+			"run process group survived SIGKILL; leftovers not committed";
+		log?.error(`run ${state.storyId}: ${teardownError}`);
 	} else {
 		try {
 			await safetyCommit(worktree);
 		} catch (commitError) {
-			error = `safety commit failed: ${errorText(commitError)}`;
+			teardownError = `safety commit failed: ${errorText(commitError)}`;
 		}
-		if (error === undefined && branch !== undefined) {
+		if (teardownError === undefined && branch !== undefined) {
 			try {
 				const violations = await helmDiffPaths(
 					worktree,
@@ -449,34 +466,42 @@ async function finishRun(
 					branch,
 				);
 				if (violations.length > 0) {
-					error = `run committed .helm/ changes: ${violations.join(", ")}`;
+					teardownError = `run committed .helm/ changes: ${violations.join(", ")}`;
 				}
 			} catch (diffError) {
-				error = errorText(diffError);
+				teardownError = errorText(diffError);
 			}
 		}
 	}
 
 	const result = turn.result;
-	let outcome: "review" | "blocked";
-	if (error !== undefined) {
-		outcome = "blocked";
-	} else if (turn.resultSeen && result !== undefined && !result.isError) {
-		outcome = "review";
-	} else if (turn.resultSeen) {
-		outcome = "blocked";
-		error = errorText(result?.text ?? "run errored");
-	} else if (state.hookPosted) {
-		// Spike-verified: the Stop hook fires only on clean completions, so a
-		// POST with no observed result still maps to Review (without
-		// tokens/minutes).
-		outcome = "review";
-	} else {
-		outcome = "blocked";
-		error =
-			turn.outcome.signal !== null
-				? `run killed (${turn.outcome.signal})`
-				: `run exited (code ${turn.outcome.exitCode}) without a result`;
+	const cleanResult =
+		turn.resultSeen && result !== undefined && !result.isError;
+	// Spike-verified: the Stop hook fires only on clean completions, so a POST
+	// with no observed result still counts as one (without tokens/minutes).
+	const completed = turn.resultSeen || state.hookPosted;
+
+	// The exit-evidence mapping, ignoring intents: teardown failures first,
+	// then the result frame, then the hook POST, then the crash shape.
+	function evidenceClose(): { outcome: "review" | "blocked"; error?: string } {
+		if (teardownError !== undefined) {
+			return { outcome: "blocked", error: teardownError };
+		}
+		if (cleanResult) return { outcome: "review" };
+		if (turn.resultSeen) {
+			return {
+				outcome: "blocked",
+				error: errorText(result?.text ?? "run errored"),
+			};
+		}
+		if (state.hookPosted) return { outcome: "review" };
+		return {
+			outcome: "blocked",
+			error:
+				turn.outcome.signal !== null
+					? `run killed (${turn.outcome.signal})`
+					: `run exited (code ${turn.outcome.exitCode}) without a result`,
+		};
 	}
 
 	try {
@@ -488,28 +513,62 @@ async function finishRun(
 			// nothing to update.
 			const open = runs.findLastIndex((run) => run.outcome === undefined);
 			const openRun = runs[open];
-			// A clean close whose entry still carries a question is a segment end,
-			// not a finish: usage accumulates, no outcome lands, the status stays
-			// for the answer to resume.
-			const segmentEnd =
-				outcome === "review" && openRun?.question !== undefined;
+			const question = openRun?.question;
+			// Fixed decision order. An observed completion on a question-free entry
+			// is a genuine finish: the run ended on its own before any kill landed,
+			// so the evidence mapping runs with the intent ignored. A teardown
+			// failure beats every intent (a pause or steer written over an
+			// uncommitted tree would mask it). Stop comes before the question
+			// check: a stop that raced an ask_user teardown still parks the card,
+			// with the question kept as record. Then the question segment-end, so a
+			// racing ask_user beats steer and pause. Last, a killed turn: steer is
+			// a plain segment end, pause the same plus `paused: true`, and no
+			// intent keeps the crash mapping.
+			let close: { outcome: "review" | "blocked"; error?: string } | undefined;
+			let paused = false;
+			if (completed && question === undefined) {
+				close = evidenceClose();
+			} else if (teardownError !== undefined) {
+				close = { outcome: "blocked", error: teardownError };
+			} else if (state.intent === "stop") {
+				close = { outcome: "blocked", error: STOPPED_ERROR };
+			} else if (
+				question !== undefined &&
+				(cleanResult ||
+					state.hookPosted ||
+					state.intent === "steer" ||
+					state.intent === "pause")
+			) {
+				close = undefined;
+			} else if (state.intent === "steer" || state.intent === "pause") {
+				close = undefined;
+				paused = state.intent === "pause";
+			} else {
+				close = evidenceClose();
+			}
 			if (openRun !== undefined) {
+				// A closing write drops `paused`; a segment end keeps the entry open
+				// with usage accumulated across segments.
+				const { paused: _dropped, ...closable } = openRun;
 				runs[open] = {
-					...openRun,
+					...(close === undefined ? openRun : closable),
 					...addUsage(openRun, result),
-					...(segmentEnd
-						? {}
-						: { outcome, ...(error !== undefined && { error }) }),
+					...(close !== undefined && {
+						outcome: close.outcome,
+						...(close.error !== undefined && { error: close.error }),
+					}),
+					...(paused && { paused: true }),
 				};
 			}
 			// A mid-run move or hand edit already parked the card elsewhere: the
-			// user's move wins, and the entry update is bookkeeping. A non-clean
-			// exit under needs-input (a crash inside the ask_user turn) parks the
-			// card in Blocked while the question stays on the entry as record.
+			// user's move wins, and the entry update is bookkeeping. A blocked
+			// close under needs-input (a crash inside the ask_user turn, or a
+			// stop) parks the card in Blocked while the question stays on the
+			// entry as record.
 			let status = current.frontmatter.status;
-			if (!segmentEnd) {
-				if (status === "running") status = outcome;
-				else if (status === "needs-input" && outcome === "blocked") {
+			if (close !== undefined) {
+				if (status === "running") status = close.outcome;
+				else if (status === "needs-input" && close.outcome === "blocked") {
 					status = "blocked";
 				}
 			}
@@ -570,14 +629,32 @@ export async function runNeedsInput(
 	});
 }
 
-// The one resume path for a needs-input card. Two hazards share the single
-// per-story slot: the asking process's teardown is waited out (bounded), and
-// of two concurrent answers only the first past the synchronous
+// The caller-owned pieces of a resume: the up-front precondition (throws, or
+// names the session to resume and the prompt), the init-write re-check (the
+// authority on what the claim does; undefined aborts), and the
+// ILLEGAL_TRANSITION shape an aborted write rejects with.
+interface ResumeSpec {
+	precheck(current: Story): { session: string; prompt: string };
+	recheck(fresh: Story): StoryFrontmatter | undefined;
+	abort: { from: Status; reason: string };
+}
+
+function illegalTransition(from: Status, to: Status, reason: string): never {
+	throw new ApiError("ILLEGAL_TRANSITION", {
+		status: 409,
+		message: reason,
+		data: { from, to, reason },
+	});
+}
+
+// The one resume shape (answer and steer). Two hazards share the single
+// per-story slot: the previous process's teardown is waited out (bounded),
+// and of two concurrent resumes only the first past the synchronous
 // check-then-set spawns; the queued init write stays the authority on what
 // the claim does.
-export async function answerRun(
+async function resumeRun(
 	storyId: string,
-	answer: string,
+	spec: ResumeSpec,
 ): Promise<{ sessionId: string }> {
 	const existing = states.get(storyId);
 	if (existing !== undefined) {
@@ -587,7 +664,7 @@ export async function answerRun(
 	}
 	const known = findStory(storyId);
 	// Synchronous check-then-set: no await between wait-wake and claim, so the
-	// second of two concurrent answers finds the slot taken before it spawns.
+	// second of two concurrent resumes finds the slot taken before it spawns.
 	if (states.has(storyId)) throw runActive();
 	const state: RunState = {
 		storyId,
@@ -598,11 +675,195 @@ export async function answerRun(
 	states.set(storyId, state);
 	hookTokens.set(state.hookToken, state);
 	try {
-		return await resume(state, known.path, known.epicId, answer);
+		return await resume(state, known.path, known.epicId, spec);
 	} catch (error) {
 		await cleanup(state);
 		throw error;
 	}
+}
+
+// The resume path for a needs-input card: requires a pending question on the
+// open entry, resumes with the answer, and the re-check flips back to running
+// with the question deleted.
+export function answerRun(
+	storyId: string,
+	answer: string,
+): Promise<{ sessionId: string }> {
+	return resumeRun(storyId, {
+		precheck: (current) => {
+			const from = current.frontmatter.status;
+			if (from !== "needs-input") {
+				throw illegalTransition(
+					from,
+					"running",
+					"only a needs-input story can be answered",
+				);
+			}
+			const entry = current.frontmatter.runs.findLast(
+				(run) => run.outcome === undefined,
+			);
+			const question = entry?.question;
+			if (entry === undefined || question === undefined) {
+				throw illegalTransition(
+					from,
+					"running",
+					"no open run entry with a pending question",
+				);
+			}
+			return {
+				session: entry.session,
+				prompt: questionAnswerPrompt(question.text, answer),
+			};
+		},
+		recheck: (fresh) => {
+			if (fresh.frontmatter.status !== "needs-input") return undefined;
+			const runs = [...fresh.frontmatter.runs];
+			const open = runs.findLastIndex((run) => run.outcome === undefined);
+			const openRun = runs[open];
+			if (openRun === undefined || openRun.question === undefined) {
+				return undefined;
+			}
+			const { question: _answered, ...rest } = openRun;
+			runs[open] = rest;
+			return { ...fresh.frontmatter, status: "running", runs };
+		},
+		abort: {
+			from: "needs-input",
+			reason: "story left needs-input during the resume; the move wins",
+		},
+	});
+}
+
+function steerSpec(message: string): ResumeSpec {
+	return {
+		precheck: (current) => {
+			const from = current.frontmatter.status;
+			if (from !== "running") {
+				throw illegalTransition(
+					from,
+					"running",
+					"only a running story can be steered",
+				);
+			}
+			const entry = current.frontmatter.runs.findLast(
+				(run) => run.outcome === undefined,
+			);
+			if (entry === undefined || entry.question !== undefined) {
+				throw illegalTransition(
+					from,
+					"running",
+					"no open run entry free of a pending question",
+				);
+			}
+			return { session: entry.session, prompt: steeringPrompt(message) };
+		},
+		recheck: (fresh) => {
+			if (fresh.frontmatter.status !== "running") return undefined;
+			const runs = [...fresh.frontmatter.runs];
+			const open = runs.findLastIndex((run) => run.outcome === undefined);
+			const openRun = runs[open];
+			if (openRun === undefined || openRun.question !== undefined) {
+				return undefined;
+			}
+			const { paused: _resumed, ...rest } = openRun;
+			runs[open] = rest;
+			return { ...fresh.frontmatter, status: "running", runs };
+		},
+		abort: {
+			from: "running",
+			reason: "story left running during the steer; the move wins",
+		},
+	};
+}
+
+// Steering: kill the live segment (a paused run has none), then resume the
+// same session with the interruption notice plus the message. An absent
+// message is the Resume button.
+export async function steerRun(
+	storyId: string,
+	message?: string,
+): Promise<{ sessionId: string }> {
+	const spec = steerSpec(message ?? RESUME_MESSAGE);
+	const known = findStory(storyId);
+	spec.precheck(await readStoryOrApiError(known.path, known.epicId, storyId));
+	const live = states.get(storyId);
+	if (live !== undefined && live.closed !== undefined) {
+		live.intent = "steer";
+		if (live.pid !== undefined) await killProcessGroup(live.pid);
+	}
+	return resumeRun(storyId, spec);
+}
+
+// Pause: kill the live segment and return once its `paused: true` write
+// landed. A paused run has no process, so pausing it again is rejected.
+export async function pauseRun(storyId: string): Promise<void> {
+	const known = findStory(storyId);
+	const current = await readStoryOrApiError(known.path, known.epicId, storyId);
+	const from = current.frontmatter.status;
+	if (from !== "running") {
+		throw illegalTransition(
+			from,
+			"running",
+			"only a running story can be paused",
+		);
+	}
+	const state = states.get(storyId);
+	if (state === undefined || state.closed === undefined) {
+		throw new ApiError("NOT_FOUND", {
+			message: "no live run process to pause",
+		});
+	}
+	state.intent = "pause";
+	if (state.pid !== undefined) await killProcessGroup(state.pid);
+	if (!(await closesInTime(state))) throw runActive();
+}
+
+// Stop: close the open entry blocked. A live segment (which a needs-input
+// card can transiently hold during the asking process's teardown) is killed
+// and closed by the intent-aware close; without one, one queued write closes
+// the entry directly with the same fields. A pending question stays on the
+// entry as record either way.
+export async function stopRun(storyId: string): Promise<void> {
+	const known = findStory(storyId);
+	const current = await readStoryOrApiError(known.path, known.epicId, storyId);
+	const from = current.frontmatter.status;
+	if (from !== "running" && from !== "needs-input") {
+		throw illegalTransition(
+			from,
+			"blocked",
+			"only a running or needs-input story can be stopped",
+		);
+	}
+	const state = states.get(storyId);
+	if (state !== undefined) {
+		if (state.closed === undefined) throw runActive();
+		state.intent = "stop";
+		if (state.pid !== undefined) await killProcessGroup(state.pid);
+		if (!(await closesInTime(state))) throw runActive();
+		return;
+	}
+	await enqueueWrite(async () => {
+		let fresh: Story;
+		try {
+			fresh = await readStoryFile(known.path, known.epicId);
+		} catch {
+			return;
+		}
+		const status = fresh.frontmatter.status;
+		if (status !== "running" && status !== "needs-input") return;
+		const runs = [...fresh.frontmatter.runs];
+		const open = runs.findLastIndex((run) => run.outcome === undefined);
+		const openRun = runs[open];
+		if (openRun !== undefined) {
+			const { paused: _stopped, ...rest } = openRun;
+			runs[open] = { ...rest, outcome: "blocked", error: STOPPED_ERROR };
+		}
+		await writeStory({
+			path: fresh.path,
+			frontmatter: { ...fresh.frontmatter, status: "blocked", runs },
+			body: fresh.body,
+		});
+	});
 }
 
 function runActive() {
@@ -632,7 +893,7 @@ async function resume(
 	state: RunState,
 	path: string,
 	epicId: string,
-	answer: string,
+	spec: ResumeSpec,
 ): Promise<{ sessionId: string }> {
 	const repo = managedRepo();
 	const { storyId } = state;
@@ -640,27 +901,7 @@ async function resume(
 	// The spawn snapshot: status, entry, question, branch, preset. The queued
 	// init write below re-checks before anything lands on disk.
 	const current = await readStoryOrApiError(path, epicId, storyId);
-	const from = current.frontmatter.status;
-	if (from !== "needs-input") {
-		const reason = "only a needs-input story can be answered";
-		throw new ApiError("ILLEGAL_TRANSITION", {
-			status: 409,
-			message: reason,
-			data: { from, to: "running", reason },
-		});
-	}
-	const entry = current.frontmatter.runs.findLast(
-		(run) => run.outcome === undefined,
-	);
-	const question = entry?.question;
-	if (entry === undefined || question === undefined) {
-		const reason = "no open run entry with a pending question";
-		throw new ApiError("ILLEGAL_TRANSITION", {
-			status: 409,
-			message: reason,
-			data: { from, to: "running", reason },
-		});
-	}
+	const plan = spec.precheck(current);
 	const branch = current.frontmatter.branch;
 	if (branch === undefined) {
 		throw new ApiError("RUN_FAILED", {
@@ -693,10 +934,10 @@ async function resume(
 
 	const handle = spawnRunSession({
 		storyId,
-		prompt: questionAnswerPrompt(question.text, answer),
+		prompt: plan.prompt,
 		cwd: worktree,
 		settingsPath,
-		resume: entry.session,
+		resume: plan.session,
 		...spawn,
 	});
 	state.pid = handle.pid;
@@ -708,9 +949,8 @@ async function resume(
 	const init = await raceInit(handle, state);
 	state.sessionId = init.sessionId;
 
-	// Same arming contract as start(), different re-check: needs-input with
-	// the entry still open and questioned. Flips to running and deletes the
-	// question; an aborted write means the user's move won.
+	// Same arming contract as start(), the caller's re-check: an aborted write
+	// means the user's move (or a racing ask_user) won.
 	state.initWrite = enqueueWrite(async (): Promise<"armed" | "aborted"> => {
 		if (state.exited) return "aborted";
 		let fresh: Story;
@@ -719,30 +959,14 @@ async function resume(
 		} catch {
 			return "aborted";
 		}
-		if (fresh.frontmatter.status !== "needs-input") return "aborted";
-		const runs = [...fresh.frontmatter.runs];
-		const open = runs.findLastIndex((run) => run.outcome === undefined);
-		const openRun = runs[open];
-		if (openRun === undefined || openRun.question === undefined) {
-			return "aborted";
-		}
-		const { question: _answered, ...rest } = openRun;
-		runs[open] = rest;
-		await writeStory({
-			path: fresh.path,
-			frontmatter: { ...fresh.frontmatter, status: "running", runs },
-			body: fresh.body,
-		});
+		const frontmatter = spec.recheck(fresh);
+		if (frontmatter === undefined) return "aborted";
+		await writeStory({ path: fresh.path, frontmatter, body: fresh.body });
 		return "armed";
 	});
 	if ((await state.initWrite) !== "armed") {
 		if (state.pid !== undefined) await killProcessGroup(state.pid);
-		const reason = "story left needs-input during the resume; the move wins";
-		throw new ApiError("ILLEGAL_TRANSITION", {
-			status: 409,
-			message: reason,
-			data: { from: "needs-input", to: "running", reason },
-		});
+		throw illegalTransition(spec.abort.from, "running", spec.abort.reason);
 	}
 	return { sessionId: init.sessionId };
 }
@@ -833,6 +1057,13 @@ async function reconcileRunning(
 	story: Story,
 	groupSurvived: boolean,
 ): Promise<void> {
+	// A paused run is `running` on disk with no process by design: its
+	// segment's safety commit ran at pause time, so the story is left intact
+	// and Resume still works after the restart.
+	const openEntry = story.frontmatter.runs.findLast(
+		(run) => run.outcome === undefined,
+	);
+	if (openEntry?.paused === true) return;
 	const repo = managedRepo();
 	const worktree = worktreePath(repo, story.id);
 	// The crash-path safety commit: the close handler that normally commits
