@@ -4,6 +4,7 @@ export * from "./epic.ts";
 export * from "./gate.ts";
 export * from "./proposal.ts";
 export * from "./repo.ts";
+export * from "./review.ts";
 export * from "./run.ts";
 export * from "./session.ts";
 export * from "./shaping.ts";
