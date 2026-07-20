@@ -176,9 +176,10 @@ export type Board = z.infer<typeof boardSchema>;
 
 // A reason a snapshot cannot carry: shown as a toast. `illegal-transition` is
 // an illegal hand edit the watcher accepted (files are the truth) but flags;
-// `watch-error` is a filesystem/watcher failure.
+// `watch-error` is a filesystem/watcher failure; `run-skipped` is a queued
+// run dropped at dequeue (stale story, or a spawn failure).
 export const noticeSchema = z.object({
-	kind: z.enum(["illegal-transition", "watch-error"]),
+	kind: z.enum(["illegal-transition", "watch-error", "run-skipped"]),
 	message: z.string(),
 });
 export type Notice = z.infer<typeof noticeSchema>;

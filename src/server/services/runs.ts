@@ -31,6 +31,7 @@ import {
 	steeringPrompt,
 } from "../../sessions/prompts.ts";
 import type { ManagedRepo } from "../config.ts";
+import { cancelQueued, dispatch, queueSnapshot } from "../dispatcher.ts";
 import { runHookUrl } from "../mcp/registry.ts";
 import type { AskUserPayload } from "../mcp/schemas.ts";
 import { autoAllowlist } from "../permissions.ts";
@@ -44,7 +45,7 @@ import {
 	worktreesDir,
 } from "../worktrees.ts";
 import { enqueueWrite } from "../write-queue.ts";
-import { boardSnapshot, managedRepo } from "./board.ts";
+import { boardSnapshot, broadcastNotice, managedRepo } from "./board.ts";
 import { type RunTurnHandle, spawnRunSession } from "./sessions.ts";
 
 // A wedged CLI (auth stall, network hang) costs one failed run.start, never
@@ -237,9 +238,78 @@ async function cleanup(state: RunState): Promise<void> {
 	}
 }
 
-export async function startRun(
+// Every path's response: `{ sessionId }` when the entry ran next (the
+// spawn's init awaited as today), `{ queued: true }` when it waits its turn.
+export type RunDispatch = { sessionId: string } | { queued: true };
+
+function hasQueuedRun(storyId: string): boolean {
+	return queueSnapshot().queued.some(
+		(meta) => meta.kind === "run" && meta.storyId === storyId,
+	);
+}
+
+// Whether a dispatched entry starts at once: a free slot with nothing queued
+// ahead, or (for a continuation) the only holder is this story's own segment,
+// which the caller kills or waits out.
+function runsNext(storyId: string, continuation: boolean): boolean {
+	const { cap, running, queued } = queueSnapshot();
+	if (queued.length > 0) return false;
+	if (running.length < cap) return true;
+	return (
+		continuation &&
+		running.every((meta) => meta.kind === "run" && meta.storyId === storyId)
+	);
+}
+
+// The queue split every run path shares: the task holds its slot from spawn
+// to process close (`state.closed`) and surfaces the spawn through a separate
+// init signal. An entry that runs next is awaited by the caller; a queued one
+// returns at once, and its dequeue-time failure (a story that went stale
+// while waiting, or a spawn error) surfaces as a "run-skipped" board notice.
+function dispatchRun(
 	storyId: string,
-): Promise<{ sessionId: string }> {
+	continuation: boolean,
+	begin: () => Promise<{ sessionId: string }>,
+): Promise<RunDispatch> {
+	if (hasQueuedRun(storyId)) throw runActive();
+	const next = runsNext(storyId, continuation);
+	const init = Promise.withResolvers<{ sessionId: string }>();
+	dispatch(
+		async () => {
+			let spawned: { sessionId: string };
+			try {
+				spawned = await begin();
+			} catch (error) {
+				init.reject(error);
+				return;
+			}
+			init.resolve(spawned);
+			await states.get(storyId)?.closed;
+		},
+		{ kind: "run", storyId },
+		{ front: continuation },
+	).catch(() => {
+		// Failures surface through the init signal or the close path; a
+		// cancelled entry rejects here with QueueCancelledError.
+	});
+	if (next) return init.promise;
+	init.promise.catch((error) => {
+		broadcastNotice({
+			kind: "run-skipped",
+			message: `Run for ${storyId} skipped: ${errorText(error)}`,
+		});
+	});
+	return Promise.resolve({ queued: true });
+}
+
+export async function startRun(storyId: string): Promise<RunDispatch> {
+	if (states.has(storyId)) throw runActive();
+	const known = findStory(storyId);
+	validateStart(await readStoryOrApiError(known.path, known.epicId, storyId));
+	return dispatchRun(storyId, false, () => freshStart(storyId));
+}
+
+async function freshStart(storyId: string): Promise<{ sessionId: string }> {
 	if (states.has(storyId)) throw runActive();
 	const known = findStory(storyId);
 	const state: RunState = {
@@ -255,6 +325,16 @@ export async function startRun(
 	} catch (error) {
 		await cleanup(state);
 		throw error;
+	}
+}
+
+// Cancels the story's queued run entry; a running slot belongs to stop and
+// pause, and a queued gate round is out of reach (kind-scoped cancel).
+export function dequeueRun(storyId: string): void {
+	if (!cancelQueued(storyId)) {
+		throw new ApiError("NOT_FOUND", {
+			message: "no queued run for this story",
+		});
 	}
 }
 
@@ -681,11 +761,18 @@ async function resumeRun(
 // The resume path for a needs-input card: requires a pending question on the
 // open entry, resumes with the answer, and the re-check flips back to running
 // with the question deleted.
-export function answerRun(
+export async function answerRun(
 	storyId: string,
 	answer: string,
-): Promise<{ sessionId: string }> {
-	return resumeRun(storyId, {
+): Promise<RunDispatch> {
+	const spec = answerSpec(answer);
+	const known = findStory(storyId);
+	spec.precheck(await readStoryOrApiError(known.path, known.epicId, storyId));
+	return dispatchRun(storyId, true, () => resumeRun(storyId, spec));
+}
+
+function answerSpec(answer: string): ResumeSpec {
+	return {
 		precheck: (current) => {
 			const from = current.frontmatter.status;
 			if (from !== "needs-input") {
@@ -727,7 +814,7 @@ export function answerRun(
 			from: "needs-input",
 			reason: "story left needs-input during the resume; the move wins",
 		},
-	});
+	};
 }
 
 function steerSpec(message: string): ResumeSpec {
@@ -772,22 +859,25 @@ function steerSpec(message: string): ResumeSpec {
 	};
 }
 
-// Steering: kill the live segment (a paused run has none), then resume the
-// same session with the interruption notice plus the message. An absent
-// message is the Resume button.
+// Steering: front-enqueue the resume, then kill the live segment (a paused
+// run has none). Enqueue-then-kill: when the killed task settles at `closed`
+// and frees the slot, the resume is already ahead of every waiting fresh
+// start; the resume itself resumes the same session with the interruption
+// notice plus the message. An absent message is the Resume button.
 export async function steerRun(
 	storyId: string,
 	message?: string,
-): Promise<{ sessionId: string }> {
+): Promise<RunDispatch> {
 	const spec = steerSpec(message ?? RESUME_MESSAGE);
 	const known = findStory(storyId);
 	spec.precheck(await readStoryOrApiError(known.path, known.epicId, storyId));
+	const result = dispatchRun(storyId, true, () => resumeRun(storyId, spec));
 	const live = states.get(storyId);
 	if (live !== undefined && live.closed !== undefined) {
 		live.intent = "steer";
 		if (live.pid !== undefined) await killProcessGroup(live.pid);
 	}
-	return resumeRun(storyId, spec);
+	return result;
 }
 
 // Pause: kill the live segment and return once its `paused: true` write
