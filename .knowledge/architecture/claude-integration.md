@@ -118,15 +118,23 @@ inline in the drawer.
 
 ## Permission prompts
 
-Runs pass `--permission-prompt-tool` naming a tool on the same orchestrator MCP server. When a
-Guarded-preset run needs approval, the CLI calls that tool; the orchestrator holds the request,
-pushes a WS event (approve/deny buttons on the card, plus a notification), and the tool's return
-value allows or denies. No hook polling, no terminal prompt. Spike-verified contract: the CLI
-calls the tool with `{tool_name, input, tool_use_id}`; text content
-`{"behavior":"allow","updatedInput":<input>}` releases the call, `{"behavior":"deny","message"}`
-blocks it. Read-only commands (`git log`, `ls`) never consult the tool; only mutating calls ask. A
-held approval survived 4 minutes on default env; the orchestrator still raises `MCP_TOOL_TIMEOUT`
-for longer waits, and if hour-long holds prove untenable the fallback is deny-with-reason plus a
+Guarded and Manual runs pass `--permission-prompt-tool mcp__helm__approve`, a tool on the same
+orchestrator MCP server (registered for run bindings only; the CLI calls it, never the model).
+When the run needs approval, the CLI calls the tool; the orchestrator holds the request, pushes it
+on the proposal channel (approve/deny buttons on the card), and the tool's return value allows or
+denies. No hook polling, no terminal prompt. Contract, measured end-to-end against the
+orchestrator's real streamable-HTTP endpoint (`ctx.http.mount` on `@hono/node-server`, CLI
+2.1.215): the CLI calls the tool with `{tool_name, input, tool_use_id}`; text content
+`{"behavior":"allow","updatedInput":<input>}` releases exactly the recorded call (`git log` shows
+the released commit), `{"behavior":"deny","message"}` blocks it and the message lands in the
+session stream as the denial. Read-only commands never consult the tool, the CLI's own
+classification: a non-allowlisted `git status` under an active prompt tool ran free while `touch`
+and `git add`/`git commit` asked. The hold is two-ended: the CLI-side knob is `MCP_TOOL_TIMEOUT`
+(run spawns set four hours; the default window is 5 minutes), and the server side has no observed
+ceiling. A held approval survived 6m53s on the real adapter and released cleanly, past Node's
+5-minute `requestTimeout` default, which bounds receiving the request, not a held response
+(`server.timeout` defaults off; the stack's adapter sets no extra timeout), so no server-side
+knob needed raising. If hour-long holds prove untenable the fallback is deny-with-reason plus a
 Needs-input resume.
 
 ## Hooks

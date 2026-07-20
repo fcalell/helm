@@ -10,7 +10,10 @@ group; `stack generate` regenerates the barrel that wires them into the router.
 | ------------ | ----------------------------------------------------------------------------- |
 | `board.get`  | Returns the full `Board` snapshot (epics, stories, invalid files).            |
 | `story.move` | Re-reads the story from disk (the snapshot only resolves id → path), validates the transition with `canTransition`, writes the new status, and returns `{ gating }`; the `board` channel's snapshot is the authority. Serialized through a per-repo write queue. A move into `ready` runs the ready gate: an incomplete brief is refused, a valid recorded `gate` verdict (frontmatter hash matches the brief body) writes `ready` for free, and a `refining` story otherwise enqueues a cold adversary pass on the dispatcher and returns `gating: true` with the card unchanged; the round then streams on the `gate` channel. A move into `running` is always refused: stories enter `running` through `run.start` alone. |
-| `run.start` | Starts an implementation run on a Ready story: validates `ready → running` plus gate freshness (a stale verdict is refused), converges the story's branch + worktree, spawns the Auto-preset run session with the brief as its prompt, and writes `status: running` with a new `runs` entry once `system/init` lands. Returns `{ sessionId }`; the run streams on the `session` channel and the close path flips the card to Review or Blocked. One run per story at a time (`RUN_ACTIVE` while one is live). |
+| `run.start` | Starts an implementation run on a Ready story: validates `ready → running` plus gate freshness (a stale verdict is refused), converges the story's branch + worktree, spawns the run session under the story's permission preset with the brief as its prompt, and writes `status: running` with a new `runs` entry once `system/init` lands. An invalid `.helm/permissions.json` refuses the start (`INVALID_FILE`) before any spawn. Returns `{ sessionId }`; the run streams on the `session` channel and the close path flips the card to Review or Blocked. One run per story at a time (`RUN_ACTIVE` while one is live). |
+| `run.permission` | Resolves a held permission prompt from a supervised (Guarded/Manual) run by id: approve returns the CLI its allow verdict with the exact recorded input, deny blocks the call with "denied from the board". The pending set travels on the `proposal` channel snapshot (`permissions`); an unknown id is `NOT_FOUND` (the set is in-memory, so a restart clears it with the run it belonged to). |
+| `run.answer` | Answers a needs-input card: requires status `needs-input` and an open run entry carrying a `question`. Waits out the asking process's teardown (bounded at 60s, then `RUN_ACTIVE`), claims the story's single run slot, re-converges the worktree, and resumes the entry's session with the answer under a freshly computed preset allowlist; on `system/init` one queued write flips to `running` and deletes the question. Returns `{ sessionId }`; the finished resume closes through the normal run path with usage summed onto the same entry. |
+| `story.setPreset` | Writes the story's permission preset (`guarded`/`auto`/`manual`) through the write queue; legal at any status because the preset is read once at spawn, so a change during a live run takes effect on the next attempt. |
 | `gate.resolveFlag` | User resolution of a contested gate flag: `accept` appends it to the brief's Open questions (which blocks the gate until resolved), `dismiss` records the override reason for the eventual `gate` block. Returns nothing; the `gate` channel snapshot is the authority. |
 | `repo.get`   | Returns the managed repo's `{ path, name, mainBranch, branch }`; `branch` reads the checkout's current git branch. |
 | `epic.create` | The `n` entry: mints the next epic ordinal, writes `<NNN>-<slug>/epic.md` from the title and rough goal, and returns `{ epicId }`; the caller spawns the define chat against it. |
@@ -44,13 +47,16 @@ over WS; a client calls a procedure (`story.move`) and observes the resulting sn
   turn is over (and the session resumable) only at this frame; `result` precedes it by the
   process's shutdown time. `stale: true` is the loud reseed signal.
 
-`proposal` carries the pending set of board-tool proposals and `ask_user` questions:
+`proposal` carries the pending set of board-tool proposals, `ask_user` questions, and held run
+permissions:
 
-- `snapshot`: `{ proposals, questions }`, the whole pending set. Sent on every (re)subscribe and
-  rebroadcast on every change, like `board`; the set is small, so a missed frame is irrelevant. A
-  board tool call records a proposal or question here; resolutions travel over RPC
-  (`proposal.resolve`, `proposal.answer`), never WS. Pending state is in-memory only and does not
-  survive an orchestrator restart.
+- `snapshot`: `{ proposals, questions, research, permissions }`, the whole pending set. Sent on
+  every (re)subscribe and rebroadcast on every change, like `board`; the set is small, so a missed
+  frame is irrelevant. A board tool call records a proposal or question here, a supervised run's
+  permission-prompt call a `permissions` entry; resolutions travel over RPC (`proposal.resolve`,
+  `proposal.answer`, `run.permission`), never WS. Pending state is in-memory only and does not
+  survive an orchestrator restart (a run's pending `ask_user` question lives in frontmatter
+  instead, [board-storage](./board-storage.md) §Story file).
 
 `gate` carries the active ready-gate attempts:
 

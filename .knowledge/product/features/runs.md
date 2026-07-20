@@ -22,8 +22,12 @@ Set per story, before the run:
 
 The Auto allowlist is data: Helm ships the canonical list (file edits, the repo's test/lint/build
 commands, and branch-local git: the read-only queries plus `add`/`commit`/`mv`/`rm`, never push or
-branch switching) and a repo overrides or extends it under `.helm/`, the same
+branch switching) and a repo overrides or extends it in `.helm/permissions.json`, the same
 shared-with-local-override model templates use ([templates](../../architecture/templates.md)).
+The file is strict-schema `{ "auto": { "extend": [...] } | { "replace": [...] } }`; patterns are
+non-empty and comma-free (the runner joins `--allowedTools` on commas, the same constraint the
+check command carries). A missing file means the canonical list; an invalid one fails `run.start`
+loudly, because a run must never spawn on a guessed allowlist. It shapes the Auto preset only.
 Init proposes the repo's own test commands into it ([init](./init.md)), and the review kind's
 test-command Bash reads the same per-repo list
 ([session-kinds](../../architecture/session-kinds.md)).
@@ -36,8 +40,10 @@ lost in a terminal.
 When the agent hits a genuine decision mid-run, it calls the `ask_user` board tool and ends its
 turn ([claude-integration](../../architecture/claude-integration.md) §Board tools); the card flips
 to Needs input ([board](./board.md)), the question renders as a quick-reply form, a notification
-goes out ([mobile](./mobile.md)), and the answer resumes the session. The pending question is what
-distinguishes a stuck run from a finished one when the process exits. A run never sits blocked for
+goes out ([mobile](./mobile.md)), and the answer resumes the session. The question lives on the
+story's open run entry in frontmatter ([board-storage](../../architecture/board-storage.md)
+§Story file), so it survives an orchestrator restart and the answer still resumes. The pending
+question is what distinguishes a stuck run from a finished one when the process exits. A run never sits blocked for
 hours because the user left their desk.
 
 ## Activity timeline & steering

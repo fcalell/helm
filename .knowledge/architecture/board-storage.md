@@ -25,6 +25,7 @@ that checkout's branch swaps the board out from under the orchestrator.
   knowledge/             # the knowledge base (what/why docs), pulled on demand
     index.md             # navigation map, referenced from agents/index.md
   templates/             # per-repo generation-template overrides
+  permissions.json       # optional Auto-allowlist override ([runs](../product/features/runs.md) §Permission presets)
   board/                 # orchestrator runtime state: watched, worktree-excluded
     shaping/
       offline-sync.md    # a roadmap thread: shape-chat session id + agreed notes
@@ -75,6 +76,7 @@ id: 012-01
 status: review        # backlog|refining|ready|running|needs-input|review|done|blocked
 depends: []           # sibling story ids
 branch: helm/012-01-sync-engine
+preset: auto          # guarded|auto|manual; absent means guarded, the default
 gate: { passed: 2026-07-14T18:03:00Z, brief: <hash>, overrides: ["<flag>: <reason>"] }
 sessions: { refine: <uuid> }
 runs:                 # one entry per implement session; request-changes follow-ups extend it
@@ -109,9 +111,17 @@ shows. One entry spans one implement session: request-changes follow-ups accumul
 a new entry starts when discard retires the session
 ([review](../product/features/review.md) §Three exits).
 
-The orchestrator writes frontmatter in fixed key order (id · status · depends · branch · gate ·
-sessions · runs) with one flow-styled run per line, so a rewrite diffs as exactly the lines that
-changed.
+An open run entry (no `outcome` yet) whose run called `ask_user` carries the pending question as
+`question: { text, recommendation, options }`: frontmatter keeps it across orchestrator restarts,
+the drawer's quick-reply form renders from it, and `run.answer` deletes it when the resume starts
+([runs](../product/features/runs.md) §Needs input). A run's `tokens`/`minutes` sum across its
+segments (each CLI result event counts only its own turn), so a needs-input round trip lands in
+Review with both segments counted on the same entry.
+
+The orchestrator writes frontmatter in fixed key order (id · status · depends · branch · preset ·
+gate · sessions · runs) with one flow-styled run per line, so a rewrite diffs as exactly the lines
+that changed. `preset` is optional; an absent field means Guarded, so pre-preset cards keep
+parsing with no migration.
 
 `epic.md` has the same shape: frontmatter holds `sessions: { define: <uuid> }` (the epic chat);
 the body is `# Title`, the goal, and the breakdown rationale. A shaping thread under
