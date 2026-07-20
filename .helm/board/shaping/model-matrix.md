@@ -186,6 +186,14 @@ Fable testing and the live loop until it resets.
   orchestration session (no gate-answering refine line to pay). Warm-middle first sample: the one
   warm resume cost $1.12 against ~$1.9 cold, but its transcript re-entered as ~100k fresh writes
   anyway (no cache reuse observed on the resume), so the warmth saved output, not reads.
+- **adversary / opus / high, sized slice** (002-03 loop, end-to-end): 4 all-cold passes to a
+  clean verdict on a single-surface ~10.5KB brief (a third of 002-02's), ~$1.8/pass, $7.17
+  total, 5 real flaws fixed, zero dismissals. First measured point for the story-sizing lever:
+  the gate line fell $23.95 → $7.17 at flat per-pass price, so the saving is the round factor
+  (12 → 4), the coupled-surface penalty the lever predicted, near its "~2-3 rounds per slice"
+  low end. Run and review were conserved as predicted (run $21.23 vs $44.54, but on a smaller
+  feature, so not comparable; review lines flat). All-cold protocol per the warm-middle sample:
+  no warm session used.
 - **Pool-draw unit** (002-02 + pool meter): after the loop both pools read ~5% used. With
   Anthropic's stated 50% Fable/Opus cap ratio, the draws ($44.54 Fable vs $29.05 Opus/Sonnet
   modeled; 33.8M vs 15.6M raw tokens) reconcile only as pool draw ≈ fresh input + output +

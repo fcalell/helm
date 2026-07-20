@@ -113,7 +113,12 @@ principle, not a build item).
   pool's rate ceiling (six concurrent Fable gates share one Fable pool). This is a substitute for
   gate-efficiency, not an independent lever: a cheaper gate shrinks its payoff, and the Opus
   adversary already halved the per-pass price (matrix experiment 2, measured), so size the
-  remaining payoff at ~$2/pass, not 002-01's $3.50.
+  remaining payoff at ~$2/pass, not 002-01's $3.50. First measured instance (002-03): the
+  single-surface slice's gate converged in 4 cold passes against the 002-02 monolith's 12 at flat
+  per-pass price, gate line $23.95 → $7.17, the round-factor saving this lever predicted; run and
+  review stayed in their expected bands. Sizing happened in the orchestration session, not a
+  shaping stage, so the lever's automation remains `planned` even though its effect is now
+  `measured`.
 - **Depth-per-pass on iterated critique** `live`. Opus adversary compresses rounds (one pass covered
   Fable rounds 7-14). On any iterated step per-pass quality pays twice: better output and fewer
   iterations.
