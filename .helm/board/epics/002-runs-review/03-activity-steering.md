@@ -1,10 +1,12 @@
 ---
 id: 002-03
-status: ready
+status: review
 depends: [002-01]
 branch: helm/002-03-activity-steering
 gate: { passed: 2026-07-20T10:58:15.293Z, brief: ba8a0df171f3bd78, overrides: [] }
 sessions: {}
+runs:
+  - { n: 1, session: 94ab713d-1c13-441c-88d7-0cadb2a28456, brief: ba8a0df171f3bd78, started: 2026-07-20T11:04:20Z, outcome: review, grades: 9/10, tokens: 460390, minutes: 20.2 }
 ---
 # Activity timeline & steering
 

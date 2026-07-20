@@ -155,3 +155,28 @@ minutes with eight of ten criteria verified live against the real orchestrator o
 no server-side ceiling exists, so the planned stack timeout work was never needed. The
 standards-only follow-up's $1.85 is almost entirely the Sonnet tier-switch reseeding the run's
 239k-token transcript, the priced-in cost session-kinds.md records for outcome-routed follow-ups.
+
+## 002-03 Activity timeline & steering (2026-07-20)
+
+| Session                          | Model / effort  | Fresh input | Output      | Cache reads    | Modeled cost |
+| -------------------------------- | --------------- | ----------- | ----------- | -------------- | ------------ |
+| Adversary passes (4, all cold)   | Opus / high     | 357,377     | 105,150     | 1,932,890      | $7.17        |
+| Run 1: implementation            | Fable / medium  | 209,367     | 76,176      | 13,257,893     | $21.23       |
+| Review: spec axis                | Sonnet / high   | 60,344      | 17,001      | 1,263,975      | $1.00        |
+| Review: standards axis           | Sonnet / high   | 55,008      | 19,645      | 1,118,535      | $0.96        |
+| Run 1 follow-up: review fix-up   | Sonnet / medium | 170,210     | 4,637       | 1,731,591      | $1.61        |
+| **Total**                        |                 | **852,306** | **222,609** | **19,304,884** | **$31.97**   |
+
+The first loop sized to the story-sizing lever: a single-surface ~10.5KB brief (a third of
+002-02's) converged in four all-cold Opus passes against twelve, five real flaws fixed, zero
+dismissals, and the gate line fell $23.95 → $7.17 at the same ~$1.8 per pass. Refinement again ran
+inside the orchestration session (excluded as unreadable). The all-cold protocol follows the
+002-02 finding that a warm middle re-enters its transcript as fresh writes without cutting passes.
+The run delivered in 19 minutes with six of ten criteria verified live against the orchestrator on
+a scratch repo, and its one measured deviation improved the spec: CLI 2.1.215 flushes a
+result/error_during_execution frame on SIGTERM (the old no-result note was stale), so only a clean
+completion overrides a kill intent; recorded in claude-integration.md §Hooks. The comments-only
+follow-up repeated the tier-switch price pattern: $1.61, almost all reseeding the run's 170k
+transcript at Sonnet's write rate. Loop total $31.97 against 002-02's $73.59 and 002-01's $122.44.
+Weighted pool draw (fresh + output + 2% of cache reads, the est calibration): Fable ~551k against
+002-02's ~1.06M; Opus/Sonnet ~910k against ~2.79M.
