@@ -1,6 +1,8 @@
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createStore, produce } from "solid-js/store";
+import type { Preset } from "../../board/schema.ts";
 import type {
+	PermissionRequest,
 	Proposal,
 	ProposalResolution,
 	ProposalSnapshot,
@@ -59,6 +61,9 @@ interface SessionsState {
 	// The server's in-flight/failed research decisions, replaced wholesale on
 	// every snapshot (a resolved decision leaves the set).
 	research: ResearchState[];
+	// Held permission prompts from supervised runs, replaced wholesale (a
+	// resolved one leaves the set).
+	permissions: PermissionRequest[];
 	// Story id -> refine spawn in flight this page load; bridges the gap until
 	// the board snapshot names the session in frontmatter.
 	refineSpawns: Record<string, { sessionId?: string }>;
@@ -70,6 +75,7 @@ const [store, setStore] = createStore<SessionsState>({
 	proposals: {},
 	questions: {},
 	research: [],
+	permissions: [],
 	refineSpawns: {},
 	connected: false,
 });
@@ -264,8 +270,55 @@ function applyProposalSnapshot(snapshot: ProposalSnapshot): void {
 				if (!pendingQuestions.has(logged.id)) logged.pending = false;
 			}
 			state.research = snapshot.research;
+			state.permissions = snapshot.permissions;
 		}),
 	);
+}
+
+export function pendingPermission(
+	storyId: string,
+): PermissionRequest | undefined {
+	return store.permissions.find((each) => each.storyId === storyId);
+}
+
+export async function resolveRunPermission(
+	id: string,
+	approved: boolean,
+): Promise<void> {
+	try {
+		await api.run.permission({ id, approved });
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to resolve permission",
+		);
+	}
+}
+
+export async function answerRunQuestion(
+	storyId: string,
+	answer: string,
+): Promise<void> {
+	try {
+		await api.run.answer({ id: storyId, answer });
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to answer the run",
+		);
+		throw error;
+	}
+}
+
+export async function setStoryPreset(
+	storyId: string,
+	preset: Preset,
+): Promise<void> {
+	try {
+		await api.story.setPreset({ id: storyId, preset });
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to set the preset",
+		);
+	}
 }
 
 export function researchStateFor(

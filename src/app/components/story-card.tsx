@@ -1,11 +1,17 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
+import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Tooltip } from "@fcalell/plugin-solid-ui/components/tooltip";
 import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
 import { createDraggable } from "@thisbeyond/solid-dnd";
 import { Show } from "solid-js";
 import type { Epic, Story } from "../../board/schema.ts";
+import type { PermissionRequest } from "../../server/mcp/schemas.ts";
 import { gateFor } from "../lib/gate-store.ts";
+import {
+	pendingPermission,
+	resolveRunPermission,
+} from "../lib/session-store.ts";
 import { gateBadgeLabel } from "./gate-panel.tsx";
 
 interface StoryCardProps {
@@ -62,6 +68,54 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 	);
 }
 
+// One-liner for a held tool call: Bash shows its command, file tools their
+// path, anything else the tool name.
+function permissionSummary(request: PermissionRequest): string {
+	const input = request.input;
+	const command = input.command;
+	if (typeof command === "string") return `${request.toolName}: ${command}`;
+	const filePath = input.file_path;
+	if (typeof filePath === "string") {
+		return `${request.toolName}: ${filePath}`;
+	}
+	return request.toolName;
+}
+
+// The card root is the drag-and-select surface, so this container isolates
+// all three event paths: pointerdown (solid-dnd's activators listen there),
+// click (the drawer open), and keydown (Enter/Space bubbling into select).
+function PermissionPrompt(props: { request: PermissionRequest }) {
+	return (
+		<fieldset
+			class="flex flex-col gap-1.5 rounded-md border border-warning/50 bg-muted/40 p-2"
+			aria-label="Permission prompt"
+			onPointerDown={(event) => event.stopPropagation()}
+			onClick={(event) => event.stopPropagation()}
+			onKeyDown={(event) => event.stopPropagation()}
+		>
+			<p class="break-all font-mono text-xs text-foreground">
+				{permissionSummary(props.request)}
+			</p>
+			<div class="flex gap-1.5">
+				<Button
+					size="sm"
+					variant="secondary"
+					onClick={() => void resolveRunPermission(props.request.id, true)}
+				>
+					Approve
+				</Button>
+				<Button
+					size="sm"
+					variant="outline"
+					onClick={() => void resolveRunPermission(props.request.id, false)}
+				>
+					Deny
+				</Button>
+			</div>
+		</fieldset>
+	);
+}
+
 // The DragOverlay clone. Deliberately not draggable: a second
 // createDraggable with the same id inside the overlay corrupts solid-dnd's
 // collision geometry (drops resolve one column off).
@@ -110,6 +164,9 @@ export function StoryCard(props: StoryCardProps) {
 			)}
 		>
 			<CardContents story={props.story} epics={props.epics} />
+			<Show when={pendingPermission(props.story.id)}>
+				{(request) => <PermissionPrompt request={request()} />}
+			</Show>
 		</Card>
 	);
 }

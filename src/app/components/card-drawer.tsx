@@ -9,14 +9,16 @@ import { For, Match, Show, Switch } from "solid-js";
 import {
 	BRIEF_SECTIONS,
 	type ChecklistItem,
+	PRESETS,
 	type Status,
 	type Story,
 } from "../../board/schema.ts";
 import { boardStore, moveStory, STATUS_LABELS } from "../lib/board-store.ts";
 import { weakCriterion } from "../lib/criteria.ts";
-import { refineSpawnFor } from "../lib/session-store.ts";
+import { refineSpawnFor, setStoryPreset } from "../lib/session-store.ts";
 import { ChatPane } from "./chat-pane.tsx";
 import { GatePanel } from "./gate-panel.tsx";
+import { RunQuestionPanel } from "./run-question-panel.tsx";
 
 interface CardDrawerProps {
 	story: Story | undefined;
@@ -145,6 +147,40 @@ function ChatTab(props: { story: Story }) {
 	);
 }
 
+const PRESET_LABELS = {
+	guarded: "Guarded",
+	auto: "Auto",
+	manual: "Manual",
+} as const;
+
+// Three-way segmented selector; an absent frontmatter field reads Guarded,
+// the default. Legal at any status: the preset binds at the next spawn.
+function PresetSelector(props: { story: Story }) {
+	const active = () => props.story.frontmatter.preset ?? "guarded";
+	return (
+		<fieldset class="flex items-center gap-1" aria-label="Permission preset">
+			<For each={PRESETS}>
+				{(preset) => (
+					<Button
+						size="sm"
+						variant={active() === preset ? "secondary" : "ghost"}
+						onClick={() => void setStoryPreset(props.story.id, preset)}
+					>
+						{PRESET_LABELS[preset]}
+					</Button>
+				)}
+			</For>
+		</fieldset>
+	);
+}
+
+// The open run entry's pending question (frontmatter is the truth the panel
+// renders from).
+function openRunQuestion(story: Story) {
+	return story.frontmatter.runs.findLast((run) => run.outcome === undefined)
+		?.question;
+}
+
 export function CardDrawer(props: CardDrawerProps) {
 	return (
 		<Sheet open={props.open} onOpenChange={props.onOpenChange}>
@@ -172,8 +208,22 @@ export function CardDrawer(props: CardDrawerProps) {
 										Move to Ready
 									</Button>
 								</Show>
+								<PresetSelector story={story} />
 							</div>
 						</Sheet.Header>
+						<Show
+							when={
+								story.frontmatter.status === "needs-input"
+									? openRunQuestion(story)
+									: undefined
+							}
+						>
+							{(question) => (
+								<div class="mt-4 shrink-0">
+									<RunQuestionPanel storyId={story.id} question={question()} />
+								</div>
+							)}
+						</Show>
 						<Tabs
 							value={props.tab ?? defaultTab(story.frontmatter.status)}
 							onValueChange={props.onTabChange}
