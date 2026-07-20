@@ -197,13 +197,13 @@ Fable testing and the live loop until it resets.
 - **Pool-draw unit** (002-02 + pool meter): after the loop both pools read ~5% used. With
   Anthropic's stated 50% Fable/Opus cap ratio, the draws ($44.54 Fable vs $29.05 Opus/Sonnet
   modeled; 33.8M vs 15.6M raw tokens) reconcile only as pool draw ≈ fresh input + output +
-  ~2%·cache-reads; implied caps ~23M / ~46M weighted tokens per window. The 002-03 re-fit failed
-  to confirm: that loop ran ~40-44% of 002-02's shared-pool volume on every component yet read ~4%
-  against ~5%, which no single α reproduces (a lone-loop fit needs α ≈ 17% or a half-size cap).
-  Readings were one-digit and taken under concurrent external use on both pools, so α is
-  unidentified: hold pool draw as bounds (fresh + output at minimum, cache reads 0-20%), and
-  calibrate next on a quiet-pool loop with exact before/after meter values and the window reset
-  clock. Frame consequences in harness-optimization §Objective.
+  ~2%·cache-reads; implied caps ~23M / ~46M weighted tokens per window. The 002-03 re-fit could
+  not test the fit: both readings carried unledgered draws (a parallel interactive Opus session on
+  the shared pool, the orchestration session's own Fable draw), and the ~4% each pool read against
+  the ledger's ~2% prediction is that unledgered session's draw, size unknown. α stays a
+  single-loop estimate: hold pool draw as bounds (fresh + output at minimum, cache reads 0-20%),
+  and calibrate next on a quiet-pool loop with exact before/after meter values and the window
+  reset clock. Frame consequences in harness-optimization §Objective.
 - **adversary / fable / high** (loop): ~$3.50/pass, 2-4 flags/pass, 12-15 passes to converge.
   Ground-truth recall by definition. Its brief produced a clean first-try run.
 - **adversary / sonnet / high** (test): ~$5/pass. Matched ~1.5 of Fable's 5 pass-1 flags, 0 of 4
