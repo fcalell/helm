@@ -1,6 +1,6 @@
 ---
 id: 002-04
-status: review
+status: done
 depends: [002-01]
 branch: helm/002-04-queue-rate-meter
 gate: { passed: 2026-07-20T13:23:00.925Z, brief: 6abe77010f9a7fac, overrides: [] }
