@@ -477,9 +477,12 @@ async function finishRun(
 	const result = turn.result;
 	const cleanResult =
 		turn.resultSeen && result !== undefined && !result.isError;
-	// Spike-verified: the Stop hook fires only on clean completions, so a POST
-	// with no observed result still counts as one (without tokens/minutes).
-	const completed = turn.resultSeen || state.hookPosted;
+	// Only a clean completion proves the run ended on its own: the CLI flushes
+	// an error result on SIGTERM (measured live, claude-integration.md §Hooks),
+	// so an error frame under a deliberate kill is the kill's echo, not
+	// evidence. The Stop hook fires only on clean completions, so a POST with
+	// no observed result still counts as one (without tokens/minutes).
+	const cleanCompletion = cleanResult || state.hookPosted;
 
 	// The exit-evidence mapping, ignoring intents: teardown failures first,
 	// then the result frame, then the hook POST, then the crash shape.
@@ -514,8 +517,8 @@ async function finishRun(
 			const open = runs.findLastIndex((run) => run.outcome === undefined);
 			const openRun = runs[open];
 			const question = openRun?.question;
-			// Fixed decision order. An observed completion on a question-free entry
-			// is a genuine finish: the run ended on its own before any kill landed,
+			// Fixed decision order. A clean completion on a question-free entry is
+			// a genuine finish: the run ended on its own before any kill landed,
 			// so the evidence mapping runs with the intent ignored. A teardown
 			// failure beats every intent (a pause or steer written over an
 			// uncommitted tree would mask it). Stop comes before the question
@@ -526,7 +529,7 @@ async function finishRun(
 			// intent keeps the crash mapping.
 			let close: { outcome: "review" | "blocked"; error?: string } | undefined;
 			let paused = false;
-			if (completed && question === undefined) {
+			if (cleanCompletion && question === undefined) {
 				close = evidenceClose();
 			} else if (teardownError !== undefined) {
 				close = { outcome: "blocked", error: teardownError };

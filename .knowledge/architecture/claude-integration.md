@@ -143,9 +143,13 @@ Run sessions carry hook config (via `--settings`) as a backstop: the Stop hook P
 outcome to the orchestrator's HTTP API, and writes the main checkout's frontmatter directly only
 when the orchestrator is unreachable. That keeps the board truthful if the orchestrator missed the
 stream, while preserving its single-writer rule ([board-storage](./board-storage.md) §Mutation
-rules). The Stop hook fires on normal completion and does not fire on SIGTERM (spike-verified:
-exit 143, no `result` event); startup reconciliation ([overview](./overview.md) §Shape) is the
-safety net for killed processes.
+rules). The Stop hook fires on normal completion and does not fire on SIGTERM. On SIGTERM the CLI
+flushes one `result/error_during_execution` frame carrying the segment's usage before exiting
+(measured live on 2.1.215; earlier versions exited with no `result` event), so an observed error
+result never proves the run ended on its own: only a clean result or the hook POST does, which is
+what the run close path treats as a genuine finish when a deliberate kill (steer/pause/stop) is in
+flight. Startup reconciliation ([overview](./overview.md) §Shape) is the safety net for killed
+processes.
 
 ## Auth on a headless host
 
