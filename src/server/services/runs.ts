@@ -52,9 +52,9 @@ const RESTART_ERROR = "orchestrator restarted mid-run";
 
 const PERMISSION_TOOL = `mcp__${MCP_SERVER_NAME}__approve`;
 
-// CLI-side ceiling for a held permission approval (four hours); the
-// server-side hold on the orchestrator's HTTP adapter is unbounded
-// (spike-measured, claude-integration.md §Permission prompts).
+// CLI-side ceiling for a held permission approval (default 5 minutes, raised
+// to four hours); the server side showed no ceiling on the orchestrator's
+// HTTP adapter (claude-integration.md §Permission prompts).
 const MCP_TOOL_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 
 // Held for the run's whole lifetime, not just start-to-init.
@@ -757,7 +757,10 @@ function addUsage(run: Run, result: SessionResult | undefined): Partial<Run> {
 		patch.tokens = (run.tokens ?? 0) + (result?.tokens ?? 0);
 	}
 	if (run.minutes !== undefined || result?.minutes !== undefined) {
-		patch.minutes = (run.minutes ?? 0) + (result?.minutes ?? 0);
+		// Re-round to one decimal: the per-segment values are already rounded,
+		// so summing floats would otherwise write 0.8999… into frontmatter.
+		patch.minutes =
+			Math.round(((run.minutes ?? 0) + (result?.minutes ?? 0)) * 10) / 10;
 	}
 	return patch;
 }
