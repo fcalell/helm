@@ -240,7 +240,10 @@ function spawnTracked(options: {
 	seedSystemPrompt?: string;
 	cwd?: string;
 	settingsPath?: string;
+	tools?: readonly string[];
 	extraTools?: readonly string[];
+	permissionPromptTool?: string;
+	env?: Record<string, string>;
 	detached?: boolean;
 }): TrackedTurn {
 	const runId = randomUUID();
@@ -259,7 +262,10 @@ function spawnTracked(options: {
 			resume: options.resume,
 			seedSystemPrompt: options.seedSystemPrompt,
 			settingsPath: options.settingsPath,
+			tools: options.tools,
 			extraTools: options.extraTools,
+			permissionPromptTool: options.permissionPromptTool,
+			env: options.env,
 			detached: options.detached,
 			mcpUrl: mcpEndpointUrl(mcpToken),
 			onEvent: (event) => {
@@ -353,15 +359,23 @@ export function spawnRunSession(input: {
 	prompt: string;
 	cwd: string;
 	settingsPath: string;
+	tools: readonly string[];
 	extraTools: readonly string[];
+	permissionPromptTool?: string;
+	env?: Record<string, string>;
+	resume?: string;
 }): RunTurnHandle {
 	const tracked = spawnTracked({
 		kind: "run",
 		prompt: input.prompt,
 		attach: { type: "story", id: input.storyId },
+		resume: input.resume,
 		cwd: input.cwd,
 		settingsPath: input.settingsPath,
+		tools: input.tools,
 		extraTools: input.extraTools,
+		permissionPromptTool: input.permissionPromptTool,
+		env: input.env,
 		detached: true,
 	});
 	return {

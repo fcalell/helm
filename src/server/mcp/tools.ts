@@ -21,6 +21,7 @@ import {
 	recordProposal,
 	recordQuestion,
 } from "../services/proposals.ts";
+import { runNeedsInput } from "../services/runs.ts";
 import { enqueueWrite } from "../write-queue.ts";
 import type { ReadyBinding } from "./registry.ts";
 import type { Proposal } from "./schemas.ts";
@@ -276,6 +277,20 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 		handle: async (binding, args) => {
 			const parsed = askUserPayloadSchema.safeParse(args);
 			if (!parsed.success) return err(z.prettifyError(parsed.error));
+			// A run's question lands on its open run entry (frontmatter survives a
+			// restart, unlike the in-memory chat path) and flips the card to
+			// needs-input; the write completes before the tool returns, so the
+			// close handler always reads the flipped state.
+			if (binding.kind === "run") {
+				if (binding.attach?.type !== "story") {
+					return err("this session is not bound to a story");
+				}
+				const landed = await runNeedsInput(binding.attach.id, parsed.data);
+				if (!landed) return err("this story has no open run entry");
+				return ok(
+					"Recorded. End your turn now; the user's answer resumes this session.",
+				);
+			}
 			const question = recordQuestion(binding, parsed.data);
 			return ok(
 				`Recorded question ${question.id}. End your turn now; the user's ` +

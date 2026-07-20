@@ -76,7 +76,13 @@ export const AUTO_ALLOWLIST = [
 	"Bash(git rm:*)",
 ] as const;
 
-const RUN_PROMPT = `You are Helm's implementation run: deliver the story brief in your prompt, working entirely inside this worktree. Commit your work on the current branch as Conventional Commits (feat/fix/chore/docs/refactor/test; header <= ~60 chars, body says the why). Never push, never switch branches, never edit files under .helm/ — note decisions and progress on your card through the update_card tool instead. Your prompt states the repo's check command when one is configured; run it to self-test before finishing, and when none is configured you cannot self-test — never guess a command. Your tool allowlist is fixed: a denied call means the action is outside the run contract, not a prompt to retry.`;
+// The Guarded preset: file edits run free, every mutating Bash call routes to
+// the permission tool (the CLI's own read-only classification keeps queries
+// like `git status` prompt-free). Manual routes file edits there too.
+export const GUARDED_ALLOWLIST = ["Edit", "Write", ...READ_ONLY_TOOLS] as const;
+export const MANUAL_ALLOWLIST = READ_ONLY_TOOLS;
+
+const RUN_PROMPT = `You are Helm's implementation run: deliver the story brief in your prompt, working entirely inside this worktree. Commit your work on the current branch as Conventional Commits (feat/fix/chore/docs/refactor/test; header <= ~60 chars, body says the why). Never push, never switch branches, never edit files under .helm/ — note decisions and progress on your card through the update_card tool instead. Your prompt states the repo's check command when one is configured; run it to self-test before finishing, and when none is configured you cannot self-test — never guess a command. A denied tool call is final: the action is outside the run contract, or the user denied it from the board — either way, never retry it. When you hit a genuine mid-run decision only the user can settle, call ask_user with your recommended answer and end your turn; the user's answer resumes this session.`;
 
 const WORK_READ_ONLY =
 	"Work read-only: never edit files, never run commands. " +
@@ -189,7 +195,7 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		effort: "medium",
 		context: "compact-under-pressure",
 		tools: AUTO_ALLOWLIST,
-		boardTools: ["update_card"],
+		boardTools: ["update_card", "ask_user"],
 		systemPrompt: RUN_PROMPT,
 	},
 	review: {

@@ -1,3 +1,4 @@
+import type { Preset } from "../board/schema.ts";
 import type { BoardToolName } from "./kinds.ts";
 
 export interface ProposalOutcomeItem {
@@ -179,6 +180,7 @@ export function gateFlagsPrompt(
 export function runPrompt(
 	briefBody: string,
 	checkCommand: string | undefined,
+	preset: Preset,
 ): string {
 	return [
 		"Implement the story brief below.",
@@ -189,7 +191,11 @@ export function runPrompt(
 		"",
 		checkCommand === undefined
 			? "No check command is configured for this repo: you cannot self-test. Do not guess one."
-			: `The repo's check command is: \`${checkCommand}\`. It is on your allowlist; run it to self-test before finishing.`,
+			: `The repo's check command is: \`${checkCommand}\`. ${
+					preset === "auto"
+						? "It is on your allowlist; run"
+						: "It prompts for approval on this preset; run"
+				} it to self-test before finishing.`,
 	].join("\n");
 }
 

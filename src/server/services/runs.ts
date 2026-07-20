@@ -4,7 +4,7 @@ import { basename, join } from "node:path";
 import { ApiError } from "@fcalell/plugin-api/error";
 import { defineService } from "@fcalell/plugin-node/server";
 import { briefHash } from "../../board/hash.ts";
-import type { Run } from "../../board/schema.ts";
+import type { Preset, Run } from "../../board/schema.ts";
 import {
 	InvalidBoardFileError,
 	isENOENT,
@@ -14,8 +14,17 @@ import {
 	writeStory,
 } from "../../board/store.ts";
 import { canTransition, verdictValid } from "../../board/transitions.ts";
-import { runPrompt } from "../../sessions/prompts.ts";
+import type { SessionResult } from "../../sessions/events.ts";
+import {
+	GUARDED_ALLOWLIST,
+	MANUAL_ALLOWLIST,
+	MCP_SERVER_NAME,
+} from "../../sessions/kinds.ts";
+import { questionAnswerPrompt, runPrompt } from "../../sessions/prompts.ts";
+import type { ManagedRepo } from "../config.ts";
 import { runHookUrl } from "../mcp/registry.ts";
+import type { AskUserPayload } from "../mcp/schemas.ts";
+import { autoAllowlist } from "../permissions.ts";
 import { groupAlive, killProcessGroup } from "../process-group.ts";
 import {
 	ensureWorktree,
@@ -34,7 +43,19 @@ import { type RunTurnHandle, spawnRunSession } from "./sessions.ts";
 // unreachable through session.kill.
 const INIT_TIMEOUT_MS = 60_000;
 
+// How long run.answer waits out the asking process's teardown before
+// treating the run as genuinely live (the spawn-to-init standard: one
+// bounded wait, never a wedge).
+const CLOSE_WAIT_MS = 60_000;
+
 const RESTART_ERROR = "orchestrator restarted mid-run";
+
+const PERMISSION_TOOL = `mcp__${MCP_SERVER_NAME}__approve`;
+
+// CLI-side ceiling for a held permission approval (four hours); the
+// server-side hold on the orchestrator's HTTP adapter is unbounded
+// (spike-measured, claude-integration.md §Permission prompts).
+const MCP_TOOL_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 
 // Held for the run's whole lifetime, not just start-to-init.
 interface RunState {
@@ -49,6 +70,9 @@ interface RunState {
 	// Resolves `armed` once the `running` write lands; the close handler
 	// awaits it to decide armed vs bypass instead of assuming order.
 	initWrite?: Promise<"armed" | "aborted">;
+	// Resolves after close handling and cleanup; run.answer awaits it so an
+	// asking process's teardown never races the resume.
+	closed?: Promise<void>;
 }
 
 const states = new Map<string, RunState>();
@@ -150,6 +174,38 @@ function validateStart(story: Story): void {
 	}
 }
 
+// What a preset contributes to the spawn: the effective allowlist (replacing
+// the registry row's), the check command's extra patterns (Auto only: under
+// Guarded and Manual the check command prompting is the supervision), and
+// the permission tool with its raised CLI-side timeout.
+interface PresetSpawn {
+	tools: readonly string[];
+	extraTools: readonly string[];
+	permissionPromptTool?: string;
+	env?: Record<string, string>;
+}
+
+async function presetSpawn(
+	preset: Preset,
+	repo: ManagedRepo,
+): Promise<PresetSpawn> {
+	if (preset === "auto") {
+		return {
+			tools: await autoAllowlist(repo),
+			extraTools:
+				repo.checkCommand === undefined
+					? []
+					: [`Bash(${repo.checkCommand})`, `Bash(${repo.checkCommand}:*)`],
+		};
+	}
+	return {
+		tools: preset === "guarded" ? GUARDED_ALLOWLIST : MANUAL_ALLOWLIST,
+		extraTools: [],
+		permissionPromptTool: PERMISSION_TOOL,
+		env: { MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS) },
+	};
+}
+
 function mintBranch(story: Story): string {
 	const slug = STORY_FILE_RE.exec(basename(story.path))?.[2] ?? "story";
 	return `helm/${story.id}-${slug}`;
@@ -168,12 +224,7 @@ async function cleanup(state: RunState): Promise<void> {
 export async function startRun(
 	storyId: string,
 ): Promise<{ sessionId: string }> {
-	if (states.has(storyId)) {
-		throw new ApiError("RUN_ACTIVE", {
-			status: 409,
-			message: "a run is already active for this story",
-		});
-	}
+	if (states.has(storyId)) throw runActive();
 	const known = findStory(storyId);
 	const state: RunState = {
 		storyId,
@@ -214,9 +265,17 @@ async function start(
 				body: current.body,
 			});
 		}
-		return { branch, body: current.body };
+		return {
+			branch,
+			body: current.body,
+			preset: current.frontmatter.preset ?? ("guarded" as const),
+		};
 	});
 	state.branch = prepared.branch;
+
+	// Before any spawn work: an invalid permissions override must fail the
+	// start loudly, never spawn on a guessed allowlist.
+	const spawn = await presetSpawn(prepared.preset, repo);
 
 	let worktree: string;
 	try {
@@ -249,24 +308,13 @@ async function start(
 
 	const handle = spawnRunSession({
 		storyId,
-		prompt: runPrompt(prepared.body, repo.checkCommand),
+		prompt: runPrompt(prepared.body, repo.checkCommand, prepared.preset),
 		cwd: worktree,
 		settingsPath,
-		extraTools:
-			repo.checkCommand === undefined
-				? []
-				: [`Bash(${repo.checkCommand})`, `Bash(${repo.checkCommand}:*)`],
+		...spawn,
 	});
 	state.pid = handle.pid;
-	const closed = handle.done.then((turn) => {
-		state.exited = true;
-		return turn;
-	});
-	void closed
-		.then((turn) => finishRun(state, path, epicId, turn))
-		.catch((error) => {
-			log?.error(`run ${storyId}: close handling failed: ${errorText(error)}`);
-		});
+	trackClose(state, path, epicId, handle);
 	if (handle.pid !== undefined) {
 		await writeFile(pidFilePath(storyId), `${handle.pid}\n`);
 	}
@@ -318,6 +366,27 @@ async function start(
 		});
 	}
 	return { sessionId: init.sessionId };
+}
+
+// Wires exit bookkeeping and close handling; `state.closed` resolves only
+// after finishRun's cleanup, which is what run.answer waits out.
+function trackClose(
+	state: RunState,
+	path: string,
+	epicId: string,
+	handle: RunTurnHandle,
+): void {
+	const closed = handle.done.then((turn) => {
+		state.exited = true;
+		return turn;
+	});
+	state.closed = closed
+		.then((turn) => finishRun(state, path, epicId, turn))
+		.catch((error) => {
+			log?.error(
+				`run ${state.storyId}: close handling failed: ${errorText(error)}`,
+			);
+		});
 }
 
 async function raceInit(handle: RunTurnHandle, state: RunState) {
@@ -413,23 +482,37 @@ async function finishRun(
 	try {
 		await enqueueWrite(async () => {
 			const current = await readStoryFile(path, epicId);
-			const runs = current.frontmatter.runs.map((run) =>
-				run.session === state.sessionId
-					? {
-							...run,
-							outcome,
-							...(result?.tokens !== undefined && { tokens: result.tokens }),
-							...(result?.minutes !== undefined && { minutes: result.minutes }),
-							...(error !== undefined && { error }),
-						}
-					: run,
-			);
+			const runs = [...current.frontmatter.runs];
+			// The open entry is the one the init write armed (the same key the
+			// resume and reconciliation use); a hand edit that closed it leaves
+			// nothing to update.
+			const open = runs.findLastIndex((run) => run.outcome === undefined);
+			const openRun = runs[open];
+			// A clean close whose entry still carries a question is a segment end,
+			// not a finish: usage accumulates, no outcome lands, the status stays
+			// for the answer to resume.
+			const segmentEnd =
+				outcome === "review" && openRun?.question !== undefined;
+			if (openRun !== undefined) {
+				runs[open] = {
+					...openRun,
+					...addUsage(openRun, result),
+					...(segmentEnd
+						? {}
+						: { outcome, ...(error !== undefined && { error }) }),
+				};
+			}
 			// A mid-run move or hand edit already parked the card elsewhere: the
-			// user's move wins, and the entry update is bookkeeping.
-			const status =
-				current.frontmatter.status === "running"
-					? outcome
-					: current.frontmatter.status;
+			// user's move wins, and the entry update is bookkeeping. A non-clean
+			// exit under needs-input (a crash inside the ask_user turn) parks the
+			// card in Blocked while the question stays on the entry as record.
+			let status = current.frontmatter.status;
+			if (!segmentEnd) {
+				if (status === "running") status = outcome;
+				else if (status === "needs-input" && outcome === "blocked") {
+					status = "blocked";
+				}
+			}
 			await writeStory({
 				path: current.path,
 				frontmatter: { ...current.frontmatter, status, runs },
@@ -442,6 +525,241 @@ async function finishRun(
 		);
 	}
 	await cleanup(state);
+}
+
+// A run's ask_user: one queued write lands the question on the open run
+// entry (frontmatter survives a restart, which the in-memory chat path
+// cannot give a run) and flips `running → needs-input` when that transition
+// applies; a card the user already moved keeps its status, the question
+// still lands as bookkeeping. False when no open entry exists to carry it.
+export async function runNeedsInput(
+	storyId: string,
+	payload: AskUserPayload,
+): Promise<boolean> {
+	const story = boardSnapshot().stories.find((each) => each.id === storyId);
+	if (story === undefined) return false;
+	return enqueueWrite(async () => {
+		let current: Story;
+		try {
+			current = await readStoryFile(story.path, story.epicId);
+		} catch {
+			return false;
+		}
+		const runs = [...current.frontmatter.runs];
+		const open = runs.findLastIndex((run) => run.outcome === undefined);
+		const openRun = runs[open];
+		if (openRun === undefined) return false;
+		runs[open] = {
+			...openRun,
+			question: {
+				text: payload.question,
+				recommendation: payload.recommendation,
+				...(payload.options !== undefined && { options: payload.options }),
+			},
+		};
+		const status =
+			current.frontmatter.status === "running"
+				? "needs-input"
+				: current.frontmatter.status;
+		await writeStory({
+			path: current.path,
+			frontmatter: { ...current.frontmatter, status, runs },
+			body: current.body,
+		});
+		return true;
+	});
+}
+
+// The one resume path for a needs-input card. Two hazards share the single
+// per-story slot: the asking process's teardown is waited out (bounded), and
+// of two concurrent answers only the first past the synchronous
+// check-then-set spawns; the queued init write stays the authority on what
+// the claim does.
+export async function answerRun(
+	storyId: string,
+	answer: string,
+): Promise<{ sessionId: string }> {
+	const existing = states.get(storyId);
+	if (existing !== undefined) {
+		if (existing.closed === undefined || !(await closesInTime(existing))) {
+			throw runActive();
+		}
+	}
+	const known = findStory(storyId);
+	// Synchronous check-then-set: no await between wait-wake and claim, so the
+	// second of two concurrent answers finds the slot taken before it spawns.
+	if (states.has(storyId)) throw runActive();
+	const state: RunState = {
+		storyId,
+		hookToken: randomUUID(),
+		hookPosted: false,
+		exited: false,
+	};
+	states.set(storyId, state);
+	hookTokens.set(state.hookToken, state);
+	try {
+		return await resume(state, known.path, known.epicId, answer);
+	} catch (error) {
+		await cleanup(state);
+		throw error;
+	}
+}
+
+function runActive() {
+	return new ApiError("RUN_ACTIVE", {
+		status: 409,
+		message: "a run is already active for this story",
+	});
+}
+
+// A state still unresolved at the bound means a process that asked without
+// ending its turn, or a hand-typed needs-input under a live run.
+async function closesInTime(state: RunState): Promise<boolean> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			(state.closed ?? Promise.resolve()).then(() => true),
+			new Promise<boolean>((resolve) => {
+				timer = setTimeout(() => resolve(false), CLOSE_WAIT_MS);
+			}),
+		]);
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+async function resume(
+	state: RunState,
+	path: string,
+	epicId: string,
+	answer: string,
+): Promise<{ sessionId: string }> {
+	const repo = managedRepo();
+	const { storyId } = state;
+
+	// The spawn snapshot: status, entry, question, branch, preset. The queued
+	// init write below re-checks before anything lands on disk.
+	const current = await readStoryOrApiError(path, epicId, storyId);
+	const from = current.frontmatter.status;
+	if (from !== "needs-input") {
+		const reason = "only a needs-input story can be answered";
+		throw new ApiError("ILLEGAL_TRANSITION", {
+			status: 409,
+			message: reason,
+			data: { from, to: "running", reason },
+		});
+	}
+	const entry = current.frontmatter.runs.findLast(
+		(run) => run.outcome === undefined,
+	);
+	const question = entry?.question;
+	if (entry === undefined || question === undefined) {
+		const reason = "no open run entry with a pending question";
+		throw new ApiError("ILLEGAL_TRANSITION", {
+			status: 409,
+			message: reason,
+			data: { from, to: "running", reason },
+		});
+	}
+	const branch = current.frontmatter.branch;
+	if (branch === undefined) {
+		throw new ApiError("RUN_FAILED", {
+			message: "story has no branch to resume on",
+		});
+	}
+	state.branch = branch;
+
+	const spawn = await presetSpawn(
+		current.frontmatter.preset ?? "guarded",
+		repo,
+	);
+
+	// Idempotent convergence covers an out-of-band worktree delete: session
+	// lookup is keyed to the cwd path, so a recreated path still resumes.
+	let worktree: string;
+	try {
+		worktree = (await ensureWorktree({ repo, storyId, branch })).path;
+	} catch (error) {
+		if (error instanceof ApiError) throw error;
+		throw new ApiError("RUN_FAILED", { message: errorText(error) });
+	}
+	state.worktree = worktree;
+
+	const settingsPath = settingsFilePath(storyId);
+	await writeFile(
+		settingsPath,
+		`${JSON.stringify(runSettings(worktree, state.hookToken), null, "\t")}\n`,
+	);
+
+	const handle = spawnRunSession({
+		storyId,
+		prompt: questionAnswerPrompt(question.text, answer),
+		cwd: worktree,
+		settingsPath,
+		resume: entry.session,
+		...spawn,
+	});
+	state.pid = handle.pid;
+	trackClose(state, path, epicId, handle);
+	if (handle.pid !== undefined) {
+		await writeFile(pidFilePath(storyId), `${handle.pid}\n`);
+	}
+
+	const init = await raceInit(handle, state);
+	state.sessionId = init.sessionId;
+
+	// Same arming contract as start(), different re-check: needs-input with
+	// the entry still open and questioned. Flips to running and deletes the
+	// question; an aborted write means the user's move won.
+	state.initWrite = enqueueWrite(async (): Promise<"armed" | "aborted"> => {
+		if (state.exited) return "aborted";
+		let fresh: Story;
+		try {
+			fresh = await readStoryFile(path, epicId);
+		} catch {
+			return "aborted";
+		}
+		if (fresh.frontmatter.status !== "needs-input") return "aborted";
+		const runs = [...fresh.frontmatter.runs];
+		const open = runs.findLastIndex((run) => run.outcome === undefined);
+		const openRun = runs[open];
+		if (openRun === undefined || openRun.question === undefined) {
+			return "aborted";
+		}
+		const { question: _answered, ...rest } = openRun;
+		runs[open] = rest;
+		await writeStory({
+			path: fresh.path,
+			frontmatter: { ...fresh.frontmatter, status: "running", runs },
+			body: fresh.body,
+		});
+		return "armed";
+	});
+	if ((await state.initWrite) !== "armed") {
+		if (state.pid !== undefined) await killProcessGroup(state.pid);
+		const reason = "story left needs-input during the resume; the move wins";
+		throw new ApiError("ILLEGAL_TRANSITION", {
+			status: 409,
+			message: reason,
+			data: { from: "needs-input", to: "running", reason },
+		});
+	}
+	return { sessionId: init.sessionId };
+}
+
+// A result event's usage counts only its own turn, so entry totals add
+// across segments. Absence-safe both ways: a field lands only when the entry
+// or the segment observed it, so a usage-less close (hook-only, killed,
+// error without usage) keeps the omission instead of writing NaN.
+function addUsage(run: Run, result: SessionResult | undefined): Partial<Run> {
+	const patch: Partial<Run> = {};
+	if (run.tokens !== undefined || result?.tokens !== undefined) {
+		patch.tokens = (run.tokens ?? 0) + (result?.tokens ?? 0);
+	}
+	if (run.minutes !== undefined || result?.minutes !== undefined) {
+		patch.minutes = (run.minutes ?? 0) + (result?.minutes ?? 0);
+	}
+	return patch;
 }
 
 export function runHookPosted(token: string): boolean {

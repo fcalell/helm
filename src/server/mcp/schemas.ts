@@ -1,5 +1,5 @@
 import { z } from "@fcalell/plugin-api/schema";
-import { BRIEF_SECTIONS } from "../../board/schema.ts";
+import { BRIEF_SECTIONS, storyIdSchema } from "../../board/schema.ts";
 import { sessionKindSchema } from "../../sessions/kinds.ts";
 
 // Pure zod, no node imports: the SPA bundle reaches this file through
@@ -168,9 +168,22 @@ export const researchStateSchema = z.object({
 });
 export type ResearchState = z.infer<typeof researchStateSchema>;
 
+// A held permission-prompt call from a supervised run: the CLI's `approve`
+// tool call waits on the user's approve/deny from the card. In-memory like
+// proposals; a restart kills the run, so nothing dangles.
+export const permissionRequestSchema = z.object({
+	id: z.uuid(),
+	storyId: storyIdSchema,
+	toolName: z.string(),
+	input: z.record(z.string(), z.unknown()),
+	createdAt: z.iso.datetime(),
+});
+export type PermissionRequest = z.infer<typeof permissionRequestSchema>;
+
 export const proposalSnapshotSchema = z.object({
 	proposals: z.array(proposalSchema),
 	questions: z.array(questionSchema),
 	research: z.array(researchStateSchema),
+	permissions: z.array(permissionRequestSchema),
 });
 export type ProposalSnapshot = z.infer<typeof proposalSnapshotSchema>;

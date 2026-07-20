@@ -24,9 +24,18 @@ export interface SpawnSessionOptions {
 	// Per-spawn settings file (`--settings`): run spawns carry the Stop hook
 	// and the `.helm/` deny rules there.
 	settingsPath?: string;
+	// Replaces the kind row's `tools` (the run presets compute the effective
+	// allowlist per spawn); board tools still append from the row.
+	tools?: readonly string[];
 	// Per-spawn additions to `--allowedTools` (the repo's check-command
 	// patterns); the registry constant cannot see runtime config.
 	extraTools?: readonly string[];
+	// Tool id for `--permission-prompt-tool`: non-allowlisted mutating calls
+	// consult it instead of failing on the missing terminal prompt.
+	permissionPromptTool?: string;
+	// Merged over the inherited environment (e.g. MCP_TOOL_TIMEOUT for held
+	// permission approvals).
+	env?: Record<string, string>;
 	// Spawn the child as its own process-group leader, so a group kill can
 	// reach the tool subprocesses it spawned; single-pid SIGTERM would miss
 	// them.
@@ -97,7 +106,10 @@ export function spawnSessionProcess(
 	options: SpawnSessionOptions,
 ): SessionProcess {
 	const row = spawnableRow(options.kind);
-	const allowedTools = [...row.tools, ...(options.extraTools ?? [])];
+	const allowedTools = [
+		...(options.tools ?? row.tools),
+		...(options.extraTools ?? []),
+	];
 	if (options.mcpUrl !== undefined) {
 		allowedTools.push(
 			...row.boardTools.map((t) => `mcp__${MCP_SERVER_NAME}__${t}`),
@@ -139,11 +151,14 @@ export function spawnSessionProcess(
 	if (options.settingsPath !== undefined) {
 		args.push("--settings", options.settingsPath);
 	}
+	if (options.permissionPromptTool !== undefined) {
+		args.push("--permission-prompt-tool", options.permissionPromptTool);
+	}
 	if (options.resume !== undefined) args.push("--resume", options.resume);
 
 	const child = spawn("claude", args, {
 		cwd: options.cwd,
-		env: sessionEnv(),
+		env: { ...sessionEnv(), ...options.env },
 		stdio: ["ignore", "pipe", "pipe"],
 		detached: options.detached === true,
 	});

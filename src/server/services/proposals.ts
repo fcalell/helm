@@ -39,6 +39,7 @@ import type { ReadyBinding } from "../mcp/registry.ts";
 import type {
 	AskUserPayload,
 	EpicBody,
+	PermissionRequest,
 	Proposal,
 	ProposalResolution,
 	Question,
@@ -46,6 +47,7 @@ import type {
 } from "../mcp/schemas.ts";
 import {
 	epicDraftSchema,
+	permissionRequestSchema,
 	proposalSchema,
 	questionSchema,
 	raiseDecisionPayloadSchema,
@@ -79,6 +81,8 @@ const questions = new Map<string, Question>();
 const contexts = new Map<string, ProposalContext>();
 const heldResumes = new Map<string, string[]>();
 const research = new Map<string, ResearchState>();
+const permissions = new Map<string, PermissionRequest>();
+const permissionResolvers = new Map<string, (approved: boolean) => void>();
 let handle: ChannelHandle<(typeof proposalChannel)["server"]> | undefined;
 
 const ITEM_SCHEMA: Record<Proposal["tool"], z.ZodType> = {
@@ -93,11 +97,13 @@ function snapshot(): {
 	proposals: Proposal[];
 	questions: Question[];
 	research: ResearchState[];
+	permissions: PermissionRequest[];
 } {
 	return {
 		proposals: [...proposals.values()],
 		questions: [...questions.values()],
 		research: [...research.values()],
+		permissions: [...permissions.values()],
 	};
 }
 
@@ -141,6 +147,42 @@ export function recordQuestion(
 	questions.set(question.id, question);
 	broadcast();
 	return question;
+}
+
+// Holds the CLI's permission-prompt call open until the user resolves it
+// from the card; the returned promise is what the `approve` tool handler
+// awaits. Pending entries are in-memory by design: a restart kills the run
+// and reconciliation parks the card, so nothing dangles.
+export function recordPermission(
+	storyId: string,
+	toolName: string,
+	input: Record<string, unknown>,
+): Promise<boolean> {
+	const request = permissionRequestSchema.parse({
+		id: randomUUID(),
+		storyId,
+		toolName,
+		input,
+		createdAt: new Date().toISOString(),
+	});
+	permissions.set(request.id, request);
+	const { promise, resolve } = Promise.withResolvers<boolean>();
+	permissionResolvers.set(request.id, resolve);
+	broadcast();
+	return promise;
+}
+
+export function resolvePermission(id: string, approved: boolean): void {
+	const resolve = permissionResolvers.get(id);
+	if (resolve === undefined) {
+		throw new ApiError("NOT_FOUND", {
+			message: `no pending permission with id ${id}`,
+		});
+	}
+	permissions.delete(id);
+	permissionResolvers.delete(id);
+	broadcast();
+	resolve(approved);
 }
 
 export async function resolveProposalItem(input: {
@@ -703,6 +745,8 @@ export default defineService({
 			contexts.clear();
 			heldResumes.clear();
 			research.clear();
+			permissions.clear();
+			permissionResolvers.clear();
 		};
 	},
 });

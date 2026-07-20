@@ -1,7 +1,11 @@
 import { procedure } from "virtual:stack-procedure";
 import { ApiError } from "@fcalell/plugin-api/error";
 import { z } from "@fcalell/plugin-api/schema";
-import { statusSchema, storyIdSchema } from "../../board/schema.ts";
+import {
+	presetSchema,
+	statusSchema,
+	storyIdSchema,
+} from "../../board/schema.ts";
 import {
 	InvalidBoardFileError,
 	isENOENT,
@@ -87,5 +91,44 @@ export const story = {
 				});
 			});
 			return { gating: false };
+		}),
+	// Legal at any status: the preset is read once at spawn, so a change during
+	// a live run takes effect on the next attempt (mid-run brief-edit
+	// semantics).
+	setPreset: procedure()
+		.input(z.object({ id: storyIdSchema, preset: presetSchema }))
+		.handler(async ({ input }) => {
+			const known = boardSnapshot().stories.find(
+				(story) => story.id === input.id,
+			);
+			if (known === undefined) {
+				throw new ApiError("NOT_FOUND", {
+					message: `no story with id ${input.id}`,
+				});
+			}
+			await enqueueWrite(async () => {
+				let current: Awaited<ReturnType<typeof readStoryFile>>;
+				try {
+					current = await readStoryFile(known.path, known.epicId);
+				} catch (error) {
+					if (isENOENT(error)) {
+						throw new ApiError("NOT_FOUND", {
+							message: `no story with id ${input.id}`,
+						});
+					}
+					if (error instanceof InvalidBoardFileError) {
+						throw new ApiError("INVALID_FILE", {
+							status: 409,
+							message: error.message,
+						});
+					}
+					throw error;
+				}
+				await writeStory({
+					path: current.path,
+					frontmatter: { ...current.frontmatter, preset: input.preset },
+					body: current.body,
+				});
+			});
 		}),
 };
