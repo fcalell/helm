@@ -133,16 +133,16 @@ function QueueStatus() {
 				: `${entry.kind} ${entry.storyId}`;
 		return [
 			...current.running.map((entry) => ({
-				label: `${name(entry)} — running`,
+				label: `${name(entry)} · running`,
 				disabled: true,
 			})),
 			...current.queued.map((entry) => {
 				const storyId = entry.storyId;
 				if (entry.kind !== "run" || storyId === undefined) {
-					return { label: `${name(entry)} — queued`, disabled: true };
+					return { label: `${name(entry)} · queued`, disabled: true };
 				}
 				return {
-					label: `${name(entry)} — cancel`,
+					label: `${name(entry)} · cancel`,
 					onSelect: () => void dequeueRun(storyId),
 				};
 			}),
@@ -182,7 +182,7 @@ function RateMeter() {
 		) === true;
 	const text = () => {
 		const snapshot = meterStore.snapshot;
-		if (snapshot === undefined) return "rate —";
+		if (snapshot === undefined) return "rate";
 		const reset = fiveHour();
 		const clock =
 			reset === undefined ? "" : ` · resets ${formatReset(reset.resetsAt)}`;

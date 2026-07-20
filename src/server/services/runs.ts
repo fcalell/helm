@@ -242,11 +242,12 @@ async function cleanup(state: RunState): Promise<void> {
 // spawn's init awaited as today), `{ queued: true }` when it waits its turn.
 export type RunDispatch = { sessionId: string } | { queued: true };
 
-function hasQueuedRun(storyId: string): boolean {
-	return queueSnapshot().queued.some(
-		(meta) => meta.kind === "run" && meta.storyId === storyId,
-	);
-}
+// Story ids claimed by a dispatched run entry, from enqueue until its spawn
+// settles (or the entry is cancelled): the resumeRun check-then-set idiom
+// lifted to the queue. The guards below read this set synchronously with the
+// enqueue; the dispatcher's snapshot stays display-only, since a promoted
+// entry leaves `queued` before its spawn has landed.
+const waitingRuns = new Set<string>();
 
 // Whether a dispatched entry starts at once: a free slot with nothing queued
 // ahead, or (for a continuation) the only holder is this story's own segment,
@@ -266,12 +267,17 @@ function runsNext(storyId: string, continuation: boolean): boolean {
 // init signal. An entry that runs next is awaited by the caller; a queued one
 // returns at once, and its dequeue-time failure (a story that went stale
 // while waiting, or a spawn error) surfaces as a "run-skipped" board notice.
+// No await between the RUN_ACTIVE guards and the claim: of two concurrent
+// calls for one story, the second rejects here. A continuation tolerates a
+// live `states` entry (the segment it continues); a fresh start rejects it.
 function dispatchRun(
 	storyId: string,
 	continuation: boolean,
 	begin: () => Promise<{ sessionId: string }>,
 ): Promise<RunDispatch> {
-	if (hasQueuedRun(storyId)) throw runActive();
+	if (waitingRuns.has(storyId)) throw runActive();
+	if (!continuation && states.has(storyId)) throw runActive();
+	waitingRuns.add(storyId);
 	const next = runsNext(storyId, continuation);
 	const init = Promise.withResolvers<{ sessionId: string }>();
 	dispatch(
@@ -280,9 +286,11 @@ function dispatchRun(
 			try {
 				spawned = await begin();
 			} catch (error) {
+				waitingRuns.delete(storyId);
 				init.reject(error);
 				return;
 			}
+			waitingRuns.delete(storyId);
 			init.resolve(spawned);
 			await states.get(storyId)?.closed;
 		},
@@ -329,13 +337,15 @@ async function freshStart(storyId: string): Promise<{ sessionId: string }> {
 }
 
 // Cancels the story's queued run entry; a running slot belongs to stop and
-// pause, and a queued gate round is out of reach (kind-scoped cancel).
+// pause, and a queued gate round is out of reach (kind-scoped cancel). The
+// cancelled task never runs `begin`, so its claim releases here.
 export function dequeueRun(storyId: string): void {
 	if (!cancelQueued(storyId)) {
 		throw new ApiError("NOT_FOUND", {
 			message: "no queued run for this story",
 		});
 	}
+	waitingRuns.delete(storyId);
 }
 
 async function start(
@@ -1193,6 +1203,7 @@ export default defineService({
 		return () => {
 			states.clear();
 			hookTokens.clear();
+			waitingRuns.clear();
 			log = undefined;
 		};
 	},
