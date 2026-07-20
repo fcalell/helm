@@ -517,16 +517,9 @@ async function finishRun(
 			const open = runs.findLastIndex((run) => run.outcome === undefined);
 			const openRun = runs[open];
 			const question = openRun?.question;
-			// Fixed decision order. A clean completion on a question-free entry is
-			// a genuine finish: the run ended on its own before any kill landed,
-			// so the evidence mapping runs with the intent ignored. A teardown
-			// failure beats every intent (a pause or steer written over an
-			// uncommitted tree would mask it). Stop comes before the question
-			// check: a stop that raced an ask_user teardown still parks the card,
-			// with the question kept as record. Then the question segment-end, so a
-			// racing ask_user beats steer and pause. Last, a killed turn: steer is
-			// a plain segment end, pause the same plus `paused: true`, and no
-			// intent keeps the crash mapping.
+			// Priority order below: cleanCompletion, then teardownError, then
+			// state.intent === "stop", then `question`, then steer/pause
+			// (api.md §Procedures, run.pause and run.stop rows).
 			let close: { outcome: "review" | "blocked"; error?: string } | undefined;
 			let paused = false;
 			if (cleanCompletion && question === undefined) {
