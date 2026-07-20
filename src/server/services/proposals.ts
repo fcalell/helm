@@ -350,14 +350,14 @@ function dispatchResearch(proposal: Proposal, index: number): void {
 	const key = researchKey(slug, decision);
 	research.set(key, { slug, decision, status: "pending" });
 	broadcast();
-	void dispatch(() => runResearch(slug, decision, payload.context)).catch(
-		(error) => {
-			const state = research.get(key);
-			if (state?.status !== "pending") return;
-			research.set(key, { ...state, status: "failed", error: String(error) });
-			broadcast();
-		},
-	);
+	void dispatch(() => runResearch(slug, decision, payload.context), {
+		kind: "research",
+	}).catch((error) => {
+		const state = research.get(key);
+		if (state?.status !== "pending") return;
+		research.set(key, { ...state, status: "failed", error: String(error) });
+		broadcast();
+	});
 }
 
 const SINGLE_LINE = /\s*\n\s*/g;

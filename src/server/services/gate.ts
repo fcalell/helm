@@ -172,7 +172,10 @@ export async function requestReady(id: string): Promise<{ gating: boolean }> {
 
 function enqueueRound(attempt: Attempt): void {
 	setPhase(attempt, "queued");
-	void dispatch(() => runRound(attempt)).catch((error) => {
+	void dispatch(() => runRound(attempt), {
+		kind: "adversary",
+		storyId: attempt.storyId,
+	}).catch((error) => {
 		logError(error);
 		abort(attempt);
 	});
