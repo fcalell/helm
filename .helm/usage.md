@@ -245,3 +245,27 @@ already parks that Blocked. Loop total ~$52.51 against 002-04's $47.67, 002-03's
 story. Weighted pool draw (fresh + output + 2% of cache reads): Fable ~1.44M; Opus/Sonnet ~786k.
 The orchestration session (Fable) again ran refinement and the probes inline and stays
 unledgered.
+
+## 002-06 Review: rebase, diff & checklist (2026-07-20 to 2026-07-21)
+
+| Session                          | Model / effort  | Fresh input   | Output      | Cache reads    | Modeled cost |
+| -------------------------------- | --------------- | ------------- | ----------- | -------------- | ------------ |
+| Adversary pass (1, cold)         | Opus / high     | 53,081        | 14,924      | 676,686        | $1.24        |
+| Run 1: implementation (1 seg)    | Fable / medium  | 165,336       | 62,796      | 9,379,194      | $15.83       |
+| Review: spec axis                | Sonnet / high   | 81,469        | 27,137      | 3,807,749      | $2.04        |
+| Review: standards axis (2 turns) | Sonnet / high   | 59,568        | 16,304      | 2,398,596      | $1.32        |
+| Run 1 follow-up: standards trio  | Sonnet / medium | 168,148       | 4,386       | 1,980,505      | $1.67        |
+| **Total**                        |                 | **527,602**   | **125,547** | **18,242,730** | **$22.10**   |
+
+The cheapest full loop yet ($22.10 against 002-05's ~$52.51, 002-04's $47.67, 002-03's $31.97),
+and the cleanest: the gate again converged in one cold Opus pass (the second single-pass gate
+running, both on measured-facts-first briefs), the run needed no steering and finished in one
+14.6-minute segment despite shipping 671 lines across 13 files, verifying eight of ten criteria
+live against a scratch orchestrator with three real headless runs. The spec review graded 10/10
+with zero free-form defects; the standards payload was one UI filter (verification block showed
+every run note, not just `verify:` bullets) plus two doc rewraps, so the follow-up routed to
+Sonnet at medium: $1.67, the routing lever's fourth point. One harness wrinkle: the standards
+session emitted `VERDICT: findings` with the findings stranded in its reasoning, and a $0.03
+resume recovered them; the review prompt should demand findings and verdict in the same message.
+Weighted pool draw (fresh + output + 2% of cache reads): Fable ~416k; Opus/Sonnet ~602k.
+The orchestration session (Fable) ran refinement inline and stays unledgered.
