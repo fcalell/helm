@@ -108,7 +108,8 @@ brief hash the run was spawned with (the contract review grades against,
 [runs](../product/features/runs.md)), the outcome with its token/minute totals, the last error
 when the run ended blocked, and, once graded, the self-grade tally the Review card
 shows. A review close also records `stat` (`"N files +A -D"`, the branch's `git diff --shortstat`
-against main after the close's rebase); the Review card face shows it. One entry spans one implement session: request-changes follow-ups accumulate onto it, and
+against main after the close's rebase); the Review card face shows it. One entry spans one
+implement session: request-changes follow-ups accumulate onto it, and
 a new entry starts when discard retires the session
 ([review](../product/features/review.md) §Three exits).
 

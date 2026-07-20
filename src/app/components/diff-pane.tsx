@@ -136,12 +136,14 @@ function checkVerdict(check: NonNullable<ReviewData["check"]>): string {
 
 function Verification(props: { story: Story; check: ReviewData["check"] }) {
 	// Run notes live on the card body (appended through update_card), never
-	// on the spawn snapshot, so they come from the live story.
+	// on the spawn snapshot, so they come from the live story. Only the
+	// `verify:` bullets are by-hand checks; other notes are progress/decisions.
 	const notes = () =>
 		(props.story.brief.sections[RUN_NOTES_SECTION] ?? "")
 			.split("\n")
 			.filter((line) => line.startsWith("- "))
-			.map((line) => line.slice(2));
+			.map((line) => line.slice(2))
+			.filter((note) => /^verify:/i.test(note));
 	return (
 		<div class="flex flex-col gap-2">
 			<Show

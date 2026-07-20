@@ -39,13 +39,13 @@ by default with a deliberate override. (The standards axis is v2 alongside self-
 spawns no session on either axis. See [roadmap](../roadmap.md).)
 
 Diff tab: per-file, side-by-side, with the criteria checklist pinned above; clicking a criterion's
-evidence jumps to the lines (v2, with self-grading). Before review opens, the story branch is **rebased on the target's
-main**; a conflict spawns an agent-assisted conflict-resolution session rather than dumping
-conflict markers on the user. The card stays in Review behind a rebasing indicator while the
-`conflict` session runs through the queue; a resolved rebase refreshes the diff, so the human
-review that follows already covers the resolution, and a failed one parks the card in Blocked
-with the error ([board](./board.md) §Status state machine). (The `conflict` session is v2; in v1
-any conflicting rebase parks the card in Blocked for manual resolution.)
+evidence jumps to the lines (v2, with self-grading). Before review opens, the story branch is
+**rebased on the target's main**; a conflict spawns an agent-assisted conflict-resolution session
+rather than dumping conflict markers on the user. The card stays in Review behind a rebasing
+indicator while the `conflict` session runs through the queue; a resolved rebase refreshes the
+diff, so the human review that follows already covers the resolution, and a failed one parks the
+card in Blocked with the error ([board](./board.md) §Status state machine). (The `conflict`
+session is v2; in v1 any conflicting rebase parks the card in Blocked for manual resolution.)
 
 ## Three exits
 
