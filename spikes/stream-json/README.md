@@ -26,7 +26,8 @@ observations behind them.
   `rate_limit_event`, `assistant` / `user` (full API messages, tool results, usage),
   `result` (subtype `success` or `error_during_execution`, result text, usage, `num_turns`,
   `permission_denials`).
-- **Every run emits a `rate_limit_event`** with `status` (`allowed`), `resetsAt`, `rateLimitType`
+- **Every run emits a `rate_limit_event`** whose payload nests under a `rate_limit_info` object
+  (measured on 2.1.215): `status` (`allowed`), `resetsAt` (unix seconds), `rateLimitType`
   (`five_hour`), and overage status. No numeric headroom, but the reset clock and status come free
   on each spawn.
 - **`--resume` keeps the session id stable** across any number of resumes; context carries over.

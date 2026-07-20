@@ -10,10 +10,11 @@ group; `stack generate` regenerates the barrel that wires them into the router.
 | ------------ | ----------------------------------------------------------------------------- |
 | `board.get`  | Returns the full `Board` snapshot (epics, stories, invalid files).            |
 | `story.move` | Re-reads the story from disk (the snapshot only resolves id → path), validates the transition with `canTransition`, writes the new status, and returns `{ gating }`; the `board` channel's snapshot is the authority. Serialized through a per-repo write queue. A move into `ready` runs the ready gate: an incomplete brief is refused, a valid recorded `gate` verdict (frontmatter hash matches the brief body) writes `ready` for free, and a `refining` story otherwise enqueues a cold adversary pass on the dispatcher and returns `gating: true` with the card unchanged; the round then streams on the `gate` channel. A move into `running` is always refused: stories enter `running` through `run.start` alone. |
-| `run.start` | Starts an implementation run on a Ready story: validates `ready → running` plus gate freshness (a stale verdict is refused), converges the story's branch + worktree, spawns the run session under the story's permission preset with the brief as its prompt, and writes `status: running` with a new `runs` entry once `system/init` lands. An invalid `.helm/permissions.json` refuses the start (`INVALID_FILE`) before any spawn. Returns `{ sessionId }`; the run streams on the `session` channel and the close path flips the card to Review or Blocked. One run per story at a time (`RUN_ACTIVE` while one is live). |
+| `run.start` | Starts an implementation run on a Ready story: validates `ready → running` plus gate freshness (a stale verdict is refused), then dispatches through the serial run queue. With the slot free it converges the story's branch + worktree, spawns the run session under the story's permission preset with the brief as its prompt, writes `status: running` with a new `runs` entry once `system/init` lands, and returns `{ sessionId }`; with the slot held it returns `{ queued: true }` at once and the run spawns when the slot frees (fresh starts in start-request order). The dequeue re-runs validation: a story that went stale while waiting, or a dequeue-time spawn failure, is skipped with a `"run-skipped"` board notice and the queue advances. An invalid `.helm/permissions.json` refuses the start (`INVALID_FILE`) before any spawn. The run streams on the `session` channel and the close path flips the card to Review or Blocked. One run per story at a time (`RUN_ACTIVE` while one is live or queued); the run holds the queue slot from spawn to process close, so a paused or asking story holds none. |
 | `run.permission` | Resolves a held permission prompt from a supervised (Guarded/Manual) run by id: approve returns the CLI its allow verdict with the exact recorded input, deny blocks the call with "denied from the board". The pending set travels on the `proposal` channel snapshot (`permissions`); an unknown id is `NOT_FOUND` (the set is in-memory, so a restart clears it with the run it belonged to). |
-| `run.answer` | Answers a needs-input card: requires status `needs-input` and an open run entry carrying a `question`. Waits out the asking process's teardown (bounded at 60s, then `RUN_ACTIVE`), claims the story's single run slot, re-converges the worktree, and resumes the entry's session with the answer under a freshly computed preset allowlist; on `system/init` one queued write flips to `running` and deletes the question. Returns `{ sessionId }`; the finished resume closes through the normal run path with usage summed onto the same entry. |
-| `run.steer` | Steers a running story: kills the live process group (a paused run has none to kill), waits out the teardown (bounded at 60s, then `RUN_ACTIVE`), claims the run slot, and resumes the open entry's session with a prompt stating the interruption plus the message. An absent message is the Resume button: the server substitutes "Continue the run." so a bare resume still carries the notice. The init write re-checks `running` with an open, question-free entry and deletes `paused` when set; an aborted write means the user's move (or a racing `ask_user`) won and rejects `ILLEGAL_TRANSITION`. Returns `{ sessionId }`; usage keeps summing onto the same entry. |
+| `run.answer` | Answers a needs-input card: requires status `needs-input` and an open run entry carrying a `question` (validated up front on a fresh read). Enqueues at the queue's front (a continuation precedes waiting fresh starts) and tolerates its own story's segment: the asking process's teardown holds the slot until close, then the resume re-converges the worktree and resumes the entry's session with the answer under a freshly computed preset allowlist; on `system/init` one queued write flips to `running` and deletes the question. Returns the same `{ sessionId } \| { queued: true }` union as start; the finished resume closes through the normal run path with usage summed onto the same entry. |
+| `run.steer` | Steers a running story: front-enqueues the resume, then kills the live process group (a paused run has none to kill) — enqueue-then-kill, so the freed slot cannot fall to a waiting fresh start. The resume waits for the killed segment's close (the bounded 60s teardown wait stays as the `RUN_ACTIVE` backstop) and resumes the open entry's session with a prompt stating the interruption plus the message. An absent message is the Resume button: the server substitutes "Continue the run." so a bare resume still carries the notice. The init write re-checks `running` with an open, question-free entry and deletes `paused` when set; an aborted write means the user's move (or a racing `ask_user`) won and rejects `ILLEGAL_TRANSITION`. Returns the same union as start; usage keeps summing onto the same entry. |
+| `run.dequeue` | Cancels the story's queued run entry: the entry never runs and leaves the header occupancy. Kind-scoped to run entries — a queued gate round for the same story is out of reach — and never touches a running slot (stop and pause own the live process). `NOT_FOUND` when the story has no queued run. |
 | `run.pause` | Pauses a running story with a live process: kills the group and returns once the open entry's `paused: true` write landed ([board-storage](./board-storage.md) §Story file). The card stays `running` with no process; a story that is not `running` rejects `ILLEGAL_TRANSITION`, an already-paused one `NOT_FOUND`. A teardown failure or a racing `ask_user` wins over the pause (the entry closes blocked, or lands the question, instead). Resume is a bare `run.steer`. |
 | `run.stop` | Stops a running or needs-input story: closes the open entry `outcome: blocked` with `error: "stopped by the user"` and parks the card Blocked. A live process is killed and closed through the run's close path (a clean completion observed before the kill still wins and lands in Review; a teardown failure also wins, over stop like every other intent). Stop is checked before the question segment-end, so it still parks the card over a racing `ask_user`; a paused or torn-down needs-input story closes with one direct write. A pending question stays on the entry as record. |
 | `story.setPreset` | Writes the story's permission preset (`guarded`/`auto`/`manual`) through the write queue; legal at any status because the preset is read once at spawn, so a change during a live run takes effect on the next attempt. |
@@ -29,14 +30,16 @@ group; `stack generate` regenerates the barrel that wires them into the router.
 
 ## WS protocol
 
-Four channels live in `src/shared/channels.ts`. `board` carries two server messages:
+Five channels live in `src/shared/channels.ts`. `board` carries two server messages:
 
 - `snapshot` — the full `Board`. Sent on every (re)subscribe and rebroadcast on any change, with a
   trailing 100ms debounce. The client applies it wholesale (with a pending-move overlay, below), so
   a missed one is irrelevant: the next supersedes it. `board.get` and `onSubscribe` serve the same
   `watcher.snapshot()`, so RPC and WS snapshots agree by construction.
-- `notice` — `{ kind: "illegal-transition" | "watch-error", message }`, for reasons a snapshot
-  cannot carry (a toast). An illegal hand edit is still applied (files are the truth) and reported.
+- `notice` — `{ kind: "illegal-transition" | "watch-error" | "run-skipped", message }`, for reasons
+  a snapshot cannot carry (a toast). An illegal hand edit is still applied (files are the truth)
+  and reported; a `run-skipped` notice is a queued run dropped at dequeue (stale story, or a
+  spawn failure).
 
 There are no per-entity deltas: every change rebroadcasts the whole board. Mutations never travel
 over WS; a client calls a procedure (`story.move`) and observes the resulting snapshot.
@@ -70,6 +73,15 @@ permissions:
   the durable outcome is the story's `gate` frontmatter block. Flag resolutions travel over RPC
   (`gate.resolveFlag`).
 
+`meter` carries the dispatcher queue and the rate-limit meter:
+
+- `snapshot`: `{ queue, windows, tokens }` — the queue occupancy (`cap`, running and queued entries
+  as `{ kind, storyId? }` metas in order), the latest rate-limit info per window type from every
+  session's `rate_limit_event` (`status`, `resetsAt` in unix seconds), and the lower-bound token
+  sums (`fiveHour` since the window start, `week` trailing 7 days). Sent on every (re)subscribe
+  and on every queue or meter change, with a trailing 100ms debounce. State is in-memory only;
+  a restart clears it. Display only: `run.dequeue` travels over RPC.
+
 Optimistic moves carry a **pending-move overlay** on the client: `moveStory` records `id → target`
 and every incoming snapshot is applied with pending statuses overlaid, so a snapshot the watcher
 built before the write (it trails disk by the ~250ms `awaitWriteFinish` window) cannot bounce the
@@ -89,7 +101,7 @@ Registry:
 | `ILLEGAL_TRANSITION` | `canTransition` rejected the move (HTTP 409).  | `{ from, to, reason }`  |
 | `INVALID_FILE`       | The story file on disk is malformed at write time — a hand edit broke it (HTTP 409). | none |
 | `SPAWN_FAILED`       | The `claude` process exited before `system/init`, or a run spawn missed it within the init timeout. | none |
-| `RUN_ACTIVE`         | `run.start` on a story whose run process is still live (HTTP 409). | none |
+| `RUN_ACTIVE`         | Any run path on a story with a queued run entry, or `run.start` (fresh starts only) on one whose run process is still live (HTTP 409). | none |
 | `RUN_FAILED`         | A run's worktree/branch convergence failed (git error, or the branch already carries `.helm/` changes). | none |
 | `SESSION_BUSY`       | The session is mid-turn; kill it before steering (HTTP 409). | none |
 | `SESSION_COLD`       | The kind's context policy is always-cold, so the session never resumes (HTTP 409). | none |
