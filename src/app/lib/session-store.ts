@@ -9,7 +9,11 @@ import type {
 	Question,
 	ResearchState,
 } from "../../server/mcp/schemas.ts";
-import type { SessionClosed, SessionWireEvent } from "../../sessions/events.ts";
+import {
+	parseCompactBoundary,
+	type SessionClosed,
+	type SessionWireEvent,
+} from "../../sessions/events.ts";
 import { proposalChannel, sessionChannel } from "../../shared/channels.ts";
 import { api } from "./api.ts";
 import {
@@ -26,6 +30,9 @@ import { wsClient } from "./ws.ts";
 export type ChatItem =
 	| { type: "user"; text: string }
 	| { type: "assistant"; text: string; done: boolean }
+	// A mid-turn auto-compaction boundary; rendered by the run timeline only
+	// (the chat panes have no matching case).
+	| { type: "compact"; trigger: string; preTokens: number; postTokens: number }
 	| {
 			type: "tool";
 			toolUseId: string;
@@ -219,10 +226,18 @@ function handleUserEvent(sessionId: string, event: SessionWireEvent): void {
 	});
 }
 
+function handleSystemEvent(sessionId: string, event: SessionWireEvent): void {
+	const boundary = parseCompactBoundary(event.event);
+	if (boundary === undefined) return;
+	editItems(sessionId, (items) => {
+		items.push({ type: "compact", ...boundary });
+	});
+}
+
 function finalizeChat(sessionId: string): void {
 	editItems(sessionId, (items) => {
 		for (const item of items) {
-			if (item.type !== "user") item.done = true;
+			if (item.type === "assistant" || item.type === "tool") item.done = true;
 		}
 	});
 }
@@ -236,6 +251,7 @@ function handleWireEvent(wire: SessionWireEvent): void {
 	if (type === "stream_event") handleStreamEvent(sessionId, wire);
 	else if (type === "assistant") handleAssistantEvent(sessionId, wire);
 	else if (type === "user") handleUserEvent(sessionId, wire);
+	else if (type === "system") handleSystemEvent(sessionId, wire);
 	else if (type === "result") finalizeChat(sessionId);
 }
 

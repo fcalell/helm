@@ -5,6 +5,7 @@ import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { createEffect, createSignal, For, Match, Show, Switch } from "solid-js";
 import { briefHash } from "../../board/hash.ts";
 import type { Run, Story } from "../../board/schema.ts";
+import { formatTokens } from "../lib/format.ts";
 import {
 	type ChatItem,
 	chatFor,
@@ -98,6 +99,14 @@ function TimelineItem(props: { item: ChatItem }) {
 			</Match>
 			<Match when={asType(props.item, "tool")}>
 				{(item) => <ToolActivity item={item()} />}
+			</Match>
+			<Match when={asType(props.item, "compact")}>
+				{(item) => (
+					<p class="text-xs text-muted-foreground">
+						context compacted ({item().trigger}) ·{" "}
+						{formatTokens(item().preTokens)} → {formatTokens(item().postTokens)}
+					</p>
+				)}
 			</Match>
 		</Switch>
 	);

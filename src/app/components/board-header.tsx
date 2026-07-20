@@ -12,6 +12,7 @@ import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
 import { createResource, createSignal, Show } from "solid-js";
 import { api } from "../lib/api.ts";
 import { boardStore, sortedShaping } from "../lib/board-store.ts";
+import { formatTokens } from "../lib/format.ts";
 import { meterStore } from "../lib/meter-store.ts";
 import { dequeueRun, spawnShapeSession } from "../lib/session-store.ts";
 import type { ShapingTarget } from "./shaping-drawer.tsx";
@@ -97,12 +98,6 @@ function ShapeEntry(props: { onOpenShaping: (target: ShapingTarget) => void }) {
 			</Dialog>
 		</>
 	);
-}
-
-function formatTokens(tokens: number): string {
-	if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
-	if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k`;
-	return String(tokens);
 }
 
 function formatReset(resetsAt: number): string {

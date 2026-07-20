@@ -118,6 +118,38 @@ export function parseRateLimitEvent(
 	};
 }
 
+// A mid-turn auto-compaction's `system/compact_boundary` event (measured on
+// 2.1.215): `compact_metadata` carries the trigger and the pre/post token
+// counts the timeline marker shows.
+const compactBoundarySchema = z.looseObject({
+	type: z.literal("system"),
+	subtype: z.literal("compact_boundary"),
+	compact_metadata: z.looseObject({
+		trigger: z.string(),
+		pre_tokens: z.number(),
+		post_tokens: z.number(),
+	}),
+});
+
+export interface CompactBoundary {
+	trigger: string;
+	preTokens: number;
+	postTokens: number;
+}
+
+export function parseCompactBoundary(
+	event: SessionEvent,
+): CompactBoundary | undefined {
+	const parsed = compactBoundarySchema.safeParse(event);
+	if (!parsed.success) return undefined;
+	const meta = parsed.data.compact_metadata;
+	return {
+		trigger: meta.trigger,
+		preTokens: meta.pre_tokens,
+		postTokens: meta.post_tokens,
+	};
+}
+
 // WS envelopes: one `event` per parsed CLI event, one `closed` when the
 // process exits. `sessionId` is absent only before `system/init` announces
 // it (or when a stale resume dies without one).
