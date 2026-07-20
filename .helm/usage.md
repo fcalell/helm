@@ -180,3 +180,32 @@ follow-up repeated the tier-switch price pattern: $1.61, almost all reseeding th
 transcript at Sonnet's write rate. Loop total $31.97 against 002-02's $73.59 and 002-01's $122.44.
 Weighted pool draw (fresh + output + 2% of cache reads, the est calibration): Fable ~551k against
 002-02's ~1.06M; Opus/Sonnet ~910k against ~2.79M.
+
+## 002-04 Run queue & rate-limit meter (2026-07-20)
+
+| Session                          | Model / effort  | Fresh input   | Output      | Cache reads    | Modeled cost |
+| -------------------------------- | --------------- | ------------- | ----------- | -------------- | ------------ |
+| Adversary passes (3, all cold)   | Opus / high     | 329,645       | 82,512      | 1,695,867      | $6.21        |
+| Run 1: implementation            | Fable / medium  | 245,569       | 82,675      | 19,164,043     | $28.20       |
+| Review: spec axis                | Sonnet / high   | 91,192        | 42,075      | 3,064,550      | $2.10        |
+| Review: standards axis           | Sonnet / high   | 90,761        | 32,131      | 3,184,831      | $1.98        |
+| Run 1 follow-up: race fix-up     | Fable / high    | 246,729       | 12,198      | 3,637,849      | $9.18        |
+| **Total**                        |                 | **1,003,896** | **251,591** | **30,747,140** | **$47.67**   |
+
+Second loop on the sized-slice lever: a ~11KB single-story brief converged in three all-cold Opus
+passes (four on 002-03, twelve on the 002-02 monolith) at the same ~$2 per pass; the gate line fell
+again, $7.17 to $6.21, with seven real spec flaws fixed across two rounds and zero dismissals. The
+run was this epic's heaviest so far ($28.20, 19.2M cache reads over 21 minutes): the brief spans
+dispatcher, runs service, meter service, channel, and header, and the run verified eight of ten
+criteria live against a scratch orchestrator, including the front-enqueued steer beating waiting
+fresh starts and the nested rate_limit_info parse. Both cold reviews independently converged on
+the same real enqueue-time RUN_ACTIVE race the run's report had claimed closed, which validates
+the two-axis review shape; the payload graded as an unmet-criterion letter, so the follow-up
+routed to Fable at high per the outcome tiers, and its price shows the escalation cost the routing
+rule prices in: $9.18, of which ~247k fresh input is the 21-minute transcript reseeding at Fable's
+write rate on the effort switch (against $1.61 for 002-03's Sonnet-medium cosmetic round). The fix
+was race-verified live with concurrent double-calls. Loop total $47.67 against 002-03's $31.97,
+002-02's $73.59, and 002-01's $122.44; the delta over 002-03 is the run's genuine size plus the
+high-tier follow-up, not gate drift. Weighted pool draw (fresh + output + 2% of cache reads, held
+as bounds per the failed alpha re-fit): Fable ~1.04M; Opus/Sonnet ~827k. The orchestration session
+(Fable) again ran refinement inline and stays unledgered.
