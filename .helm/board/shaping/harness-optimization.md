@@ -32,9 +32,14 @@ split was $44.54 Fable against $29.05 Opus/Sonnet, and Anthropic sizes the Fable
 Opus one. The three facts reconcile only when pool draw ≈ fresh input + output + ~2% of cache reads
 (α in 0.015–0.03 under the readings' rounding). So dollars overweight cache-heavy stages even
 inside one loop: the run "cost" 1.9× the gate in dollars yet drew the same fraction of its pool.
-Pool spend is effectively fresh-plus-output volume, which is iteration count and cold re-reads, not
-context length. Single-loop estimate from one-digit meter readings; re-fit on the next loop's
-before/after readings before hardening it into a rule.
+The 002-03 re-fit **failed to confirm the point estimate**: that loop's shared-pool volume was
+~40-44% of 002-02's on every component yet the meter read ~80% as much (~4% against ~5%), which no
+single α reproduces; a lone-loop fit would need α ≈ 17% or a half-size cap. The readings were
+one-digit and taken under concurrent external use on both pools (a parallel interactive session,
+plus the orchestration session's own unledgered Fable draw), so α is unidentified, not merely
+imprecise. Hold pool draw as a bounds statement, fresh + output at minimum with cache reads
+weighted somewhere in 0–20%, never a point estimate. Two things survive any α: dollars overweight
+cache-heavy stages, and cutting iterations cuts every component at once.
 
 Three facts order the levers:
 
@@ -44,15 +49,14 @@ Three facts order the levers:
    `measured`. Cache-read was ~90% of run cost. Refine's cost was dominated the same way at one
    remove: ~78% of the chat went to re-answering the 12 gate rounds rather than building the brief,
    and 84% of its cache-reads fell in that gate-answering (each round re-reads the accumulated
-   transcript). Long context is expensive even at a cheap tier. Calibration caveat `est`: cache
-   reads bill ~2% into the pool (cost-unit paragraph above), so this fact governs modeled dollars
-   and latency, not pool survival; the pool-side face of the same stages is their fresh-input and
-   output volume.
+   transcript). Long context is expensive even at a cheap tier. Calibration caveat `est`: the
+   cache-read pool weight is unidentified after the 002-03 re-fit (cost-unit paragraph above), so
+   whether this fact reaches pool survival or only modeled dollars and latency is open; the
+   fresh-input and output volume of the same stages draws the pool under every candidate fit.
 3. **Pools are separate and capped** `measured`. Two pools, both confirmed: Fable draws its own (it
    capped out while the others ran), and Sonnet and Opus share the second. Anthropic sizes the Fable
-   cap at 50% of the Opus/Sonnet one; under the α≈0.02 weighting, 002-02's readings imply ~23M
-   weighted tokens per window for Fable and ~46M for Opus/Sonnet `est`, about twenty such loops per
-   window per pool. Spend is bounded per pool,
+   cap at 50% of the Opus/Sonnet one; the ~23M/~46M weighted-token window sizes the α≈0.02 fit
+   implied are unconfirmed after the 002-03 re-fit and carry its uncertainty `est`. Spend is bounded per pool,
    so spreading burn across pools matters as much as reducing it. Because the gate's adversary (Opus)
    and the Sonnet stages (research, review) draw the same bucket, the fallback must not assume a spare
    Opus pool is large or free of the Sonnet load already on it.
@@ -153,6 +157,12 @@ principle, not a build item).
   not unconditionally.
 - **Measurement is the meta-lever** `live`. The per-stage usage ledger keeps the matrix evidence-fed.
   Every stage records cost, tokens, and rounds, so the levers get pulled on evidence, not intuition.
+  The pool-unit re-fit exposed two limits. One-digit meter deltas read across loops under
+  concurrent external use cannot identify the pool weighting: a calibration loop needs quiet
+  pools, exact before/after meter values, and the window's reset clock (`rate_limit_event`
+  already reports it) so the reading's window is known. And the orchestration session is a blind
+  spot: excluding it keeps the dollar ledger honest, but its Fable-pool draw is real,
+  loop-length, and never recorded, so per-pool attribution undercounts Fable by construction.
 
 ## Ranked leverage
 
@@ -165,10 +175,10 @@ moves the objective," then discount by what is already `live`.
 1. **Story sizing**: cuts the gate/refine lines by a bounded constant factor (removes the coupled-
    surface round penalty), but conserved on run/review, so a net win only while the gate dominates.
 2. **Iteration reduction on gates**: depth-per-pass, warm iteration, convergence automation.
-3. **Context and cache discipline**: length is the hidden 80-90% of *modeled* cost; on the pool
-   axis it demotes `est` (cache reads bill ~2%), so this lever buys dollars and latency while
-   levers 1 and 2, which cut fresh input and output, are what defend the caps. Re-rank once the
-   α fit survives a second loop.
+3. **Context and cache discipline**: length is the hidden 80-90% of *modeled* cost; its pool-axis
+   standing is open (the α≈0.02 fit that demoted it did not survive the 002-03 re-fit), so treat
+   the lever as certain on dollars and latency and undetermined on cap survival, where levers 1
+   and 2, which cut fresh input and output, defend the caps under every candidate fit.
 4. **Verification placement**: buys cheaper upstream tiers, when the gate itself converges cheaply.
 5. **Tier, effort, and prompt fit per kind**: the matrix.
 6. **Deterministic-over-agentic automation**: never spawn for what code settles.
