@@ -107,9 +107,11 @@ export function serializeStory(
 	frontmatter: StoryFrontmatter,
 	body: string,
 ): string {
-	const { id, status, depends, branch, gate, sessions, runs } = frontmatter;
+	const { id, status, depends, branch, preset, gate, sessions, runs } =
+		frontmatter;
 	const ordered: Record<string, unknown> = { id, status, depends };
 	if (branch !== undefined) ordered.branch = branch;
+	if (preset !== undefined) ordered.preset = preset;
 	if (gate !== undefined) ordered.gate = gate;
 	ordered.sessions = sessions;
 	ordered.runs = runs;

@@ -22,12 +22,28 @@ export const epicIdSchema = z
 	.string()
 	.regex(/^\d{3}$/, "epic ids are zero-padded three-digit ordinals");
 
+// A run preset shapes the spawn's tool allowlist; an absent field means
+// Guarded, so existing cards keep parsing without migration.
+export const PRESETS = ["guarded", "auto", "manual"] as const;
+export const presetSchema = z.enum(PRESETS);
+export type Preset = z.infer<typeof presetSchema>;
+
+// A pending ask_user question, stored on the open run entry so it survives
+// an orchestrator restart; the answer resumes the session and deletes it.
+export const runQuestionSchema = z.strictObject({
+	text: z.string(),
+	recommendation: z.string(),
+	options: z.array(z.string()).optional(),
+});
+export type RunQuestion = z.infer<typeof runQuestionSchema>;
+
 export const runSchema = z.strictObject({
 	n: z.number().int().positive(),
 	session: z.uuid(),
 	brief: z.string(),
 	started: z.iso.datetime(),
 	outcome: z.enum(["review", "blocked"]).optional(),
+	question: runQuestionSchema.optional(),
 	grades: z
 		.string()
 		.regex(/^\d+\/\d+$/)
@@ -53,6 +69,7 @@ export const storyFrontmatterSchema = z.strictObject({
 		.string()
 		.regex(/^[^-]/, "branch name must not start with -")
 		.optional(),
+	preset: presetSchema.optional(),
 	gate: gateSchema.optional(),
 	sessions: z.strictObject({ refine: z.uuid().optional() }).default({}),
 	runs: z.array(runSchema).default([]),
