@@ -19,6 +19,7 @@ import {
 } from "../../board/store.ts";
 import {
 	parseResultEvent,
+	type SessionEvent,
 	type SessionInit,
 	type SessionResult,
 } from "../../sessions/events.ts";
@@ -72,6 +73,22 @@ export function onSessionClosed(
 	listener: (info: { sessionId?: string; stale: boolean }) => void,
 ): void {
 	closedListeners.add(listener);
+}
+
+export interface SessionEventInfo {
+	kind: SessionKind;
+	sessionId?: string;
+	event: SessionEvent;
+}
+
+const eventListeners = new Set<(info: SessionEventInfo) => void>();
+
+// The meter service subscribes: every kind's stream flows through, runs
+// included.
+export function onSessionEvent(
+	listener: (info: SessionEventInfo) => void,
+): void {
+	eventListeners.add(listener);
 }
 
 export function isSessionLive(sessionId: string): boolean {
@@ -278,6 +295,9 @@ function spawnTracked(options: {
 					result = parseResultEvent(event) ?? result;
 				}
 				handle?.broadcast("event", { runId, kind, sessionId, event });
+				for (const listener of eventListeners) {
+					listener({ kind, sessionId, event });
+				}
 			},
 		});
 	} catch (error) {

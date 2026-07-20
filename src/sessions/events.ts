@@ -87,6 +87,37 @@ export function parseResultEvent(
 	};
 }
 
+// The CLI's `rate_limit_event`: the payload nests under `rate_limit_info`
+// (measured on 2.1.215), with `resetsAt` in unix seconds and `rateLimitType`
+// naming the window (`five_hour` observed).
+const rateLimitEventSchema = z.looseObject({
+	type: z.literal("rate_limit_event"),
+	rate_limit_info: z.looseObject({
+		status: z.string(),
+		resetsAt: z.number(),
+		rateLimitType: z.string(),
+	}),
+});
+
+export interface RateLimitInfo {
+	status: string;
+	resetsAt: number;
+	windowType: string;
+}
+
+export function parseRateLimitEvent(
+	event: SessionEvent,
+): RateLimitInfo | undefined {
+	const parsed = rateLimitEventSchema.safeParse(event);
+	if (!parsed.success) return undefined;
+	const info = parsed.data.rate_limit_info;
+	return {
+		status: info.status,
+		resetsAt: info.resetsAt,
+		windowType: info.rateLimitType,
+	};
+}
+
 // WS envelopes: one `event` per parsed CLI event, one `closed` when the
 // process exits. `sessionId` is absent only before `system/init` announces
 // it (or when a stale resume dies without one).

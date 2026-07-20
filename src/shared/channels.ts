@@ -6,6 +6,7 @@ import {
 	sessionWireEventSchema,
 } from "../sessions/events.ts";
 import { gateSnapshotSchema } from "./gate.ts";
+import { meterSnapshotSchema } from "./meter.ts";
 
 // The board channel: the server sends a full board snapshot on every
 // (re)subscribe and on every change, plus `notice` toasts for reasons a
@@ -45,5 +46,14 @@ export const proposalChannel = defineChannel("proposal", {
 // RPC.
 export const gateChannel = defineChannel("gate", {
 	server: { snapshot: gateSnapshotSchema },
+	client: {},
+});
+
+// The meter channel: dispatcher queue occupancy plus the rate-limit meter,
+// sent as a full snapshot on every (re)subscribe and on every queue or meter
+// change (100ms debounce, the board pattern). Display only; `run.dequeue`
+// travels over RPC.
+export const meterChannel = defineChannel("meter", {
+	server: { snapshot: meterSnapshotSchema },
 	client: {},
 });

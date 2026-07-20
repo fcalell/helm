@@ -2,8 +2,9 @@
 import board from "./board.ts";
 import gate from "./gate.ts";
 import mcp from "./mcp.ts";
+import meter from "./meter.ts";
 import proposals from "./proposals.ts";
 import runs from "./runs.ts";
 import sessions from "./sessions.ts";
 
-export const services = [board, gate, mcp, proposals, runs, sessions];
+export const services = [board, gate, mcp, meter, proposals, runs, sessions];
