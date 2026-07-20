@@ -131,3 +131,27 @@ brief fixes and recorded two overrides. The build side stayed cheap: the run fin
 minutes and 144 turns with all ten criteria verified live against a scratch repo, the four nested
 rows are its tiny Auto runs driving the review, blocked, kill, and reconciliation paths, and the
 standards-only follow-up held the Sonnet-medium price at $0.86 for a ten-item payload.
+
+## 002-02 Permission presets & needs-input (2026-07-20)
+
+| Session                              | Model / effort  | Fresh input   | Output      | Cache reads    | Modeled cost |
+| ------------------------------------ | --------------- | ------------- | ----------- | -------------- | ------------ |
+| Adversary passes (12: 1 warm + 11 cold) | Opus / high  | 1,202,108     | 346,746     | 6,412,018      | $23.95       |
+| Run 1: implementation                | Fable / medium  | 289,720       | 106,674     | 33,411,977     | $44.54       |
+| Review: spec axis                    | Sonnet / high   | 62,577        | 12,225      | 1,450,595      | $1.00        |
+| Review: standards axis               | Sonnet / high   | 88,013        | 26,529      | 4,406,785      | $2.25        |
+| Run 1 follow-up: review fix-up       | Sonnet / medium | 238,877       | 1,085       | 1,337,596      | $1.85        |
+| **Total**                            |                 | **1,881,295** | **493,259** | **47,018,971** | **$73.59**   |
+
+The first Opus gate end-to-end (the matrix's experiment 2) and the first warm-middle attempt:
+refinement ran inside the orchestration session (excluded as unreadable, the epic-1 pattern), so
+the gate line is the adversary alone. Twelve passes to a clean cold verdict against 002-01's
+fifteen at Fable, at ~$2 per pass against ~$3.50, cutting the adversary line $52.54 → $23.95 with
+twelve real flaws fixed and zero dismissals; the warm resume verified fixes for $1.12 against a
+~$2 cold read, but the sign-off chain stayed cold by design, so warm-the-middle saved only the one
+iterative round this gate happened to have. The run implemented all six brief surfaces in 32
+minutes with eight of ten criteria verified live against the real orchestrator on a scratch repo
+(the two UI-interaction checks stay by-hand), and its spike settled the held-approval question:
+no server-side ceiling exists, so the planned stack timeout work was never needed. The
+standards-only follow-up's $1.85 is almost entirely the Sonnet tier-switch reseeding the run's
+239k-token transcript, the priced-in cost session-kinds.md records for outcome-routed follow-ups.
