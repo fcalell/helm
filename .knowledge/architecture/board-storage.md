@@ -169,5 +169,6 @@ Worktrees are created with a sparse checkout that excludes the board state (`.he
 branch never carries board changes, so story files can't conflict at
 rebase or merge and ephemeral state (a `running` status) never enters git history through a run. The
 rest of `.helm/` stays in the worktree, so a run still loads the repo's Helm rules through the root
-`CLAUDE.md` import. The run reads its brief from the prompt and updates its card through board tools
-(§Mutation rules).
+`CLAUDE.md` import. The run reads its brief from the system-prompt seed
+([claude-integration](./claude-integration.md) §Context management) and updates its card through
+board tools (§Mutation rules).

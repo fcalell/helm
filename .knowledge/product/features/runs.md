@@ -2,8 +2,9 @@
 
 A **run** is one headless Claude Code execution of a Ready story. One tap on a Ready card creates a
 git worktree + branch (`helm/<epic>-<story>-<slug>`), then spawns the session with the story's
-brief as the prompt and the story's permission preset attached. Everything a run needs is in the
-brief; a run that has to ask basic scoping questions is a refinement failure, not a run problem.
+brief as its system-prompt seed and the story's permission preset attached. Everything a run needs
+is in the brief; a run that has to ask basic scoping questions is a refinement failure, not a run
+problem.
 
 The brief is **snapshotted at spawn**: the run entry records the brief-body hash
 ([board-storage](../../architecture/board-storage.md) §Story file), the snapshot rides every

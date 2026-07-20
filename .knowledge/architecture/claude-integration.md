@@ -96,7 +96,7 @@ The orchestrator hardens the native mechanism instead of driving its own:
   a run. The CLI owns the trigger; no orchestrator watching, no threshold constant.
 - The brief rides every segment's system prompt through `--append-system-prompt`, built from the
   spawn snapshot file, so the contract structurally survives summarization and a mid-run hand edit
-  never rewrites it ([runs](../product/features/runs.md) §The brief is snapshotted at spawn). The
+  never rewrites it ([runs](../product/features/runs.md)). The
   flag rides resumes too, and a resumed session reads it (measured: a marker appended on resume was
   acknowledged); a byte-identical seed across segments keeps the prompt-cache prefix stable.
 - The boundary event broadcasts like any other session event and lands on the run's activity

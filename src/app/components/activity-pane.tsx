@@ -103,7 +103,7 @@ function TimelineItem(props: { item: ChatItem }) {
 			<Match when={asType(props.item, "compact")}>
 				{(item) => (
 					<p class="text-xs text-muted-foreground">
-						context compacted ({item().trigger}) ·{" "}
+						Context compacted ({item().trigger}) ·{" "}
 						{formatTokens(item().preTokens)} → {formatTokens(item().postTokens)}
 					</p>
 				)}
