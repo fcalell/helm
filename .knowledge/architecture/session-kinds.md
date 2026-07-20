@@ -90,7 +90,7 @@ and Fable at medium still clears every Opus setting on the published curves — 
 it the obvious extension of the same argument, and a miss is caught by review rather than shipped
 unchecked). When quality disappoints, the tune-up order is the medium cells first; `run` also
 escalates itself on evidence of failure (below). One cost to watch: long-run thinking fills the
-context window sooner, so it raises compaction pressure, the least-verified mechanic
+context window sooner, so it raises compaction pressure
 ([claude-integration](./claude-integration.md) §Context management).
 
 **`run`'s follow-up tier follows the review outcome.** The registry cell (medium) is every first
@@ -131,8 +131,9 @@ Three policies cover every kind:
   and reads the finished artifact with no chat history, which is the point of the adversary pass: a
   cold reader catches what the author and the refine chat talked themselves past.
 - **compact under pressure** (`run`). A run is the one session long enough to exhaust its context
-  window mid-task. Near the limit the orchestrator compacts it: progress is summarized and the
-  session resumes with that summary plus the brief reloaded, so the contract survives
+  window mid-task. The CLI auto-compacts it mid-turn, same process and same session id; the
+  orchestrator forces the setting on per spawn and carries the brief in every segment's system
+  prompt, so the contract survives summarization
   ([claude-integration](./claude-integration.md) §Context management).
 
 ## Interaction

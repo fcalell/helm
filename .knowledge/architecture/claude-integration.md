@@ -76,17 +76,37 @@ side effects may have partially landed, so the steering message states the inter
 
 ## Context management
 
-Model and context are set per session kind ([session-kinds](./session-kinds.md)). Two mechanics
-live at the CLI boundary. Chats reseed: a resume that fails because the transcript was cleaned up
-starts a fresh session seeded from the card (§Invocation model). Runs compact: a headless process
-has no interactive `/compact`, so the orchestrator watches window usage from the `assistant` and
-`result` event totals and, near the limit, ends the turn and writes a **handoff**: the run squeezed
-to its resumable core (what is in flight and why, and what is left to do), referencing the brief,
-the diff, and settled decisions by path instead of restating them, with secrets redacted. The run
-resumes from that handoff plus the brief reloaded from its spawn snapshot (a mid-run hand edit
-never rewrites the contract, [runs](../product/features/runs.md)), and is told its earlier tool
-output was summarized, the same caution a steering resume carries (§Invocation model). Compaction is
-designed, not yet spike-verified: re-verify the CLI's headless context behavior before building it.
+Model and context are set per session kind ([session-kinds](./session-kinds.md)). Chats reseed: a
+resume that fails because the transcript was cleaned up starts a fresh session seeded from the card
+(§Invocation model). Runs compact natively: headless `-p` auto-compacts mid-turn (measured on
+2.1.215 against subscription auth: a probe turn under `CLAUDE_CODE_AUTO_COMPACT_WINDOW=45000`
+compacted three times and finished `success` in one process, the session id stayed stable, and a
+later `--resume` kept post-compact memory). Each compaction emits a `system` event, verbatim
+(object fields trimmed):
+
+```json
+{"type":"system","subtype":"compact_boundary","session_id":"…","compact_metadata":{"trigger":"auto","pre_tokens":66160,"post_tokens":15035,"cumulative_dropped_tokens":51125,"duration_ms":26071,"preserved_segment":{…},"preserved_messages":{…}}}
+```
+
+The orchestrator hardens the native mechanism instead of driving its own:
+
+- Every run segment's per-spawn settings file sets `autoCompactEnabled: true`. Settings precedence
+  is `--settings` > project > user (measured: the same over-threshold task under
+  `{"autoCompactEnabled": false}` emitted zero boundaries), so a user-global disable never starves
+  a run. The CLI owns the trigger; no orchestrator watching, no threshold constant.
+- The brief rides every segment's system prompt through `--append-system-prompt`, built from the
+  spawn snapshot file, so the contract structurally survives summarization and a mid-run hand edit
+  never rewrites it ([runs](../product/features/runs.md) §The brief is snapshotted at spawn). The
+  flag rides resumes too, and a resumed session reads it (measured: a marker appended on resume was
+  acknowledged); a byte-identical seed across segments keeps the prompt-cache prefix stable.
+- The boundary event broadcasts like any other session event and lands on the run's activity
+  timeline as a marker row.
+- An overflow the CLI cannot compact past (docs: one oversized file or tool result; the API error
+  is "Prompt is too long") surfaces as an error result, and the close path parks the card Blocked.
+
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW` shrinks the capacity auto-compact calculates against, so
+compaction is testable end to end without filling a real window. Spawned children inherit it from
+the orchestrator's environment; production hosts never set it.
 
 ## Board tools (in-process MCP)
 

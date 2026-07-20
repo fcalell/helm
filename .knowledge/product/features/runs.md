@@ -6,9 +6,10 @@ brief as the prompt and the story's permission preset attached. Everything a run
 brief; a run that has to ask basic scoping questions is a refinement failure, not a run problem.
 
 The brief is **snapshotted at spawn**: the run entry records the brief-body hash
-([board-storage](../../architecture/board-storage.md) §Story file), compaction reseeds from the
-snapshot ([claude-integration](../../architecture/claude-integration.md) §Context management), and
-review grades against it ([review](./review.md) §Self-grading). Editing the brief mid-run stays
+([board-storage](../../architecture/board-storage.md) §Story file), the snapshot rides every
+segment's system prompt so the contract survives compaction
+([claude-integration](../../architecture/claude-integration.md) §Context management), and review
+grades against it ([review](./review.md) §Self-grading). Editing the brief mid-run stays
 legal, but it surfaces as a notice and takes effect on the next attempt; steering is the way to
 redirect a live run (§Activity timeline & steering).
 
