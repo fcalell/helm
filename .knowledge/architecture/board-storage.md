@@ -80,7 +80,7 @@ preset: auto          # guarded|auto|manual; absent means guarded, the default
 gate: { passed: 2026-07-14T18:03:00Z, brief: <hash>, overrides: ["<flag>: <reason>"] }
 sessions: { refine: <uuid> }
 runs:                 # one entry per implement session; request-changes follow-ups extend it
-  - { n: 1, session: <uuid>, brief: <hash>, started: 2026-07-15T09:12:00Z, outcome: review, grades: 5/6, tokens: 184000, minutes: 22 }
+  - { n: 1, session: <uuid>, brief: <hash>, started: 2026-07-15T09:12:00Z, outcome: review, grades: 5/6, stat: 3 files +42 -7, tokens: 184000, minutes: 22 }
   - { n: 2, session: <uuid>, brief: <hash>, started: 2026-07-16T10:02:00Z, outcome: blocked, error: orchestrator restarted mid-run }
 ---
 # Sync engine
@@ -107,7 +107,8 @@ edit adds after the section re-enters the hash and stales it. A run entry record
 brief hash the run was spawned with (the contract review grades against,
 [runs](../product/features/runs.md)), the outcome with its token/minute totals, the last error
 when the run ended blocked, and, once graded, the self-grade tally the Review card
-shows. One entry spans one implement session: request-changes follow-ups accumulate onto it, and
+shows. A review close also records `stat` (`"N files +A -D"`, the branch's `git diff --shortstat`
+against main after the close's rebase); the Review card face shows it. One entry spans one implement session: request-changes follow-ups accumulate onto it, and
 a new entry starts when discard retires the session
 ([review](../product/features/review.md) §Three exits).
 
@@ -163,7 +164,11 @@ than a card.
 Worktrees live outside the repo working tree, under an orchestrator-owned directory
 (`~/.helm/worktrees/<repo>/<story-id>/`), one per story, created at first run and deleted on
 approve/discard ([review](../product/features/review.md) §Three exits). The story branch is the
-durable artifact; the worktree is disposable.
+durable artifact; the worktree is disposable. Per-story run artifacts sit beside the worktrees in
+the same directory: `<story-id>.brief.md` (the brief's spawn snapshot, seeding every segment,
+[claude-integration](./claude-integration.md) §Context management) and `<story-id>.check.json`
+(the review close's check evidence, `{ command, exitCode, output, finishedAt }` with the output
+tail capped and `exitCode: null` on timeout; absent when no check command is configured).
 
 Worktrees are created with a sparse checkout that excludes the board state (`.helm/board/`): a story
 branch never carries board changes, so story files can't conflict at

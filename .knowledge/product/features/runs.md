@@ -81,7 +81,12 @@ and shows the reset clock, since a send during a limit only burns a failing requ
 
 A finished run commits its work on the story branch (Conventional Commits), reports its outcome
 through the Stop hook backstop ([claude-integration](../../architecture/claude-integration.md)
-§Hooks), and flips the card to Review ([review](./review.md)). A failed/aborted run parks the card
+§Hooks), and flips the card to Review ([review](./review.md)). Before that flip the close rebases
+the story branch onto main (a conflict aborts the rebase and parks the card Blocked with the
+error) and, when the repo configures a check command, runs it in the rebased worktree and stores
+the result as review evidence ([board-storage](../../architecture/board-storage.md) §Worktrees);
+a failing or timed-out check still lands the card in Review, since the check is evidence for the
+reviewer, not a gate. A failed/aborted run parks the card
 in Blocked with the last error surfaced; rate-limit interruptions pause instead (§Queue & rate
 limits). Worktrees live until the story exits Review (merge or discard,
 [board-storage](../../architecture/board-storage.md) §Worktrees).

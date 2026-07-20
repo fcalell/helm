@@ -11,7 +11,9 @@ test commands, so evidence can include real test output) grades each acceptance 
 run's brief snapshot ([runs](./runs.md)): **✓ / ✗ / unclear, each with evidence** (file:line
 references, test or command output). The tally lands on the run's frontmatter entry and shows on
 the card (5/6 ✓). Grades are claims to verify, never auto-approval; a human decides every exit.
-(v2; v1 review is the checklist rendered ungraded + the diff. See [roadmap](../roadmap.md).)
+(v2; v1 review is the checklist rendered ungraded + the diff, with the run's own evidence in
+between: the check command's result captured at close and the run's `verify:` notes naming the
+by-hand checks. See [roadmap](../roadmap.md).)
 
 The checkbox follows the evidence. A criterion the session proves with a test it ran is checked on
 the spot; one graded from code inspection alone, or covered by no automated test, stays unchecked
@@ -37,7 +39,7 @@ by default with a deliberate override. (The standards axis is v2 alongside self-
 spawns no session on either axis. See [roadmap](../roadmap.md).)
 
 Diff tab: per-file, side-by-side, with the criteria checklist pinned above; clicking a criterion's
-evidence jumps to the lines. Before review opens, the story branch is **rebased on the target's
+evidence jumps to the lines (v2, with self-grading). Before review opens, the story branch is **rebased on the target's
 main**; a conflict spawns an agent-assisted conflict-resolution session rather than dumping
 conflict markers on the user. The card stays in Review behind a rebasing indicator while the
 `conflict` session runs through the queue; a resolved rebase refreshes the diff, so the human
