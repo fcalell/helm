@@ -32,6 +32,12 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 	const depends = () => props.story.frontmatter.depends;
 	const isRefining = () => props.story.frontmatter.status === "refining";
 	const gate = () => (isRefining() ? gateFor(props.story.id) : undefined);
+	// The review close's diff stat, shown while the story sits in Review.
+	const reviewStat = () =>
+		props.story.frontmatter.status === "review"
+			? props.story.frontmatter.runs.findLast((run) => run.stat !== undefined)
+					?.stat
+			: undefined;
 
 	return (
 		<>
@@ -63,6 +69,7 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 				<Show when={isRefining() && openQuestions() > 0}>
 					<span>{`${openQuestions()} open questions`}</span>
 				</Show>
+				<Show when={reviewStat()}>{(stat) => <span>{stat()}</span>}</Show>
 			</div>
 		</>
 	);

@@ -18,6 +18,7 @@ import { weakCriterion } from "../lib/criteria.ts";
 import { refineSpawnFor, setStoryPreset } from "../lib/session-store.ts";
 import { ActivityPane } from "./activity-pane.tsx";
 import { ChatPane } from "./chat-pane.tsx";
+import { DiffPane } from "./diff-pane.tsx";
 import { GatePanel } from "./gate-panel.tsx";
 import { RunQuestionPanel } from "./run-question-panel.tsx";
 
@@ -36,7 +37,7 @@ function defaultTab(status: Status): string {
 	return "brief";
 }
 
-function ChecklistSection(props: {
+export function ChecklistSection(props: {
 	items: ChecklistItem[];
 	// Weak-phrasing warnings apply to the criteria checklist alone.
 	warn: boolean;
@@ -251,10 +252,17 @@ export function CardDrawer(props: CardDrawerProps) {
 									value: "diff",
 									label: "Diff",
 									content: (
-										<EmptyState
-											title="Diff"
-											description="Arrives with review"
-										/>
+										<Show
+											when={story.frontmatter.status === "review"}
+											fallback={
+												<EmptyState
+													title="Diff"
+													description="Arrives with review"
+												/>
+											}
+										>
+											<DiffPane story={story} />
+										</Show>
 									),
 								},
 								{
