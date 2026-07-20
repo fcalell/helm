@@ -51,6 +51,9 @@ export const runSchema = z.strictObject({
 		.string()
 		.regex(/^\d+\/\d+$/)
 		.optional(),
+	// "N files +A -D" against main, computed at the review close; the Review
+	// card face shows it.
+	stat: z.string().optional(),
 	tokens: z.number().nonnegative().optional(),
 	minutes: z.number().nonnegative().optional(),
 	error: z.string().optional(),

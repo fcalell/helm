@@ -1,7 +1,9 @@
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { ApiError } from "@fcalell/plugin-api/error";
+import { z } from "@fcalell/plugin-api/schema";
 import { defineService } from "@fcalell/plugin-node/server";
 import { briefHash } from "../../board/hash.ts";
 import type {
@@ -38,8 +40,10 @@ import type { AskUserPayload } from "../mcp/schemas.ts";
 import { autoAllowlist } from "../permissions.ts";
 import { groupAlive, killProcessGroup } from "../process-group.ts";
 import {
+	diffStat,
 	ensureWorktree,
 	helmDiffPaths,
+	rebaseOntoMain,
 	safetyCommit,
 	worktreeExists,
 	worktreePath,
@@ -107,8 +111,80 @@ function settingsFilePath(storyId: string): string {
 
 // The brief's spawn snapshot, written verbatim at every fresh start and read
 // back for each resume's seed; overwritten by the next fresh start.
-function briefFilePath(storyId: string): string {
+export function briefFilePath(storyId: string): string {
 	return join(worktreesDir(managedRepo()), `${storyId}.brief.md`);
+}
+
+// The review close's check evidence, written next to the brief snapshot when
+// the repo configures a check command; review.get serves it to the drawer.
+export function checkFilePath(storyId: string): string {
+	return join(worktreesDir(managedRepo()), `${storyId}.check.json`);
+}
+
+// `exitCode: null` means the command timed out and its group was killed.
+export const checkResultSchema = z.object({
+	command: z.string(),
+	exitCode: z.number().int().nullable(),
+	output: z.string(),
+	finishedAt: z.iso.datetime(),
+});
+export type CheckResult = z.infer<typeof checkResultSchema>;
+
+const CHECK_TIMEOUT_MS = 10 * 60 * 1000;
+// Interleaved stdout+stderr, capped to the tail.
+const CHECK_OUTPUT_CAP = 16_000;
+
+// The check is evidence for the reviewer, not a gate: a failing or timed-out
+// command still resolves (never throws), and the card still lands in Review.
+function runCheckCommand(command: string, cwd: string): Promise<CheckResult> {
+	return new Promise((resolve) => {
+		const child = spawn(command, {
+			cwd,
+			shell: true,
+			detached: true,
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		let output = "";
+		let timedOut = false;
+		const append = (chunk: Buffer): void => {
+			output = (output + chunk.toString()).slice(-CHECK_OUTPUT_CAP);
+		};
+		child.stdout.on("data", append);
+		child.stderr.on("data", append);
+		const timer = setTimeout(() => {
+			timedOut = true;
+			if (child.pid !== undefined) void killProcessGroup(child.pid);
+		}, CHECK_TIMEOUT_MS);
+		let settled = false;
+		const settle = (exitCode: number | null): void => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			resolve({
+				command,
+				exitCode: timedOut ? null : exitCode,
+				output,
+				finishedAt: new Date().toISOString(),
+			});
+		};
+		child.on("error", (error) => {
+			append(Buffer.from(String(error)));
+			settle(null);
+		});
+		child.on("close", (code) => settle(code));
+	});
+}
+
+async function captureCheck(
+	storyId: string,
+	worktree: string,
+	command: string,
+): Promise<void> {
+	const result = await runCheckCommand(command, worktree);
+	await writeFile(
+		checkFilePath(storyId),
+		`${JSON.stringify(result, null, "\t")}\n`,
+	);
 }
 
 // The per-spawn settings: the `.helm/` deny rules (spike-verified `//`
@@ -608,6 +684,51 @@ async function finishRun(
 		};
 	}
 
+	// The review-close preflight, outside the write queue (the queue never
+	// waits on git or a test suite): exactly a close that would land
+	// `outcome: review` (clean completion, no teardown error, no pending
+	// question) rebases the branch onto main, captures the configured check
+	// command's result, and computes the diff stat. The pre-read mirrors the
+	// queued write's question check; the write below stays the authority.
+	let rebaseError: string | undefined;
+	let stat: string | undefined;
+	if (teardownError === undefined && cleanCompletion) {
+		let pendingQuestion = false;
+		try {
+			const current = await readStoryFile(path, epicId);
+			pendingQuestion =
+				current.frontmatter.runs.findLast((run) => run.outcome === undefined)
+					?.question !== undefined;
+		} catch {
+			// Unreadable story: the queued write below is the one that decides.
+		}
+		if (!pendingQuestion) {
+			try {
+				await rebaseOntoMain(worktree, repo.mainBranch);
+			} catch (error) {
+				rebaseError = errorText(error);
+			}
+			if (rebaseError === undefined) {
+				if (repo.checkCommand !== undefined) {
+					try {
+						await captureCheck(state.storyId, worktree, repo.checkCommand);
+					} catch (checkError) {
+						log?.error(
+							`run ${state.storyId}: check capture failed: ${errorText(checkError)}`,
+						);
+					}
+				}
+				try {
+					stat = await diffStat(worktree, repo.mainBranch);
+				} catch (statError) {
+					log?.error(
+						`run ${state.storyId}: diff stat failed: ${errorText(statError)}`,
+					);
+				}
+			}
+		}
+	}
+
 	try {
 		await enqueueWrite(async () => {
 			const current = await readStoryFile(path, epicId);
@@ -624,7 +745,10 @@ async function finishRun(
 			let close: { outcome: "review" | "blocked"; error?: string } | undefined;
 			let paused = false;
 			if (cleanCompletion && question === undefined) {
-				close = evidenceClose();
+				close =
+					rebaseError !== undefined
+						? { outcome: "blocked", error: rebaseError }
+						: evidenceClose();
 			} else if (teardownError !== undefined) {
 				close = { outcome: "blocked", error: teardownError };
 			} else if (state.intent === "stop") {
@@ -654,6 +778,7 @@ async function finishRun(
 						outcome: close.outcome,
 						...(close.error !== undefined && { error: close.error }),
 					}),
+					...(close?.outcome === "review" && stat !== undefined && { stat }),
 					...(paused && { paused: true }),
 				};
 			}

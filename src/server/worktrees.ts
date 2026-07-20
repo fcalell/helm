@@ -105,6 +105,185 @@ export async function helmDiffPaths(
 	return out.split("\n").filter((line) => line.trim() !== "");
 }
 
+// Rebase the worktree's branch onto main; an up-to-date branch is a no-op.
+// On any failure the rebase is aborted (best effort) so the worktree is left
+// on the pre-rebase tip with no rebase in progress, and the thrown error
+// names the rebase with the stderr tail.
+export async function rebaseOntoMain(
+	worktree: string,
+	mainBranch: string,
+): Promise<void> {
+	try {
+		await execFileAsync("git", ["-C", worktree, "rebase", mainBranch]);
+	} catch (error) {
+		try {
+			await execFileAsync("git", ["-C", worktree, "rebase", "--abort"]);
+		} catch {
+			// Some failures (a dirty tree, an unknown ref) never started a rebase.
+		}
+		const failure = error as { stderr?: string; stdout?: string };
+		// Advice lines ("hint: …") would crowd the CONFLICT line out of the tail.
+		const strip = (text: string | undefined): string =>
+			(text ?? "")
+				.split("\n")
+				.filter((line) => !line.startsWith("hint:"))
+				.join("\n")
+				.trim();
+		const detail = (
+			strip(failure.stderr) ||
+			strip(failure.stdout) ||
+			String(error)
+		).slice(-240);
+		throw new Error(`rebase on ${mainBranch} failed: ${detail}`);
+	}
+}
+
+// "N files +A -D" from `git diff --shortstat main...HEAD`; an empty diff
+// (nothing changed against main) reads "0 files +0 -0".
+export async function diffStat(
+	worktree: string,
+	mainBranch: string,
+): Promise<string> {
+	const out = await git(worktree, [
+		"diff",
+		"--shortstat",
+		`${mainBranch}...HEAD`,
+	]);
+	const files = /(\d+) files? changed/.exec(out)?.[1] ?? "0";
+	const additions = /(\d+) insertions?\(\+\)/.exec(out)?.[1] ?? "0";
+	const deletions = /(\d+) deletions?\(-\)/.exec(out)?.[1] ?? "0";
+	return `${files} files +${additions} -${deletions}`;
+}
+
+export interface DiffLine {
+	kind: "context" | "add" | "del";
+	oldLine?: number;
+	newLine?: number;
+	text: string;
+}
+
+export interface DiffHunk {
+	header: string;
+	lines: DiffLine[];
+}
+
+export interface DiffFile {
+	path: string;
+	oldPath?: string;
+	status: "added" | "modified" | "deleted" | "renamed";
+	binary: boolean;
+	additions: number;
+	deletions: number;
+	hunks: DiffHunk[];
+}
+
+export async function diffFiles(
+	worktree: string,
+	mainBranch: string,
+): Promise<DiffFile[]> {
+	return parseDiff(await git(worktree, ["diff", "-M", `${mainBranch}...HEAD`]));
+}
+
+const FILE_HEADER_RE = /^diff --git "?a\/(.*?)"? "?b\/(.*?)"?$/;
+const HUNK_HEADER_RE = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@ ?(.*)$/;
+// Metadata lines between a file header and its first hunk.
+const FILE_META_RE =
+	/^(index |old mode |new mode |mode |similarity index |dissimilarity index |copy from |copy to |--- |\+\+\+ )/;
+
+// Tolerant unified-diff parsing: a line the parser cannot place drops the
+// file to a binary-style stub (`binary: true`, no hunks) instead of throwing.
+export function parseDiff(text: string): DiffFile[] {
+	const files: DiffFile[] = [];
+	let file: DiffFile | undefined;
+	let oldNo = 0;
+	let newNo = 0;
+	let inHunk = false;
+
+	const stub = (): void => {
+		if (file === undefined) return;
+		file.binary = true;
+		file.additions = 0;
+		file.deletions = 0;
+		file.hunks = [];
+		inHunk = false;
+	};
+
+	// Drop the trailing empty string of the final newline: inside a hunk it
+	// would otherwise read as one stray empty context line.
+	const raw = text.split("\n");
+	if (raw[raw.length - 1] === "") raw.pop();
+
+	for (const line of raw) {
+		const header = FILE_HEADER_RE.exec(line);
+		if (header !== null) {
+			file = {
+				path: header[2] ?? "",
+				status: "modified",
+				binary: false,
+				additions: 0,
+				deletions: 0,
+				hunks: [],
+			};
+			files.push(file);
+			inHunk = false;
+			continue;
+		}
+		if (file === undefined || file.binary) continue;
+		if (line.startsWith("new file mode ")) {
+			file.status = "added";
+			continue;
+		}
+		if (line.startsWith("deleted file mode ")) {
+			file.status = "deleted";
+			continue;
+		}
+		if (line.startsWith("rename from ")) {
+			file.status = "renamed";
+			file.oldPath = line.slice("rename from ".length);
+			continue;
+		}
+		if (line.startsWith("rename to ")) {
+			file.path = line.slice("rename to ".length);
+			continue;
+		}
+		if (line.startsWith("Binary files ") || line === "GIT binary patch") {
+			file.binary = true;
+			continue;
+		}
+		const hunk = HUNK_HEADER_RE.exec(line);
+		if (hunk !== null) {
+			oldNo = Number(hunk[1]);
+			newNo = Number(hunk[2]);
+			file.hunks.push({ header: line, lines: [] });
+			inHunk = true;
+			continue;
+		}
+		if (!inHunk) {
+			if (!FILE_META_RE.test(line)) stub();
+			continue;
+		}
+		const lines = file.hunks[file.hunks.length - 1]?.lines;
+		if (lines === undefined) continue;
+		if (line.startsWith("+")) {
+			lines.push({ kind: "add", newLine: newNo++, text: line.slice(1) });
+			file.additions++;
+		} else if (line.startsWith("-")) {
+			lines.push({ kind: "del", oldLine: oldNo++, text: line.slice(1) });
+			file.deletions++;
+		} else if (line.startsWith(" ") || line === "") {
+			lines.push({
+				kind: "context",
+				oldLine: oldNo++,
+				newLine: newNo++,
+				text: line.slice(1),
+			});
+		} else if (line !== "\\ No newline at end of file") {
+			stub();
+		}
+	}
+	return files;
+}
+
 // Converge on branch-plus-worktree from whatever mix exists: the branch is
 // the durable artifact, the worktree disposable.
 export async function ensureWorktree(input: {
