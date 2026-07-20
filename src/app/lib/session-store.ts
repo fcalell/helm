@@ -333,6 +333,16 @@ export async function pauseRun(storyId: string): Promise<void> {
 	}
 }
 
+export async function dequeueRun(storyId: string): Promise<void> {
+	try {
+		await api.run.dequeue({ id: storyId });
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to dequeue the run",
+		);
+	}
+}
+
 export async function stopRun(storyId: string): Promise<void> {
 	try {
 		await api.run.stop({ id: storyId });

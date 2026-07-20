@@ -22,6 +22,7 @@ import {
 	storiesByStatus,
 } from "../lib/board-store.ts";
 import { connectGate } from "../lib/gate-store.ts";
+import { connectMeter } from "../lib/meter-store.ts";
 import { connectSessions, spawnRefineSession } from "../lib/session-store.ts";
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -51,6 +52,7 @@ export default function Home() {
 	connectBoard();
 	connectSessions();
 	connectGate();
+	connectMeter();
 
 	function openStory(id: string): void {
 		setSelectedStoryId(id);
