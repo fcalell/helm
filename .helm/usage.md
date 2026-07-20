@@ -209,3 +209,39 @@ was race-verified live with concurrent double-calls. Loop total $47.67 against 0
 high-tier follow-up, not gate drift. Weighted pool draw (fresh + output + 2% of cache reads, held
 as bounds per the failed alpha re-fit): Fable ~1.04M; Opus/Sonnet ~827k. The orchestration session
 (Fable) again ran refinement inline and stays unledgered.
+
+
+## 002-05 Run compaction (2026-07-21)
+
+| Session                          | Model / effort  | Fresh input   | Output      | Cache reads    | Modeled cost |
+| -------------------------------- | --------------- | ------------- | ----------- | -------------- | ------------ |
+| Compaction probes (3, refine)    | Sonnet / low    | ~210,000      | ~3,000      | ~700,000       | ~$2.40       |
+| Adversary pass (1, cold)         | Opus / high     | 79,966        | 23,777      | 451,963        | $1.62        |
+| Run 1: implementation (3 segs)   | Fable / medium  | 927,799       | 90,054      | 21,179,867     | ~$44.23      |
+| Review: spec axis                | Sonnet / high   | 49,046        | 12,790      | 1,981,592      | $1.09        |
+| Review: standards axis           | Sonnet / high   | 46,797        | 14,610      | 1,843,309      | $1.05        |
+| Run 1 follow-up: doc/copy fixes  | Sonnet / medium | 175,226       | 4,200       | 3,368,513      | $2.12        |
+| **Total**                        |                 | **~1,488,834**| **~148,431**| **~29,525,244**| **~$52.51**  |
+
+Two tildes carry the estimates: the probe streams and segment 2's result frame were lost to a
+session wipe, so probes 2-3 are sized from probe 1's measured $1.29 and segment 2 is
+transcript-derived at Fable's fitted rates ($10/M base, 2x 1h-cache writes, 5x output, 0.1x
+reads; segments 1 and 3 fit those rates exactly). The gate converged in a single cold Opus pass,
+a new record (three on 002-04, four on 002-03, twelve on 002-02): refine spent ~$2.40 measuring
+the CLI's actual compaction behavior first (auto-compact fires mid-turn under a shrunken
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, settings-file disable honored, system prompt re-read on
+resume), and a brief whose Approach opens with verbatim measured frames left the adversary
+nothing structural to attack. The run's ~$44.23 carries ~$18.7 of pure loop-harness waste:
+segment 1 ended its turn to "wait" for background watchers (headless turn end kills the process),
+and the steered segment 2 then died on the 5-hour rate-limit window mid-probe, the first time the
+loop itself hit the pool it meters. Both cold reviews found zero code defects, a first; the whole
+payload was three adjacent-doc drift items plus three copy/comment nits, so the follow-up routed
+to Sonnet at medium per the outcome tiers: $2.12, the routing lever's third point ($1.61 on
+002-03's cosmetic round, $9.18 on 002-04's Fable-high escalation). The run also surfaced an
+unrecorded CLI guard worth a knowledge note next touch: auto-compact errors out when context
+refills within three turns of a compact three times running ("thrashing"), and the close path
+already parks that Blocked. Loop total ~$52.51 against 002-04's $47.67, 002-03's $31.97,
+002-02's $73.59, 002-01's $122.44; the delta over 002-04 is entirely the harness waste, not the
+story. Weighted pool draw (fresh + output + 2% of cache reads): Fable ~1.44M; Opus/Sonnet ~786k.
+The orchestration session (Fable) again ran refinement and the probes inline and stays
+unledgered.
