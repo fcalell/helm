@@ -138,6 +138,55 @@ export async function rebaseOntoMain(
 	}
 }
 
+export async function currentBranch(repoPath: string): Promise<string> {
+	return (await git(repoPath, ["branch", "--show-current"])).trim();
+}
+
+// Always fast-forwardable when the branch was just rebased onto main; any
+// refusal (diverged main, dirty index) throws with git's stderr.
+export async function mergeFastForward(
+	repoPath: string,
+	branch: string,
+): Promise<void> {
+	await git(repoPath, ["merge", "--ff-only", branch]);
+}
+
+export async function hasUpstream(
+	repoPath: string,
+	branch: string,
+): Promise<boolean> {
+	try {
+		await git(repoPath, ["rev-parse", "--abbrev-ref", `${branch}@{upstream}`]);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function push(repoPath: string): Promise<void> {
+	await git(repoPath, ["push"]);
+}
+
+export async function removeWorktree(
+	repoPath: string,
+	worktree: string,
+): Promise<void> {
+	await git(repoPath, ["worktree", "remove", "--force", worktree]);
+}
+
+export async function deleteBranch(
+	repoPath: string,
+	branch: string,
+	options?: { force?: boolean },
+): Promise<void> {
+	if (!(await branchExists(repoPath, branch))) return;
+	await git(repoPath, [
+		"branch",
+		options?.force === true ? "-D" : "-d",
+		branch,
+	]);
+}
+
 // "N files +A -D" from `git diff --shortstat main...HEAD`; an empty diff
 // (nothing changed against main) reads "0 files +0 -0".
 export async function diffStat(

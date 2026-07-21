@@ -208,6 +208,33 @@ export function runBriefSeed(briefBody: string): string {
 	].join("\n");
 }
 
+export interface ReviewComment {
+	// The acceptance criterion the comment targets; absent on free-form ones.
+	criterion?: string;
+	text: string;
+}
+
+// The request-changes resume: the review returned the user's comments, and
+// the session continues where it stopped. The rebase notice matters because
+// the review close rebased the branch onto main, so the commit ids the model
+// remembers may no longer exist.
+export function requestChangesPrompt(comments: ReviewComment[]): string {
+	return [
+		"The review of your work returned change requests. This session",
+		"continues in the same worktree; the branch was rebased onto main at",
+		"the last close, so commit ids may differ from what you remember.",
+		"Address every item below, re-run the check command, and finish with",
+		"fresh run notes through update_card: the check outcome plus one",
+		'"verify:" bullet per behavior a human must check by hand.',
+		"",
+		...comments.map((comment) =>
+			comment.criterion === undefined
+				? `- ${comment.text}`
+				: `- On "${comment.criterion}": ${comment.text}`,
+		),
+	].join("\n");
+}
+
 // Steering after a kill: the resumed model believes the interrupted tool
 // call never ran even though its side effects may have partially landed, so
 // the message states the interruption.

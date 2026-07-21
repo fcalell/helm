@@ -23,7 +23,9 @@ import {
 import { canTransition, verdictValid } from "../../board/transitions.ts";
 import type { SessionResult } from "../../sessions/events.ts";
 import {
+	type Effort,
 	GUARDED_ALLOWLIST,
+	type KindRow,
 	MANUAL_ALLOWLIST,
 	MCP_SERVER_NAME,
 } from "../../sessions/kinds.ts";
@@ -101,11 +103,11 @@ const states = new Map<string, RunState>();
 const hookTokens = new Map<string, RunState>();
 let log: { info(m: string): void; error(m: string): void } | undefined;
 
-function pidFilePath(storyId: string): string {
+export function pidFilePath(storyId: string): string {
 	return join(worktreesDir(managedRepo()), `${storyId}.pid`);
 }
 
-function settingsFilePath(storyId: string): string {
+export function settingsFilePath(storyId: string): string {
 	return join(worktreesDir(managedRepo()), `${storyId}.settings.json`);
 }
 
@@ -216,7 +218,7 @@ function errorText(error: unknown): string {
 	return text.length > 300 ? `${text.slice(0, 300)}…` : text;
 }
 
-function findStory(storyId: string): Story {
+export function findStory(storyId: string): Story {
 	const story = boardSnapshot().stories.find((each) => each.id === storyId);
 	if (story === undefined) {
 		throw new ApiError("NOT_FOUND", {
@@ -226,7 +228,7 @@ function findStory(storyId: string): Story {
 	return story;
 }
 
-async function readStoryOrApiError(
+export async function readStoryOrApiError(
 	path: string,
 	epicId: string,
 	storyId: string,
@@ -853,15 +855,22 @@ export async function runNeedsInput(
 
 // The caller-owned pieces of a resume: the up-front precondition (throws, or
 // names the session to resume and the prompt), the init-write re-check (the
-// authority on what the claim does; undefined aborts), and the
-// ILLEGAL_TRANSITION shape an aborted write rejects with.
-interface ResumeSpec {
+// authority on what the claim does; undefined aborts), the
+// ILLEGAL_TRANSITION shape an aborted write rejects with, and an optional
+// model/effort override for the spawn (the request-changes escalation).
+export interface ResumeSpec {
 	precheck(current: Story): { session: string; prompt: string };
 	recheck(fresh: Story): StoryFrontmatter | undefined;
 	abort: { from: Status; reason: string };
+	model?: KindRow["model"];
+	effort?: Effort;
 }
 
-function illegalTransition(from: Status, to: Status, reason: string): never {
+export function illegalTransition(
+	from: Status,
+	to: Status,
+	reason: string,
+): never {
 	throw new ApiError("ILLEGAL_TRANSITION", {
 		status: 409,
 		message: reason,
@@ -904,17 +913,25 @@ async function resumeRun(
 	}
 }
 
-// The resume path for a needs-input card: requires a pending question on the
-// open entry, resumes with the answer, and the re-check flips back to running
-// with the question deleted.
-export async function answerRun(
+// The continuation entrypoint the resume specs share (answer and the review
+// exits): precheck up front on a fresh read, then front-enqueue the resume.
+export async function dispatchResume(
 	storyId: string,
-	answer: string,
+	spec: ResumeSpec,
 ): Promise<RunDispatch> {
-	const spec = answerSpec(answer);
 	const known = findStory(storyId);
 	spec.precheck(await readStoryOrApiError(known.path, known.epicId, storyId));
 	return dispatchRun(storyId, true, () => resumeRun(storyId, spec));
+}
+
+// The resume path for a needs-input card: requires a pending question on the
+// open entry, resumes with the answer, and the re-check flips back to running
+// with the question deleted.
+export function answerRun(
+	storyId: string,
+	answer: string,
+): Promise<RunDispatch> {
+	return dispatchResume(storyId, answerSpec(answer));
 }
 
 function answerSpec(answer: string): ResumeSpec {
@@ -1105,6 +1122,11 @@ function runActive() {
 	});
 }
 
+// The review exits' guard: an exit never proceeds under a live or queued run.
+export function assertNoActiveRun(storyId: string): void {
+	if (states.has(storyId) || waitingRuns.has(storyId)) throw runActive();
+}
+
 // A state still unresolved at the bound means a process that asked without
 // ending its turn, or a hand-typed needs-input under a live run.
 async function closesInTime(state: RunState): Promise<boolean> {
@@ -1171,6 +1193,8 @@ async function resume(
 		cwd: worktree,
 		settingsPath,
 		resume: plan.session,
+		model: spec.model,
+		effort: spec.effort,
 		...spawn,
 	});
 	state.pid = handle.pid;

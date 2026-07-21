@@ -6,6 +6,11 @@ import { storyIdSchema } from "../../board/schema.ts";
 import { isENOENT } from "../../board/store.ts";
 import { boardSnapshot, managedRepo } from "../../server/services/board.ts";
 import {
+	approveReview,
+	discardReview,
+	requestReviewChanges,
+} from "../../server/services/review.ts";
+import {
 	briefFilePath,
 	type CheckResult,
 	checkFilePath,
@@ -69,4 +74,36 @@ export const review = {
 				files: await diffFiles(worktree, repo.mainBranch),
 			};
 		}),
+	// Approve: re-rebase, fast-forward-merge into the managed checkout's main,
+	// push best-effort ({ pushed, pushError? }), delete the worktree, branch,
+	// and per-story artifacts, card to Done. A git failure before the merge
+	// rejects EXIT_FAILED with the card unchanged.
+	approve: procedure()
+		.input(z.object({ storyId: storyIdSchema }))
+		.handler(({ input }) => approveReview(input.storyId)),
+	// Request changes: the comments become the next message in the same
+	// session and worktree (Fable at high effort); the entry reopens and the
+	// card flips to Running on init. Same queued union as run.start.
+	requestChanges: procedure()
+		.input(
+			z.object({
+				storyId: storyIdSchema,
+				comments: z
+					.array(
+						z.object({
+							criterion: z.string().min(1).optional(),
+							text: z.string().min(1),
+						}),
+					)
+					.min(1),
+			}),
+		)
+		.handler(({ input }) =>
+			requestReviewChanges(input.storyId, input.comments),
+		),
+	// Discard: delete the worktree, branch, and artifacts (tolerating what is
+	// already gone), keep the brief and run history, card to Ready.
+	discard: procedure()
+		.input(z.object({ storyId: storyIdSchema }))
+		.handler(({ input }) => discardReview(input.storyId)),
 };

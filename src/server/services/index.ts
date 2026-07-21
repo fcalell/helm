@@ -4,7 +4,17 @@ import gate from "./gate.ts";
 import mcp from "./mcp.ts";
 import meter from "./meter.ts";
 import proposals from "./proposals.ts";
+import review from "./review.ts";
 import runs from "./runs.ts";
 import sessions from "./sessions.ts";
 
-export const services = [board, gate, mcp, meter, proposals, runs, sessions];
+export const services = [
+	board,
+	gate,
+	mcp,
+	meter,
+	proposals,
+	review,
+	runs,
+	sessions,
+];
