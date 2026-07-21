@@ -94,6 +94,13 @@ scope · open questions), the canonical generation template for a brief
 3. **Criteria get pushed on.** The template demands testable criteria; the UI flags weak ones
    ("sync should work well" ⚠). Deliberate friction: the implementation run is graded against them
    ([review](./review.md)).
+4. **The Approach opens with measured facts.** Before any design, the Approach leads with a facts
+   block: file:line anchors, symbol names, and existing behavior the story builds on, each
+   verified against a named commit, with the design phrased as "build on those anchors". A cold
+   adversary checks anchors instead of doubting prose, and the run inherits pre-verified ground.
+   Measured across the 002 loop emulations: four consecutive briefs written this way (002-05
+   through 002-08) passed the gate in a single cold pass, where earlier unanchored briefs took
+   multi-round fix loops.
 
 ## Ready gate
 

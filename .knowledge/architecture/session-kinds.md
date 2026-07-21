@@ -102,7 +102,8 @@ medium instead: applying located, prescribed edits is extraction-grade work, re-
 repo's check command and the approving human, and a tier switch re-seeds the transcript into
 cache either way ([claude-integration](./claude-integration.md) §Invocation model) at a third of
 Fable's write rate, so the cosmetic round costs about a third (001-03's comments-only round:
-$4.96 modeled at a Fable escalation against ~$1.50 at Sonnet medium). Refine's `trivial` size
+$4.96 modeled at a Fable escalation against ~$1.50 at Sonnet medium; 002-06 and 002-07's
+standards-only rounds then measured $1.67 and $1.49 at Sonnet medium, confirming the estimate). Refine's `trivial` size
 hint is retired: it existed only to drop a high-default run to medium, which is now the
 unconditional default, so the hint has nothing left to do. Dynamic model routing by prediction stays rejected.
 The stage already classifies the work, so a classifier session would spend pool tokens

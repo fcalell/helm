@@ -2,7 +2,31 @@
 
 Account draw per story loop, summed from each spawned session's `result` event (fresh input =
 `input_tokens` + `cache_creation_input_tokens`). Modeled cost is what the tokens would bill at API
-rates; on the Max subscription it is pool draw, not billing.
+rates; on the Max subscription it is pool draw, not billing. Weighted pool draw approximates the
+subscription meter as fresh input + output + 2% of cache reads, split by model tier.
+
+## Harness reference (loop emulation)
+
+How the 001/002 loops were driven before Helm can drive itself; the durable findings live in
+`.knowledge/` ([claude-integration](../.knowledge/architecture/claude-integration.md) §Verifying
+without burning the pool, [define-refine](../.knowledge/product/features/define-refine.md)
+§Refining a story), this list keeps the operational detail:
+
+- One `spawn.sh` per stage mirrors `runner.ts` flags (`-p`, stream-json + verbose + partial
+  messages, `--model`/`--effort`/`--permission-mode`/`--allowedTools`/`--strict-mcp-config`,
+  optional `--append-system-prompt` file and `--resume`), strips `ANTHROPIC_API_KEY`,
+  `ANTHROPIC_AUTH_TOKEN`, `CLAUDECODE`, and `CLAUDE_CODE_ENTRYPOINT` from the environment so the
+  spawn bills the subscription, and prints the session id plus the `result` usage line.
+- Stream output paths are always absolute: a run's cwd is its worktree, so a relative path lands
+  the stream inside the repo and dirties the diff.
+- Long spawns run tracked in the background with a watcher loop grepping for the `result` event;
+  never detach (`&` + `disown`) inside a tracked task, which orphans the completion signal.
+- Stage order per loop: recon, measured-facts brief on the card, cold Opus adversary to NO FLAGS,
+  Fable/medium run in the story worktree, cold Sonnet spec + standards reviews, outcome-routed
+  fix-up (standards-only resumes the run session on Sonnet/medium; unmet criteria escalate to
+  Fable/high), approve exit from the main checkout (never inside the worktree), ledger entry.
+- Worktree prep: `pnpm install`, `pnpm generate` (stack virtual modules fail without it), copy
+  the gitignored `helm.config.json`.
 
 ## 001-01 Session runner & kind registry (2026-07-16 to 2026-07-17)
 

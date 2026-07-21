@@ -22,7 +22,7 @@ contents.** Entries are durable present-tense *what/why* reference, what the cod
 
 - [overview](./architecture/overview.md): getting your bearings: the orchestrator shape, API-first layering, stack intent, top-level constraints
 - [api](./architecture/api.md): adding or changing an orchestrator procedure, the WS protocol, or an API error code
-- [claude-integration](./architecture/claude-integration.md): anything touching the `claude` CLI: headless flags, auth, sessions/resume, transcripts, the MCP board tools, or the subscription/ToS constraint
+- [claude-integration](./architecture/claude-integration.md): anything touching the `claude` CLI: headless flags, auth, sessions/resume, transcripts, the MCP board tools, the subscription/ToS constraint, or verifying spawn cycles and UI without burning the pool
 - [session-kinds](./architecture/session-kinds.md): choosing a stage's model, prompt, tool allowlist, or context policy (compact vs reseed vs cold); the closed set of session kinds the loop runs on
 - [templates](./architecture/templates.md): how a generated artifact is shaped, where templates live (canonical vs per-repo override), or the generation-vs-scaffold split
 - [board-storage](./architecture/board-storage.md): the `.helm/` on-disk board format, story frontmatter, or the files-as-truth rules

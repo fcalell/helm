@@ -74,6 +74,33 @@ session with the steering message. Spike-verified: a SIGTERM mid-tool-call resum
 full memory, but the resumed model believes the interrupted tool call never ran even though its
 side effects may have partially landed, so the steering message states the interruption.
 
+Two headless behaviors shape every prompt Helm writes for a `-p` session (both measured across
+the 002 loop emulations). Ending the turn terminates the process and everything it left running,
+so a session that ends its turn to "wait for" a background task dies with the task unfinished;
+run prompts state it outright and demand foreground polling. And the `result` event's text is the
+session's only output channel: a payload split between the transcript and the final message
+strands the transcript half (one standards review returned a bare verdict with its findings stuck
+in mid-stream narration, recovered only by a paid resume), so any prompt expecting a structured
+deliverable demands the complete payload, findings and verdict together, in the final message.
+
+## Verifying without burning the pool
+
+Helm's own verification runs real spawn and UI cycles without spending subscription tokens; two
+measured patterns cover nearly everything, with real spawns reserved for behavior only the live
+CLI shows (compaction, refusals, rate-limit events):
+
+- **Stub `claude` on `PATH`**: a script that logs its argv and replays recorded stream-json
+  init/result frames. A live orchestrator pointed at it exercises full spawn/close/exit cycles,
+  flag construction (`--model`/`--effort`/`--resume`), the close path, and queue behavior at zero
+  pool cost (002-07 verified eleven of twelve criteria this way).
+- **Headless Chromium via playwright-core** against a live orchestrator on a scratch target repo:
+  DOM assertions plus intercepted RPC traffic verify UI behavior end to end (002-08 ran 26 checks
+  this way), skipping only clicks that would spawn real sessions, which get by-hand steps in the
+  run report instead.
+
+Both lean on `helm.config.json` being gitignored machine config: a scratch config pointing at a
+throwaway repo swaps in for the test and must never be committed.
+
 ## Context management
 
 Model and context are set per session kind ([session-kinds](./session-kinds.md)). Chats reseed: a
