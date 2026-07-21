@@ -6,7 +6,7 @@ branch: helm/002-01-run-worktrees
 gate: { passed: 2026-07-18T00:07:35.006Z, brief: be78b4947f34037a, overrides: [ "Graceful-shutdown ordering for live runs is unspecified: Every shutdown end state is recovered by boot reconciliation: the card parks in Blocked and leftovers safety-commit onto the branch either way, so deterministic close-handler ordering on graceful stop is deferred hardening, not 002-01 scope.", "Detached HEAD strands the convergence safety commit: Manual git surgery inside the orchestrator-owned worktree is outside the run lifecycle contract; a convergence commit made on a detached HEAD stays reachable via reflog and the next checkout restores the branch, so nothing is lost. Handling every manual-surgery state is deferred hardening." ] }
 sessions: { refine: 6f17e8f6-5e06-4f26-b358-bfe686e2eaf2 }
 runs:
-  - { n: 1, session: 43d48bcd-266b-4591-92d3-8f34250f875a, brief: be78b4947f34037a, started: 2026-07-18T00:09:11Z, outcome: done, grades: 10/10, tokens: 389728, minutes: 30 }
+  - { n: 1, session: 43d48bcd-266b-4591-92d3-8f34250f875a, brief: be78b4947f34037a, started: 2026-07-18T00:09:11Z, outcome: review, grades: 10/10, tokens: 389728, minutes: 30 }
 ---
 # Run kind & worktree lifecycle
 

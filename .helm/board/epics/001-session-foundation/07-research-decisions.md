@@ -5,7 +5,7 @@ depends: [001-04, 001-06]
 gate: { passed: 2026-07-16T21:42:18Z, brief: 829a22652b3c0d80, overrides: [] }
 sessions: {}
 runs:
-  - { n: 1, session: fe4b878b-2321-42c8-8198-390440731b3a, brief: 829a22652b3c0d80, started: 2026-07-17T17:17:54Z, outcome: done, grades: 5/5, tokens: 255128, minutes: 18 }
+  - { n: 1, session: fe4b878b-2321-42c8-8198-390440731b3a, brief: 829a22652b3c0d80, started: 2026-07-17T17:17:54Z, outcome: review, grades: 5/5, tokens: 255128, minutes: 18 }
 ---
 # Research decisions
 

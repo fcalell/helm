@@ -6,7 +6,7 @@ branch: helm/001-05-refine-chat
 gate: { passed: 2026-07-16T21:49:22Z, brief: 62903e5859b28f92, overrides: [] }
 sessions: {}
 runs:
-  - { n: 1, session: 3de7fe77-6b46-486b-b4ad-303960b7fc7f, brief: 1f9cf45ce24b511b, started: 2026-07-17T13:29:12Z, outcome: done, grades: 6/6, tokens: 334504, minutes: 30 }
+  - { n: 1, session: 3de7fe77-6b46-486b-b4ad-303960b7fc7f, brief: 1f9cf45ce24b511b, started: 2026-07-17T13:29:12Z, outcome: review, grades: 6/6, tokens: 334504, minutes: 30 }
 ---
 # Refine chat
 
