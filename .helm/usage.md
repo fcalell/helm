@@ -269,3 +269,26 @@ session emitted `VERDICT: findings` with the findings stranded in its reasoning,
 resume recovered them; the review prompt should demand findings and verdict in the same message.
 Weighted pool draw (fresh + output + 2% of cache reads): Fable ~416k; Opus/Sonnet ~602k.
 The orchestration session (Fable) ran refinement inline and stays unledgered.
+
+## 002-07 Review exits (2026-07-21)
+
+| Session                          | Model / effort  | Fresh input   | Output      | Cache reads    | Modeled cost |
+| -------------------------------- | --------------- | ------------- | ----------- | -------------- | ------------ |
+| Adversary pass (1, cold)         | Opus / high     | 61,932        | 19,398      | 705,193        | $1.46        |
+| Run 1: implementation (1 seg)    | Fable / medium  | 186,277       | 57,293      | 10,705,509     | $17.29       |
+| Review: spec axis                | Sonnet / high   | 79,298        | 25,773      | 4,450,300      | $2.20        |
+| Review: standards axis           | Sonnet / high   | 44,471        | 12,919      | 1,112,659      | $0.80        |
+| Run 1 follow-up: standards pair  | Sonnet / medium | 173,919       | 1,844       | 1,383,986      | $1.49        |
+| **Total**                        |                 | **545,897**   | **117,227** | **18,357,647** | **$23.24**   |
+
+Third single-pass gate running, and the second loop in a row with a steering-free single-segment
+run: the story shipped the three review exits (696 lines, 13 files) in 13.7 minutes, verifying
+eleven of twelve criteria live by pointing a scratch orchestrator at a stub `claude` that logs
+its argv and replays real stream-json frames, so full spawn/close cycles cost no pool tokens, a
+harness trick worth reusing. The spec review graded 12/12 with zero free-form defects; the
+standards payload was two items (an errorText duplicate that dropped truncation, one redundant
+comment), routed to Sonnet at medium for $1.49. The findings-and-verdict-in-one-message prompt
+fix (after 002-06's stranded-findings wrinkle) held: the standards review returned both
+together. Loop total $23.24; the 002-06/002-07 pair together cost $45.34, less than 002-05
+alone (~$52.51). Weighted pool draw (fresh + output + 2% of cache reads): Fable ~458k;
+Opus/Sonnet ~573k. The orchestration session (Fable) ran refinement inline and stays unledgered.
