@@ -20,6 +20,7 @@ import { ActivityPane } from "./activity-pane.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { DiffPane } from "./diff-pane.tsx";
 import { GatePanel } from "./gate-panel.tsx";
+import { ReviewExits } from "./review-exits.tsx";
 import { RunQuestionPanel } from "./run-question-panel.tsx";
 
 interface CardDrawerProps {
@@ -213,6 +214,11 @@ export function CardDrawer(props: CardDrawerProps) {
 								<PresetSelector story={story} />
 							</div>
 						</Sheet.Header>
+						<Show when={story.frontmatter.status === "review"}>
+							<div class="mt-4 shrink-0">
+								<ReviewExits story={story} />
+							</div>
+						</Show>
 						<Show
 							when={
 								story.frontmatter.status === "needs-input"
