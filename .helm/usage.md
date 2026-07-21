@@ -292,3 +292,26 @@ fix (after 002-06's stranded-findings wrinkle) held: the standards review return
 together. Loop total $23.24; the 002-06/002-07 pair together cost $45.34, less than 002-05
 alone (~$52.51). Weighted pool draw (fresh + output + 2% of cache reads): Fable ~458k;
 Opus/Sonnet ~573k. The orchestration session (Fable) ran refinement inline and stays unledgered.
+
+## 002-08 UI actions & hotkey removal (2026-07-21)
+
+| Session                          | Model / effort  | Fresh input   | Output      | Cache reads    | Modeled cost |
+| -------------------------------- | --------------- | ------------- | ----------- | -------------- | ------------ |
+| Adversary pass (1, cold)         | Opus / high     | 37,370        | 7,981       | 356,102        | $0.75        |
+| Run 1: implementation (1 seg)    | Fable / medium  | 151,932       | 57,644      | 9,271,858      | $15.19       |
+| Review: spec axis                | Sonnet / high   | 38,159        | 7,700       | 1,211,053      | $0.71        |
+| Review: standards axis           | Sonnet / medium | 27,501        | 2,761       | 632,911        | $0.40        |
+| **Total**                        |                 | **254,962**   | **76,086**  | **11,471,924** | **$17.05**   |
+
+Fourth single-pass gate in a row and the first loop with no fix-up segment at all: the spec
+review graded 10/10 with zero free-form defects and the standards review returned clean, so the
+run's single 20.7-minute segment was the only Fable spend. The run raised the verification bar
+again: it drove a real headless Chromium (playwright-core) against a live orchestrator on a
+scratch repo, asserting on DOM state and intercepted RPC traffic, 26 checks passing, while
+deliberately skipping clicks that would spawn real `claude` sessions. The diff itself is net
+negative (+122/-124 across 7 files): the hotkey layer and selection machinery deleted, the
+status-driven card actions (Refine / Chat / Run) and header buttons added, closing the gap where
+`run.start` had no UI caller. The run also surfaced a pre-existing production-build blank-page
+bug (dev server fine, `stack build` output mounts nothing), left for its own story. Loop total
+$17.05, the cheapest yet. Weighted pool draw (fresh + output + 2% of cache reads): Fable ~395k;
+Opus/Sonnet ~166k. The orchestration session (Fable) ran refinement inline and stays unledgered.
