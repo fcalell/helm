@@ -7,12 +7,22 @@ import {
 	type SessionInit,
 	sessionEventSchema,
 } from "./events.ts";
-import { MCP_SERVER_NAME, type SessionKind, spawnableRow } from "./kinds.ts";
+import {
+	type Effort,
+	type KindRow,
+	MCP_SERVER_NAME,
+	type SessionKind,
+	spawnableRow,
+} from "./kinds.ts";
 
 export interface SpawnSessionOptions {
 	kind: SessionKind;
 	cwd: string;
 	prompt: string;
+	// Replace the kind row's model/effort for this spawn (the request-changes
+	// escalation); unset means the registry row rules.
+	model?: KindRow["model"];
+	effort?: Effort;
 	// Session id to resume; omit to start a fresh session.
 	resume?: string;
 	// Per-spawn context appended after the kind's system prompt (e.g. the
@@ -124,9 +134,9 @@ export function spawnSessionProcess(
 		"--verbose",
 		"--include-partial-messages",
 		"--model",
-		row.model,
+		options.model ?? row.model,
 		"--effort",
-		row.effort,
+		options.effort ?? row.effort,
 		// Explicit: the user's own config may default to a laxer mode (`auto`),
 		// which would execute tools outside the kind's allowlist.
 		"--permission-mode",

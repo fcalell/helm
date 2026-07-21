@@ -23,7 +23,12 @@ import {
 	type SessionInit,
 	type SessionResult,
 } from "../../sessions/events.ts";
-import { KIND_REGISTRY, type SessionKind } from "../../sessions/kinds.ts";
+import {
+	type Effort,
+	KIND_REGISTRY,
+	type KindRow,
+	type SessionKind,
+} from "../../sessions/kinds.ts";
 import {
 	refineSeedPrompt,
 	reseedPrompt,
@@ -262,6 +267,8 @@ function spawnTracked(options: {
 	permissionPromptTool?: string;
 	env?: Record<string, string>;
 	detached?: boolean;
+	model?: KindRow["model"];
+	effort?: Effort;
 }): TrackedTurn {
 	const runId = randomUUID();
 	const { kind, attach } = options;
@@ -284,6 +291,8 @@ function spawnTracked(options: {
 			permissionPromptTool: options.permissionPromptTool,
 			env: options.env,
 			detached: options.detached,
+			model: options.model,
+			effort: options.effort,
 			mcpUrl: mcpEndpointUrl(mcpToken),
 			onEvent: (event) => {
 				if (event.session_id !== undefined) {
@@ -387,6 +396,10 @@ export function spawnRunSession(input: {
 	permissionPromptTool?: string;
 	env?: Record<string, string>;
 	resume?: string;
+	// Model/effort override for the spawn; only the request-changes resume
+	// sets them, every other run rides the registry row.
+	model?: KindRow["model"];
+	effort?: Effort;
 }): RunTurnHandle {
 	const tracked = spawnTracked({
 		kind: "run",
@@ -401,6 +414,8 @@ export function spawnRunSession(input: {
 		permissionPromptTool: input.permissionPromptTool,
 		env: input.env,
 		detached: true,
+		model: input.model,
+		effort: input.effort,
 	});
 	return {
 		pid: tracked.child.pid,
