@@ -213,7 +213,7 @@ function runSettings(worktree: string, hookToken: string) {
 	};
 }
 
-function errorText(error: unknown): string {
+export function errorText(error: unknown): string {
 	const text = error instanceof Error ? error.message : String(error);
 	return text.length > 300 ? `${text.slice(0, 300)}…` : text;
 }

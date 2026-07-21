@@ -26,6 +26,7 @@ import {
 	briefFilePath,
 	checkFilePath,
 	dispatchResume,
+	errorText,
 	findStory,
 	illegalTransition,
 	pidFilePath,
@@ -36,10 +37,6 @@ import {
 } from "./runs.ts";
 
 let log: { error(m: string): void } | undefined;
-
-function errorText(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
 
 // A git step's failure during an interactive exit: the card is left
 // unchanged and the message reaches the user as a toast, unlike the
@@ -67,8 +64,7 @@ async function reviewStory(
 	return { story, repo: managedRepo() };
 }
 
-// The exits' artifact sweep: the brief snapshot, check evidence, settings,
-// and pid file beside the worktrees.
+// The exits' artifact sweep: the per-story files beside the worktrees.
 async function removeArtifacts(storyId: string): Promise<void> {
 	for (const path of [
 		briefFilePath(storyId),
