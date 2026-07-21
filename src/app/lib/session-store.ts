@@ -349,6 +349,18 @@ export async function pauseRun(storyId: string): Promise<void> {
 	}
 }
 
+// Resolves either way; a rejected start only toasts (the caller's in-flight
+// flag clears in its `finally`).
+export async function startStoryRun(storyId: string): Promise<void> {
+	try {
+		await api.run.start({ id: storyId });
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to start the run",
+		);
+	}
+}
+
 export async function dequeueRun(storyId: string): Promise<void> {
 	try {
 		await api.run.dequeue({ id: storyId });

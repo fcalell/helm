@@ -22,9 +22,8 @@ interface BoardGridProps {
 	epics: Record<string, Epic>;
 	stories: Record<string, Story>;
 	epicView: boolean;
-	selectedStoryId: string | null;
-	onSelect: (id: string) => void;
 	onOpen: (id: string) => void;
+	onRefine: (id: string) => void;
 	onOpenEpicChat: (epicId: string) => void;
 }
 
@@ -53,9 +52,8 @@ export function BoardGrid(props: BoardGridProps) {
 											status={status}
 											stories={storiesByStatus(props.stories, status)}
 											epics={props.epics}
-											selectedStoryId={props.selectedStoryId}
-											onSelect={props.onSelect}
 											onOpen={props.onOpen}
+											onRefine={props.onRefine}
 										/>
 									)}
 								</For>
@@ -70,9 +68,8 @@ export function BoardGrid(props: BoardGridProps) {
 										title={epic.title}
 										epics={props.epics}
 										stories={props.stories}
-										selectedStoryId={props.selectedStoryId}
-										onSelect={props.onSelect}
 										onOpen={props.onOpen}
+										onRefine={props.onRefine}
 										onOpenChat={props.onOpenEpicChat}
 									/>
 								)}
@@ -84,9 +81,8 @@ export function BoardGrid(props: BoardGridProps) {
 										title={epicId}
 										epics={props.epics}
 										stories={props.stories}
-										selectedStoryId={props.selectedStoryId}
-										onSelect={props.onSelect}
 										onOpen={props.onOpen}
+										onRefine={props.onRefine}
 									/>
 								)}
 							</For>

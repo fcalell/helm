@@ -11,9 +11,8 @@ interface EpicLaneProps {
 	title: string;
 	epics: Record<string, Epic>;
 	stories: Record<string, Story>;
-	selectedStoryId: string | null;
-	onSelect: (id: string) => void;
 	onOpen: (id: string) => void;
+	onRefine: (id: string) => void;
 	// Absent on orphan lanes (no epic file, so no chat to open).
 	onOpenChat?: (epicId: string) => void;
 }
@@ -47,9 +46,8 @@ export function EpicLane(props: EpicLaneProps) {
 								(story) => story.epicId === props.epicId,
 							)}
 							epics={props.epics}
-							selectedStoryId={props.selectedStoryId}
-							onSelect={props.onSelect}
 							onOpen={props.onOpen}
+							onRefine={props.onRefine}
 							heightClass="h-80"
 							laneId={props.epicId}
 						/>

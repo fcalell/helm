@@ -19,6 +19,9 @@ import type { ShapingTarget } from "./shaping-drawer.tsx";
 
 interface BoardHeaderProps {
 	connected: boolean;
+	epicView: boolean;
+	onToggleEpicView: () => void;
+	onNewEpic: () => void;
 	onOpenShaping: (target: ShapingTarget) => void;
 }
 
@@ -225,6 +228,17 @@ export function BoardHeader(props: BoardHeaderProps) {
 			</div>
 			<div class="flex items-center gap-4">
 				<ShapeEntry onOpenShaping={props.onOpenShaping} />
+				<Button
+					size="sm"
+					variant={props.epicView ? "secondary" : "outline"}
+					aria-pressed={props.epicView}
+					onClick={() => props.onToggleEpicView()}
+				>
+					Epic view
+				</Button>
+				<Button size="sm" variant="outline" onClick={() => props.onNewEpic()}>
+					New epic
+				</Button>
 				<QueueStatus />
 				<RateMeter />
 				<Tooltip>

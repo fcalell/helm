@@ -4,22 +4,23 @@ import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Tooltip } from "@fcalell/plugin-solid-ui/components/tooltip";
 import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
 import { createDraggable } from "@thisbeyond/solid-dnd";
-import { Show } from "solid-js";
+import { createSignal, Match, Show, Switch } from "solid-js";
 import type { Epic, Story } from "../../board/schema.ts";
 import type { PermissionRequest } from "../../server/mcp/schemas.ts";
 import { gateFor } from "../lib/gate-store.ts";
+import { meterStore } from "../lib/meter-store.ts";
 import {
 	pendingPermission,
 	resolveRunPermission,
+	startStoryRun,
 } from "../lib/session-store.ts";
 import { gateBadgeLabel } from "./gate-panel.tsx";
 
 interface StoryCardProps {
 	story: Story;
 	epics: Record<string, Epic>;
-	selected: boolean;
-	onSelect: () => void;
 	onOpen: () => void;
+	onRefine: () => void;
 }
 
 function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
@@ -88,9 +89,9 @@ function permissionSummary(request: PermissionRequest): string {
 	return request.toolName;
 }
 
-// The card root is the drag-and-select surface, so this container isolates
+// The card root is the drag-and-open surface, so this container isolates
 // all three event paths: pointerdown (solid-dnd's activators listen there),
-// click (the drawer open), and keydown (Enter/Space bubbling into select).
+// click (the drawer open), and keydown (Enter/Space bubbling into open).
 function PermissionPrompt(props: { request: PermissionRequest }) {
 	return (
 		<fieldset
@@ -123,6 +124,76 @@ function PermissionPrompt(props: { request: PermissionRequest }) {
 	);
 }
 
+// The status-driven footer action. Same event isolation as PermissionPrompt:
+// the card root owns pointerdown (drag), click (open), and keydown
+// (Enter/Space open), and none of the three may fire from the button.
+function CardAction(props: { story: Story; onRefine: () => void }) {
+	const status = () => props.story.frontmatter.status;
+	const [starting, setStarting] = createSignal(false);
+	const queued = () =>
+		meterStore.snapshot?.queue.queued.some(
+			(entry) => entry.kind === "run" && entry.storyId === props.story.id,
+		) === true;
+
+	async function run(): Promise<void> {
+		setStarting(true);
+		try {
+			await startStoryRun(props.story.id);
+		} finally {
+			setStarting(false);
+		}
+	}
+
+	return (
+		<Show
+			when={
+				status() === "backlog" ||
+				status() === "refining" ||
+				status() === "ready"
+			}
+		>
+			<fieldset
+				class="flex justify-end"
+				aria-label="Story action"
+				onPointerDown={(event) => event.stopPropagation()}
+				onClick={(event) => event.stopPropagation()}
+				onKeyDown={(event) => event.stopPropagation()}
+			>
+				<Switch>
+					<Match when={status() === "backlog"}>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => props.onRefine()}
+						>
+							Refine
+						</Button>
+					</Match>
+					<Match when={status() === "refining"}>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => props.onRefine()}
+						>
+							Chat
+						</Button>
+					</Match>
+					<Match when={status() === "ready"}>
+						<Button
+							size="sm"
+							variant="secondary"
+							disabled={starting() || queued()}
+							onClick={() => void run()}
+						>
+							{queued() ? "Queued" : "Run"}
+						</Button>
+					</Match>
+				</Switch>
+			</fieldset>
+		</Show>
+	);
+}
+
 // The DragOverlay clone. Deliberately not draggable: a second
 // createDraggable with the same id inside the overlay corrupts solid-dnd's
 // collision geometry (drops resolve one column off).
@@ -152,20 +223,15 @@ export function StoryCard(props: StoryCardProps) {
 			data-story-id={props.story.id}
 			role="button"
 			tabIndex={0}
-			onClick={() => {
-				props.onSelect();
-				props.onOpen();
-			}}
+			onClick={() => props.onOpen()}
 			onKeyDown={(event) => {
 				if (event.key !== "Enter" && event.key !== " ") return;
 				// Space would otherwise scroll the board.
 				if (event.key === " ") event.preventDefault();
-				props.onSelect();
 				props.onOpen();
 			}}
 			class={cn(
 				"cursor-pointer gap-2 p-3 transition-shadow duration-base ease-ui",
-				props.selected && "ring-2 ring-ring",
 				isRunning() && "helm-card-pulse",
 				draggable.isActiveDraggable && "opacity-40",
 			)}
@@ -174,6 +240,7 @@ export function StoryCard(props: StoryCardProps) {
 			<Show when={pendingPermission(props.story.id)}>
 				{(request) => <PermissionPrompt request={request()} />}
 			</Show>
+			<CardAction story={props.story} onRefine={props.onRefine} />
 		</Card>
 	);
 }

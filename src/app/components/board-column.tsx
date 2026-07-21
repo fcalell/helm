@@ -10,9 +10,8 @@ interface BoardColumnProps {
 	status: Status;
 	stories: Story[];
 	epics: Record<string, Epic>;
-	selectedStoryId: string | null;
-	onSelect: (id: string) => void;
 	onOpen: (id: string) => void;
+	onRefine: (id: string) => void;
 	heightClass?: string;
 	laneId?: string;
 }
@@ -45,9 +44,8 @@ export function BoardColumn(props: BoardColumnProps) {
 							<StoryCard
 								story={story}
 								epics={props.epics}
-								selected={props.selectedStoryId === story.id}
-								onSelect={() => props.onSelect(story.id)}
 								onOpen={() => props.onOpen(story.id)}
+								onRefine={() => props.onRefine(story.id)}
 							/>
 						)}
 					</For>
