@@ -49,9 +49,12 @@ session is v2; in v1 any conflicting rebase parks the card in Blocked for manual
 
 ## Three exits
 
-- **Approve**: re-rebase if main moved since review opened, merge to main and push (or open a PR
-  via `gh` in PR mode), delete worktree + branch, card → Done. Merges run one at a time once
-  parallel runs land.
+- **Approve**: re-rebase if main moved since review opened, fast-forward-merge to main and push
+  (or open a PR via `gh` in PR mode; the push is best-effort, so a missing upstream or a failed
+  push leaves the merge local), delete worktree + branch, card → Done. An approve-time rebase
+  conflict returns the error and leaves the card in Review with the worktree untouched: the exit
+  is interactive, unlike the unattended close, so the user retries or discards rather than the
+  card parking Blocked. Merges run one at a time once parallel runs land.
 - **Request changes**: the user's comments (per-criterion or free-form) become the next message in
   the **same session, same worktree**, so full implementation context is preserved; card → Running.
   The follow-up's tier follows what failed: an unmet criterion or a free-form comment runs at

@@ -111,7 +111,10 @@ shows. A review close also records `stat` (`"N files +A -D"`, the branch's `git 
 against main after the close's rebase); the Review card face shows it. One entry spans one
 implement session: request-changes follow-ups accumulate onto it, and
 a new entry starts when discard retires the session
-([review](../product/features/review.md) §Three exits).
+([review](../product/features/review.md) §Three exits). A request-changes exit reopens the last
+entry: `outcome`, `error`, and `stat` are deleted so the close path treats it as the open entry
+again, while `tokens`/`minutes` stay and keep summing across the follow-up's segments; the next
+close rewrites `outcome` and `stat` fresh.
 
 An open run entry (no `outcome` yet) whose run called `ask_user` carries the pending question as
 `question: { text, recommendation, options }`: frontmatter keeps it across orchestrator restarts,
@@ -167,9 +170,12 @@ Worktrees live outside the repo working tree, under an orchestrator-owned direct
 approve/discard ([review](../product/features/review.md) §Three exits). The story branch is the
 durable artifact; the worktree is disposable. Per-story run artifacts sit beside the worktrees in
 the same directory: `<story-id>.brief.md` (the brief's spawn snapshot, seeding every segment,
-[claude-integration](./claude-integration.md) §Context management) and `<story-id>.check.json`
+[claude-integration](./claude-integration.md) §Context management), `<story-id>.check.json`
 (the review close's check evidence, `{ command, exitCode, output, finishedAt }` with the output
-tail capped and `exitCode: null` on timeout; absent when no check command is configured).
+tail capped and `exitCode: null` on timeout; absent when no check command is configured),
+`<story-id>.settings.json` (the per-spawn CLI settings), and `<story-id>.pid` (the live run's
+process id, for restart reconciliation). Approve and discard delete all four with the worktree;
+the story file itself keeps the brief and run history.
 
 Worktrees are created with a sparse checkout that excludes the board state (`.helm/board/`): a story
 branch never carries board changes, so story files can't conflict at
