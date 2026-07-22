@@ -11,6 +11,7 @@ import { api } from "../lib/api.ts";
 import { boardStore } from "../lib/board-store.ts";
 import { pendingDecisionFor, researchStateFor } from "../lib/session-store.ts";
 import { ChatPane } from "./chat-pane.tsx";
+import { ExpandToggle } from "./expand-toggle.tsx";
 
 // The drawer target right after a fresh spawn carries only the session id;
 // the thread (and its slug) appears with the watcher's next snapshot.
@@ -150,18 +151,29 @@ export function ShapingDrawer(props: ShapingDrawerProps) {
 	};
 	const sessionId = () =>
 		props.target?.sessionId ?? thread()?.frontmatter.sessions.shape;
+	const [expanded, setExpanded] = createSignal(false);
 
 	return (
-		<Sheet open={props.target !== null} onOpenChange={props.onOpenChange}>
+		<Sheet
+			open={props.target !== null}
+			onOpenChange={(open) => {
+				if (!open) setExpanded(false);
+				props.onOpenChange(open);
+			}}
+		>
 			<Sheet.Content
 				position="right"
-				size="xl"
+				size={expanded() ? "full" : "xl"}
 				class="flex flex-col overflow-hidden"
 			>
 				<Sheet.Header class="shrink-0">
 					<div class="flex items-center gap-2">
 						<Sheet.Title>{thread()?.title ?? "Shaping"}</Sheet.Title>
 						<Badge>Shaping</Badge>
+						<ExpandToggle
+							expanded={expanded()}
+							onToggle={() => setExpanded((value) => !value)}
+						/>
 					</div>
 				</Sheet.Header>
 				<div class="mt-4 min-h-0 flex-1">

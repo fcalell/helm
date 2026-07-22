@@ -1,13 +1,14 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Sheet } from "@fcalell/plugin-solid-ui/components/sheet";
-import { For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import {
 	boardStore,
 	STATUS_LABELS,
 	sortedStories,
 } from "../lib/board-store.ts";
 import { ChatPane } from "./chat-pane.tsx";
+import { ExpandToggle } from "./expand-toggle.tsx";
 
 export interface DefineTarget {
 	epicId: string;
@@ -30,12 +31,19 @@ export function DefineDrawer(props: DefineDrawerProps) {
 				(story) => story.epicId === props.target?.epicId,
 			),
 		);
+	const [expanded, setExpanded] = createSignal(false);
 
 	return (
-		<Sheet open={props.target !== null} onOpenChange={props.onOpenChange}>
+		<Sheet
+			open={props.target !== null}
+			onOpenChange={(open) => {
+				if (!open) setExpanded(false);
+				props.onOpenChange(open);
+			}}
+		>
 			<Sheet.Content
 				position="right"
-				size="xl"
+				size={expanded() ? "full" : "xl"}
 				class="flex flex-col overflow-hidden"
 			>
 				<Sheet.Header class="shrink-0">
@@ -44,6 +52,10 @@ export function DefineDrawer(props: DefineDrawerProps) {
 							{props.target?.epicId} · {epic()?.title ?? "New epic"}
 						</Sheet.Title>
 						<Badge>Define</Badge>
+						<ExpandToggle
+							expanded={expanded()}
+							onToggle={() => setExpanded((value) => !value)}
+						/>
 					</div>
 				</Sheet.Header>
 				<div class="mt-4 min-h-0 flex-1">

@@ -5,7 +5,7 @@ import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
 import { Sheet } from "@fcalell/plugin-solid-ui/components/sheet";
 import { Tabs } from "@fcalell/plugin-solid-ui/components/tabs";
-import { For, Match, Show, Switch } from "solid-js";
+import { createSignal, For, Match, Show, Switch } from "solid-js";
 import {
 	BRIEF_SECTIONS,
 	type ChecklistItem,
@@ -19,6 +19,7 @@ import { refineSpawnFor, setStoryPreset } from "../lib/session-store.ts";
 import { ActivityPane } from "./activity-pane.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { DiffPane } from "./diff-pane.tsx";
+import { ExpandToggle } from "./expand-toggle.tsx";
 import { GatePanel } from "./gate-panel.tsx";
 import { ReviewExits } from "./review-exits.tsx";
 import { RunQuestionPanel } from "./run-question-panel.tsx";
@@ -185,13 +186,20 @@ function openRunQuestion(story: Story) {
 }
 
 export function CardDrawer(props: CardDrawerProps) {
+	const [expanded, setExpanded] = createSignal(false);
 	return (
-		<Sheet open={props.open} onOpenChange={props.onOpenChange}>
+		<Sheet
+			open={props.open}
+			onOpenChange={(open) => {
+				if (!open) setExpanded(false);
+				props.onOpenChange(open);
+			}}
+		>
 			<Show when={props.story} keyed>
 				{(story) => (
 					<Sheet.Content
 						position="right"
-						size="xl"
+						size={expanded() ? "full" : "xl"}
 						// The tab contents own their scrolling (contentClass below), so
 						// the sheet body clips instead of adding a second scrollbar.
 						class="flex flex-col overflow-hidden"
@@ -212,6 +220,10 @@ export function CardDrawer(props: CardDrawerProps) {
 									</Button>
 								</Show>
 								<PresetSelector story={story} />
+								<ExpandToggle
+									expanded={expanded()}
+									onToggle={() => setExpanded((value) => !value)}
+								/>
 							</div>
 						</Sheet.Header>
 						<Show when={story.frontmatter.status === "review"}>

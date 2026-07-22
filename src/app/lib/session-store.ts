@@ -711,23 +711,6 @@ export function unanchoredProposals(
 		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export function unanchoredQuestions(
-	sessionId: string,
-	items: ChatItem[],
-): LoggedQuestion[] {
-	const anchored = new Set(
-		items.map((item) => (item.type === "tool" ? item.questionId : undefined)),
-	);
-	return Object.values(store.questions)
-		.filter(
-			(question) =>
-				question.sessionId === sessionId &&
-				question.pending &&
-				!anchored.has(question.id),
-		)
-		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-}
-
 // The pending decisions for this session, sorted oldest-first. Decisions
 // always render as an actionable widget (never inert), so they need no
 // supersession — a newer proposal or question does not retire them.

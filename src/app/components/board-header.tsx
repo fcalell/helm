@@ -25,7 +25,10 @@ interface BoardHeaderProps {
 	onOpenShaping: (target: ShapingTarget) => void;
 }
 
-function ShapeEntry(props: { onOpenShaping: (target: ShapingTarget) => void }) {
+function ShapeEntry(props: {
+	onOpenShaping: (target: ShapingTarget) => void;
+	onNewEpic: () => void;
+}) {
 	const [dialogOpen, setDialogOpen] = createSignal(false);
 	const [goal, setGoal] = createSignal("");
 	const [spawning, setSpawning] = createSignal(false);
@@ -48,6 +51,27 @@ function ShapeEntry(props: { onOpenShaping: (target: ShapingTarget) => void }) {
 		}
 	}
 
+	// The single primary control: past chats to resume are labelled and split
+	// from the start actions so they never read as plain menu commands.
+	const items = (): MenuItem[] => {
+		const threads = sortedShaping(boardStore.shaping);
+		return [
+			...(threads.length > 0
+				? [
+						{ type: "label" as const, label: "Resume a chat" },
+						...threads.map((thread) => ({
+							label: thread.title || thread.slug,
+							onSelect: () => props.onOpenShaping({ slug: thread.slug }),
+						})),
+						{ type: "separator" as const },
+					]
+				: []),
+			{ type: "label" as const, label: "Start" },
+			{ label: "Shape a goal…", onSelect: () => setDialogOpen(true) },
+			{ label: "New epic…", onSelect: () => props.onNewEpic() },
+		];
+	};
+
 	return (
 		<>
 			<DropdownMenu
@@ -56,16 +80,7 @@ function ShapeEntry(props: { onOpenShaping: (target: ShapingTarget) => void }) {
 						Shape
 					</Button>
 				}
-				items={[
-					...sortedShaping(boardStore.shaping).map((thread) => ({
-						label: thread.title || thread.slug,
-						onSelect: () => props.onOpenShaping({ slug: thread.slug }),
-					})),
-					{
-						label: "New shaping chat…",
-						onSelect: () => setDialogOpen(true),
-					},
-				]}
+				items={items()}
 			/>
 			<Dialog open={dialogOpen()} onOpenChange={setDialogOpen}>
 				<Dialog.Content>
@@ -227,7 +242,10 @@ export function BoardHeader(props: BoardHeaderProps) {
 				</Show>
 			</div>
 			<div class="flex items-center gap-4">
-				<ShapeEntry onOpenShaping={props.onOpenShaping} />
+				<ShapeEntry
+					onOpenShaping={props.onOpenShaping}
+					onNewEpic={props.onNewEpic}
+				/>
 				<Button
 					size="sm"
 					variant={props.epicView ? "secondary" : "outline"}
@@ -235,9 +253,6 @@ export function BoardHeader(props: BoardHeaderProps) {
 					onClick={() => props.onToggleEpicView()}
 				>
 					Epic view
-				</Button>
-				<Button size="sm" variant="outline" onClick={() => props.onNewEpic()}>
-					New epic
 				</Button>
 				<QueueStatus />
 				<RateMeter />
