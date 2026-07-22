@@ -42,9 +42,8 @@ export type ContextPolicy =
 
 // One registry row per kind, mirroring the table in
 // `.helm/knowledge/architecture/session-kinds.md`. `tools`/`prompt` are
-// absent on rows whose tooling is not built yet (`review` needs a repo test
-// command, `conflict` worktree tools); spawning one of those throws until
-// its mechanics land.
+// absent on rows whose tooling is not built yet (`conflict` worktree tools);
+// spawning one of those throws until its mechanics land.
 export interface KindRow {
 	model: "fable" | "sonnet" | "opus";
 	effort: Effort;
@@ -136,7 +135,7 @@ const REFINE_BODY = `The brief is the artifact; the chat is disposable. Fill it 
 
 The Approach opens with measured facts: before any design, verify the file:line anchors, symbol names, and existing behavior the story builds on, list them under the commit you checked them against, and phrase the design as building on those anchors. The ready-gate adversary checks anchors it can verify; prose it can only doubt becomes a flag.
 
-Acceptance criteria are a "- [ ]" checklist of measurable, testable statements: name the observable behavior and how to check it, never "works well".
+Acceptance criteria are a "- [ ]" checklist of measurable, testable statements: name the observable behavior and how to check it, never "works well". Every criterion ends with its verification-mode tag, and the gate refuses Ready while any criterion is untagged: (test) an automated test proves it; (command) the repo's check-command output proves it; (file) reading a named file proves it — state with an on-disk representation must carry a (file) criterion naming that file, never only its in-memory effect; (live) only a human driving the running app can prove it — UI-visible behavior gets at least one (live).
 
 Anything genuinely the user's call is an open question: land it in the Open questions section through update_brief as "- [ ]" checklist lines, and surface each through ask_user with quick-reply options, quoting the checklist text verbatim. When the user answers, call resolve_question with that question text and the answer: accepting checks the item off and folds the answer into the Approach section.
 
@@ -222,7 +221,7 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		boardTools: ["flag_risk", "ask_user"],
 		prompt: {
 			role: "You are Helm's ready-gate adversary: attack the brief for gaps, risks, and ambiguity a cold reader would hit, checking its claims against the repository where they can be checked.",
-			body: "Raise each critical flaw with one flag_risk call: a short title plus the detail naming where an implementer would stumble. Never re-raise a risk the user has already dismissed. If the brief holds, call no tools and end your turn.",
+			body: "Raise each critical flaw with one flag_risk call: a short title plus the detail naming where an implementer would stumble. Attack the acceptance criteria too: flag a happy-path-only set that never tests the failure and edge behavior the Approach implies; a criterion testing the in-memory side of on-disk state with no (file) criterion naming that file; a mis-tagged mode ((test) in a repo with no test suite, (command) with no check command configured); and a brief whose Blast radius reaches UI code with no (live) criterion. Never re-raise a risk the user has already dismissed. If the brief holds, call no tools and end your turn.",
 			blocks: [READ_ONLY],
 		},
 	},

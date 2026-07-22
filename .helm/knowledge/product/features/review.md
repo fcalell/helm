@@ -7,10 +7,25 @@ makes review workable from a phone ([mobile](./mobile.md)).
 ## Self-grading
 
 When a run finishes, a cheap review session (read-only allowlist plus Bash limited to the repo's
-test commands, so evidence can include real test output) grades each acceptance criterion from the
+check command, so evidence can include real check output) grades each acceptance criterion from the
 run's brief snapshot ([runs](./runs.md)): **✓ / ✗ / unclear, each with evidence** (file:line
-references, test or command output). The tally lands on the run's frontmatter entry and shows on
-the card (5/6 ✓). Grades are claims to verify, never auto-approval; a human decides every exit.
+references, check output). The grades come back through the `grade_criteria` board tool, not the
+result text: one call carries every criterion's verdict and evidence, and the orchestrator writes a
+typed grade record beside the check file, validating the shape and retrying once on a malformed or
+missing call. The pass tally lands on the run's frontmatter entry and shows on the card (5/6 ✓).
+Grades are claims to verify, never auto-approval and never a gate; a human decides every exit, and
+approve or discard never waits on grading.
+
+Every criterion carries a **verification mode**, a trailing tag the refine chat writes and the
+ready gate enforces ([define-refine](./define-refine.md)): `(test)` an automated test proves it,
+`(command)` the repo's check-command output proves it, `(file)` reading a named file proves it, or
+`(live)` only a human driving the running app can prove it. The grader judges each by its mode:
+`(test)` and `(command)` from the check output in its prompt alone (it never decides what ran; no
+output means unclear), `(file)` by reading the named file and quoting on-disk content with
+path:line, `(live)` always unclear with the human steps to verify. A `(file)` pass is
+double-checked mechanically: the orchestrator stats the evidence path in the worktree and demotes a
+missing file to unclear.
+
 (v2; v1 review is the checklist rendered ungraded + the diff, with the run's own evidence in
 between: the check command's result captured at close, a Conventional Commit lint of the branch's
 commits in that capture, and the run's `verify:` notes naming the by-hand checks. See
@@ -37,10 +52,12 @@ Standards findings gate the exit the way the adversary gates Ready: each renders
 is either accepted, joining the request-changes comments for the follow-up run, or dismissed with
 a recorded reason, and approve enables only when none stands unaddressed. Every Helm gate blocks
 by default with a deliberate override. (The standards axis is v2 alongside self-grading; v1 review
-spawns no session on either axis. See [roadmap](../roadmap.md).) Both axes' prompts must demand
-the complete review, every finding and the verdict in one final message: a headless session's
-result text is its only output channel, and a verdict returned alone strands the findings in the
-transcript ([claude-integration](../../architecture/claude-integration.md) §Invocation model).
+spawns no session on either axis. See [roadmap](../roadmap.md).) The spec axis reports through the `grade_criteria` tool
+(§Self-grading), so its typed grades survive the turn whatever the result text says. The standards
+axis has no such tool yet, so its prompt must demand the complete review, every finding and the
+verdict in one final message: a headless session's result text is its only output channel there,
+and a verdict returned alone strands the findings in the transcript
+([claude-integration](../../architecture/claude-integration.md) §Invocation model).
 
 Diff tab: per-file, side-by-side, with the criteria checklist pinned above; clicking a criterion's
 evidence jumps to the lines (v2, with self-grading). Before review opens, the story branch is

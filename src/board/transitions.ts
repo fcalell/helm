@@ -33,6 +33,17 @@ export function checkReadyGate(brief: Brief): TransitionCheck {
 	if (brief.criteria.length === 0) {
 		return { ok: false, reason: "no acceptance criteria yet" };
 	}
+	const untagged = brief.criteria.filter((c) => c.mode === undefined);
+	const first = untagged[0];
+	if (first !== undefined) {
+		return {
+			ok: false,
+			reason:
+				`${untagged.length} acceptance criterion(s) lack a verification ` +
+				`mode, starting with "${first.text}": tag each with (test), ` +
+				"(command), (file), or (live)",
+		};
+	}
 	const open = brief.openQuestions.filter((q) => !q.checked).length;
 	if (open > 0) {
 		return { ok: false, reason: `${open} open question(s) unresolved` };

@@ -93,8 +93,9 @@ scope · open questions), the canonical generation template for a brief
    folds the answer into the approach.
 3. **Criteria get pushed on.** The template demands testable criteria; the UI flags weak ones
    ("sync should work well" ⚠), and the tool boundary refuses an Acceptance criteria or Open
-   questions proposal that is not a `- [ ]` checklist. Deliberate friction: the implementation run
-   is graded against them ([review](./review.md)).
+   questions proposal that is not a `- [ ]` checklist. Every criterion ends with a verification-mode
+   tag: `(test)`, `(command)`, `(file)`, or `(live)` (§Verification modes). Deliberate friction: the
+   implementation run is graded against them by mode ([review](./review.md)).
 4. **The Approach opens with measured facts.** Before any design, the Approach leads with a facts
    block: file:line anchors, symbol names, and existing behavior the story builds on, each
    verified against a named commit, with the design phrased as "build on those anchors". A cold
@@ -103,11 +104,22 @@ scope · open questions), the canonical generation template for a brief
    through 002-08) passed the gate in a single cold pass, where earlier unanchored briefs took
    multi-round fix loops.
 
+## Verification modes
+
+Every acceptance criterion carries a **verification mode**, a trailing tag naming what proves it:
+`(test)` an automated test, `(command)` the repo's check-command output, `(file)` reading a named
+file, or `(live)` a human driving the running app. The tag is the contract the review grader reads:
+it judges each criterion by its mode, so a mis-declared mode grades wrong. Two rules the refine chat
+applies: state with an on-disk representation carries a `(file)` criterion naming that file, never
+only its in-memory effect (files are the truth); UI-visible behavior gets at least one `(live)`
+criterion. The ready gate refuses while any criterion is untagged. Legacy briefs written before the
+tags parse fine and only face enforcement on their next gate pass.
+
 ## Ready gate
 
 "Move to Ready" runs the **adversary review** and enables only when it passes and the brief is
-complete: all sections set, no unresolved open questions ([board](./board.md) §Status state
-machine). The adversary is a cold session (`adversary` kind,
+complete: all sections set, every criterion tagged with a verification mode, no unresolved open
+questions ([board](./board.md) §Status state machine). The adversary is a cold session (`adversary` kind,
 [session-kinds](../../architecture/session-kinds.md)) that reads the finished brief with no chat
 history and attacks it, naming where an implementer would stumble. It dispatches through the run
 queue and takes minutes; the card stays in Refining behind a gating indicator until the verdict

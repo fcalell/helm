@@ -5,12 +5,14 @@ import {
 	type BriefSection,
 	CHECKLIST_RE,
 	type ChecklistItem,
+	type CriterionItem,
 	type DecisionItem,
 	type DecisionSettler,
 	type EpicFrontmatter,
 	RUN_NOTES_SECTION,
 	type ShapingFrontmatter,
 	type StoryFrontmatter,
+	type VerificationMode,
 } from "./schema.ts";
 
 export interface SplitFile {
@@ -51,6 +53,23 @@ export function parseChecklist(text: string): ChecklistItem[] {
 	return items;
 }
 
+// A criterion's trailing verification-mode tag; `text` holds the tag-stripped
+// label, so grading, ReviewComment.criterion, and display all match one
+// canonical string. Untagged criteria carry no mode (only the gate enforces).
+const CRITERION_MODE_RE = /\s*\((test|command|file|live)\)$/;
+
+export function parseCriteria(sectionText: string): CriterionItem[] {
+	return parseChecklist(sectionText).map((item) => {
+		const tag = CRITERION_MODE_RE.exec(item.text);
+		const mode = tag?.[1] as VerificationMode | undefined;
+		return {
+			text: item.text.replace(CRITERION_MODE_RE, "").trim(),
+			checked: item.checked,
+			...(mode !== undefined && { mode }),
+		};
+	});
+}
+
 export function parseBrief(body: string): Brief {
 	let title = "";
 	const sections: Record<string, string> = {};
@@ -80,7 +99,7 @@ export function parseBrief(body: string): Brief {
 	return {
 		title,
 		sections,
-		criteria: parseChecklist(sections["Acceptance criteria"] ?? ""),
+		criteria: parseCriteria(sections["Acceptance criteria"] ?? ""),
 		openQuestions: parseChecklist(sections["Open questions"] ?? ""),
 	};
 }

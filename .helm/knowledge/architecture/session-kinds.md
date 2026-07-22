@@ -20,7 +20,7 @@ Helm stays a single fixed workflow; the kinds are its stages, never user-authore
 | `refine`    | story → brief                            | read-only + `update_brief` / `resolve_question` (+ `contest_flag` during a gate round) | Fable  | medium | reseed on stale       |
 | `adversary` | ready gate: attack the brief             | read-only + `flag_risk`                         | Opus   | high   | always cold           |
 | `run`       | implement a Ready story                  | permission preset + `update_card`               | Opus   | medium (adaptive) | compact at boundaries  |
-| `review`    | grade + test a finished run              | read-only + test-command Bash                   | Opus   | high   | always cold           |
+| `review`    | grade a finished run's criteria          | read-only + check-command Bash + `grade_criteria` | Opus   | high   | always cold           |
 | `conflict`  | rebase conflict resolution               | worktree tools                                  | Fable  | high   | always cold           |
 
 `ask_user` is available to every kind but `research`: it is the one primitive for a session to put

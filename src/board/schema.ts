@@ -126,10 +126,24 @@ export const checklistItemSchema = z.object({
 });
 export type ChecklistItem = z.infer<typeof checklistItemSchema>;
 
+// How an acceptance criterion is verified: an automated `test`, the repo's
+// check `command` output, reading a named `file`, or a human driving the
+// running app (`live`). Encoded as a trailing tag on the criterion line.
+export const VERIFICATION_MODES = ["test", "command", "file", "live"] as const;
+export const verificationModeSchema = z.enum(VERIFICATION_MODES);
+export type VerificationMode = z.infer<typeof verificationModeSchema>;
+
+// A criterion is a checklist item plus its verification mode. The mode is
+// optional so legacy briefs still parse; the ready gate is what enforces it.
+export const criterionItemSchema = checklistItemSchema.extend({
+	mode: verificationModeSchema.optional(),
+});
+export type CriterionItem = z.infer<typeof criterionItemSchema>;
+
 export const briefSchema = z.object({
 	title: z.string(),
 	sections: z.record(z.string(), z.string()),
-	criteria: z.array(checklistItemSchema),
+	criteria: z.array(criterionItemSchema),
 	openQuestions: z.array(checklistItemSchema),
 });
 export type Brief = z.infer<typeof briefSchema>;
