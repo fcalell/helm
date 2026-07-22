@@ -3,12 +3,12 @@ import { access, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { isENOENT } from "../../board/store.ts";
+import { isENOENT } from "../board/store.ts";
 import {
 	type PersistedLine,
 	persistedLineSchema,
-} from "../../sessions/persisted.ts";
-import { managedRepo } from "./board.ts";
+} from "../sessions/persisted.ts";
+import { managedRepo } from "./services/board.ts";
 
 // The CLI stores each session's transcript at
 // `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`, encoding the cwd by

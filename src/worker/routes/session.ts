@@ -6,7 +6,7 @@ import {
 	messageSession,
 	spawnSession,
 } from "../../server/services/sessions.ts";
-import { readTranscript } from "../../server/services/transcripts.ts";
+import { readTranscript } from "../../server/transcripts.ts";
 import { sessionKindSchema } from "../../sessions/kinds.ts";
 
 const spawnInputSchema = z
