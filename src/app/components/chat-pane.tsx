@@ -14,6 +14,7 @@ import {
 import {
 	type ChatItem,
 	chatFor,
+	hydrateChat,
 	sendChatMessage,
 	sessionStore,
 	unanchoredProposals,
@@ -126,6 +127,11 @@ export function ChatPane(props: ChatPaneProps) {
 	const [draft, setDraft] = createSignal("");
 	const matches = createMemo(() => slashMatches(draft()));
 	let transcriptRef: HTMLDivElement | undefined;
+
+	createEffect(() => {
+		const sessionId = props.sessionId;
+		if (chatFor(sessionId).items.length === 0) void hydrateChat(sessionId);
+	});
 
 	createEffect(() => {
 		// Track everything that grows the transcript — including the streaming

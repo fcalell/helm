@@ -6,6 +6,7 @@ import {
 	messageSession,
 	spawnSession,
 } from "../../server/services/sessions.ts";
+import { readTranscript } from "../../server/services/transcripts.ts";
 import { sessionKindSchema } from "../../sessions/kinds.ts";
 
 const spawnInputSchema = z
@@ -36,4 +37,10 @@ export const session = {
 	kill: procedure()
 		.input(z.object({ sessionId: z.uuid() }))
 		.handler(({ input }) => killSession(input.sessionId)),
+	// Rehydrates a chat from the CLI's persisted JSONL transcript: the client
+	// reduces the returned lines into ChatItems once per page load. `found` is
+	// false when no transcript exists (a live-only or pruned session).
+	transcript: procedure()
+		.input(z.object({ sessionId: z.uuid() }))
+		.handler(({ input }) => readTranscript(input.sessionId)),
 };

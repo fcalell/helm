@@ -1,5 +1,7 @@
 import { z } from "@fcalell/plugin-api/schema";
 import type { SessionEvent } from "../../sessions/events.ts";
+import type { PersistedLine } from "../../sessions/persisted.ts";
+import type { ChatItem } from "./session-store.ts";
 
 // Boundary schemas for the CLI stream events the chat pane renders. The wire
 // schema only guarantees `{ type }`; the fields acted on here are parsed
@@ -148,4 +150,94 @@ export function extractProposalId(text: string): string | undefined {
 
 export function extractQuestionId(text: string): string | undefined {
 	return QUESTION_RE.exec(text)?.[1];
+}
+
+// Rehydration: reduce the CLI's persisted transcript lines into the same
+// ChatItems the live stream produces. Shares the per-block parsing above, so an
+// item hydrated from disk is indistinguishable from one built live.
+export function reduceTranscript(lines: PersistedLine[]): ChatItem[] {
+	const items: ChatItem[] = [];
+	const toolIndex = new Map<string, number>();
+	for (const line of lines) {
+		if (line.type === "system") {
+			const meta = line.compactMetadata;
+			items.push({
+				type: "compact",
+				trigger: meta.trigger,
+				preTokens: meta.preTokens ?? 0,
+				postTokens: meta.postTokens ?? 0,
+			});
+			continue;
+		}
+		const content = line.message.content;
+		if (typeof content === "string") {
+			if (line.type === "user" && content.trim() !== "") {
+				items.push({ type: "user", text: content });
+			}
+			continue;
+		}
+		for (const block of content) {
+			if (line.type === "assistant") {
+				reduceAssistantBlock(items, toolIndex, block);
+			} else {
+				reduceUserBlock(items, toolIndex, block);
+			}
+		}
+	}
+	// A tool_use with no persisted tool_result (the turn was cut off) still
+	// renders as a finished line.
+	for (const item of items) {
+		if (item.type === "tool") item.done = true;
+	}
+	return items;
+}
+
+function reduceAssistantBlock(
+	items: ChatItem[],
+	toolIndex: Map<string, number>,
+	block: unknown,
+): void {
+	const parsed = parseContentBlock(block);
+	if (parsed === undefined) return;
+	if (parsed.type === "text") {
+		if (parsed.text.trim() !== "") {
+			items.push({ type: "assistant", text: parsed.text, done: true });
+		}
+		return;
+	}
+	toolIndex.set(parsed.id, items.length);
+	items.push({
+		type: "tool",
+		toolUseId: parsed.id,
+		name: parsed.name,
+		input: parsed.input,
+		done: false,
+	});
+}
+
+function reduceUserBlock(
+	items: ChatItem[],
+	toolIndex: Map<string, number>,
+	block: unknown,
+): void {
+	const text = textBlockSchema.safeParse(block);
+	if (text.success) {
+		if (text.data.text.trim() !== "") {
+			items.push({ type: "user", text: text.data.text });
+		}
+		return;
+	}
+	const result = toolResultBlockSchema.safeParse(block);
+	if (!result.success) return;
+	const index = toolIndex.get(result.data.tool_use_id);
+	if (index === undefined) return;
+	const item = items[index];
+	if (item?.type !== "tool") return;
+	const resultText = toolResultText(result.data);
+	item.result = resultText;
+	item.isError = result.data.is_error ?? false;
+	item.done = true;
+	if (item.isError) return;
+	item.proposalId = extractProposalId(resultText);
+	item.questionId = extractQuestionId(resultText);
 }

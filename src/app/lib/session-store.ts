@@ -23,6 +23,7 @@ import {
 	parseContentBlock,
 	parseStreamEvent,
 	parseUserEvent,
+	reduceTranscript,
 	toolResultText,
 } from "./chat-events.ts";
 import { wsClient } from "./ws.ts";
@@ -581,6 +582,53 @@ export async function answerQuestion(
 
 export function chatFor(sessionId: string): ChatState {
 	return store.chats[sessionId] ?? { items: [], busy: false };
+}
+
+// One rehydration attempt per session per page load: `hydrating` guards the
+// in-flight fetch, `hydrated` marks a settled one (found or not).
+const hydrating = new Set<string>();
+const hydrated = new Set<string>();
+
+function mergeHydrated(sessionId: string, hydratedItems: ChatItem[]): void {
+	ensureChat(sessionId);
+	editItems(sessionId, (items) => {
+		if (items.length === 0) {
+			items.splice(0, items.length, ...hydratedItems);
+			return;
+		}
+		// The live tail may already hold some of the hydrated lines (the client
+		// connected mid-turn). Drop hydrated items whose tool call is already
+		// present, then drop any tail user/assistant text that the live items
+		// already opened with, and prepend the rest.
+		const liveToolIds = new Set(
+			items.map((item) => (item.type === "tool" ? item.toolUseId : undefined)),
+		);
+		let prefix = hydratedItems.filter(
+			(item) => item.type !== "tool" || !liveToolIds.has(item.toolUseId),
+		);
+		const firstLive = items[0];
+		if (firstLive?.type === "user" || firstLive?.type === "assistant") {
+			const overlap = prefix.findLastIndex(
+				(item) => item.type === firstLive.type && item.text === firstLive.text,
+			);
+			if (overlap !== -1) prefix = prefix.slice(0, overlap);
+		}
+		items.splice(0, 0, ...prefix);
+	});
+}
+
+export async function hydrateChat(sessionId: string): Promise<void> {
+	if (hydrating.has(sessionId) || hydrated.has(sessionId)) return;
+	hydrating.add(sessionId);
+	try {
+		const { found, lines } = await api.session.transcript({ sessionId });
+		if (found) mergeHydrated(sessionId, reduceTranscript(lines));
+		hydrated.add(sessionId);
+	} catch {
+		// A failed fetch stays un-hydrated so a later mount can retry.
+	} finally {
+		hydrating.delete(sessionId);
+	}
 }
 
 // Pending proposals/questions for this session with no anchoring tool call in
