@@ -1,5 +1,6 @@
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createStore, produce } from "solid-js/store";
+import { normalizeDecision } from "../../board/markdown.ts";
 import type { Preset } from "../../board/schema.ts";
 import type {
 	PendingDecision,
@@ -734,6 +735,20 @@ export function pendingDecisions(sessionId: string): PendingDecision[] {
 	return Object.values(store.decisions)
 		.filter((decision) => decision.sessionId === sessionId)
 		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+// The live pending-decision widget matching a thread-file decision line, if
+// any: the Decisions panel defers a row to its chat widget when one exists,
+// and falls back to its own resolve input when a restart lost the cache.
+export function pendingDecisionFor(
+	slug: string,
+	decisionText: string,
+): PendingDecision | undefined {
+	const target = normalizeDecision(decisionText);
+	return Object.values(store.decisions).find(
+		(decision) =>
+			decision.slug === slug && normalizeDecision(decision.decision) === target,
+	);
 }
 
 // A pending question is superseded once the session has moved on: any newer

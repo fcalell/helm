@@ -9,7 +9,7 @@ import { createSignal, For, Match, Show, Switch } from "solid-js";
 import type { DecisionItem, ShapingThread } from "../../board/schema.ts";
 import { api } from "../lib/api.ts";
 import { boardStore } from "../lib/board-store.ts";
-import { researchStateFor } from "../lib/session-store.ts";
+import { pendingDecisionFor, researchStateFor } from "../lib/session-store.ts";
 import { ChatPane } from "./chat-pane.tsx";
 
 // The drawer target right after a fresh spawn carries only the session id;
@@ -47,6 +47,11 @@ function OpenDecision(props: { slug: string; decision: DecisionItem }) {
 			? researchStateFor(props.slug, props.decision.text)
 			: undefined;
 
+	// A live pending-decision widget owns this row's answer input; the panel
+	// only badges it. Only after a restart drops the cache does the panel fall
+	// back to its own resolve form.
+	const widget = () => pendingDecisionFor(props.slug, props.decision.text);
+
 	return (
 		<li class="flex flex-col gap-1.5">
 			<div class="flex items-start gap-2">
@@ -66,7 +71,12 @@ function OpenDecision(props: { slug: string; decision: DecisionItem }) {
 			<Show when={research()?.error}>
 				{(error) => <p class="ml-6 text-xs text-destructive">{error()}</p>}
 			</Show>
-			<Show when={research()?.status !== "pending"}>
+			<Show when={widget()}>
+				<Badge variant="secondary" class="ml-6 self-start">
+					answer in chat
+				</Badge>
+			</Show>
+			<Show when={widget() === undefined && research()?.status !== "pending"}>
 				<form
 					class="ml-6 flex gap-2"
 					onSubmit={(event) => {
