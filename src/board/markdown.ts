@@ -145,6 +145,13 @@ export function buildShapingBody(title: string, goal: string): string {
 // are human decisions (the default settler).
 const DECISION_TAG_RE = /\s*\((research)\)$/;
 
+// The comparison key for decision text: tag stripped, internal whitespace
+// collapsed, trimmed. Duplicate raises and resolutions match on this, not on
+// byte-exact text.
+export function normalizeDecision(text: string): string {
+	return text.replace(DECISION_TAG_RE, "").replace(/\s+/g, " ").trim();
+}
+
 export function parseDecisions(body: string): DecisionItem[] {
 	const section = parseBrief(body).sections[SHAPING_DECISIONS] ?? "";
 	return parseChecklist(section).map((item) => {
@@ -207,16 +214,17 @@ export function appendDecision(
 }
 
 // Check the matching open decision off and fold the answer into the agreed
-// notes; undefined when no unchecked decision matches the text exactly.
+// notes; undefined when no unchecked decision matches. The first unchecked
+// normalized match wins, so duplicates resolve deterministically.
 export function resolveDecision(
 	body: string,
 	decision: string,
 	answer: string,
 ): string | undefined {
-	const target = decision.trim();
+	const target = normalizeDecision(decision);
 	const lines = body.split("\n");
 	let inSection = false;
-	let found = false;
+	let matched: string | undefined;
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i] ?? "";
 		const heading = HEADING_RE.exec(line);
@@ -228,17 +236,16 @@ export function resolveDecision(
 		if (!inSection) continue;
 		const match = CHECKLIST_RE.exec(line);
 		if (match?.[1] !== " ") continue;
-		const text = (match[2] ?? "").replace(DECISION_TAG_RE, "").trim();
-		if (text !== target) continue;
+		if (normalizeDecision(match[2] ?? "") !== target) continue;
 		lines[i] = line.replace("[ ]", "[x]");
-		found = true;
+		matched = normalizeDecision(match[2] ?? "");
 		break;
 	}
-	if (!found) return undefined;
+	if (matched === undefined) return undefined;
 	return appendToSection(
 		lines.join("\n"),
 		SHAPING_NOTES,
-		`- ${target}: ${answer.trim()}`,
+		`- ${matched}: ${answer.trim()}`,
 	);
 }
 

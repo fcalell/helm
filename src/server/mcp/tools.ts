@@ -17,7 +17,7 @@ import {
 	recordAdversaryFlag,
 } from "../services/gate.ts";
 import {
-	hasPendingDecision,
+	recordDecision,
 	recordProposal,
 	recordQuestion,
 } from "../services/proposals.ts";
@@ -64,12 +64,10 @@ function recordedProposal(proposal: Proposal): CallToolResult {
 	);
 }
 
-const RECORDED_SINGLE =
-	"Recorded. The user will resolve it; continue or end your turn.";
-
-// The shape gate: a breakdown never outruns the thinking. Open checklist
-// items are read from disk (the snapshot can trail an accept by the
-// watcher's debounce window); pending raise_decision proposals count too.
+// The shape gate: a breakdown never outruns the thinking. The thread file's
+// Decisions checklist is the only source of truth; open items are read from
+// disk (a widget answer's write always completes before the tool returns, so
+// the file is current here).
 async function openDecisions(binding: ReadyBinding): Promise<string[]> {
 	const open: string[] = [];
 	if (binding.attach?.type === "shaping") {
@@ -85,9 +83,6 @@ async function openDecisions(binding: ReadyBinding): Promise<string[]> {
 		} catch (error) {
 			if (!isENOENT(error)) throw error;
 		}
-	}
-	if (hasPendingDecision(binding.sessionId)) {
-		open.push("(a raised decision the user has not resolved yet)");
 	}
 	return open;
 }
@@ -208,13 +203,24 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 	raise_decision: {
 		description:
 			"Raise a feature-level decision that must be settled before breakdown, " +
-			"tagged by who can settle it.",
+			"tagged by who can settle it. Writes it to the thread's Decisions " +
+			"checklist and renders as an answerable widget.",
 		inputSchema: () => raiseDecisionPayloadSchema,
 		handle: async (binding, args) => {
 			const parsed = raiseDecisionPayloadSchema.safeParse(args);
 			if (!parsed.success) return err(z.prettifyError(parsed.error));
-			recordProposal(binding, "raise_decision", [parsed.data]);
-			return ok(RECORDED_SINGLE);
+			if (binding.attach?.type !== "shaping") {
+				return err("this session is not bound to a shaping thread");
+			}
+			const failure = await recordDecision(binding, parsed.data);
+			if (failure !== undefined) return err(failure);
+			return ok(
+				parsed.data.settledBy === "human"
+					? "Recorded and written to the Decisions checklist. The user's " +
+							"answer arrives as your next message — end your turn."
+					: "Recorded. A research session is settling it; the finding " +
+							"arrives as your next message.",
+			);
 		},
 	},
 	flag_risk: {

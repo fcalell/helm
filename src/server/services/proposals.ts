@@ -7,6 +7,8 @@ import { createEpic, createStory } from "../../board/create.ts";
 import {
 	appendDecision,
 	buildEpicBody,
+	normalizeDecision,
+	parseDecisions,
 	replaceBriefSection,
 	resolveDecision,
 	resolveQuestion,
@@ -37,18 +39,20 @@ import type { ReadyBinding } from "../mcp/registry.ts";
 import type {
 	AskUserPayload,
 	EpicBody,
+	PendingDecision,
 	PermissionRequest,
 	Proposal,
 	ProposalResolution,
 	Question,
+	RaiseDecisionPayload,
 	ResearchState,
 } from "../mcp/schemas.ts";
 import {
 	epicDraftSchema,
+	pendingDecisionSchema,
 	permissionRequestSchema,
 	proposalSchema,
 	questionSchema,
-	raiseDecisionPayloadSchema,
 	resolveQuestionPayloadSchema,
 	storyDraftSchema,
 	updateBriefPayloadSchema,
@@ -76,6 +80,7 @@ interface ProposalContext {
 }
 const proposals = new Map<string, Proposal>();
 const questions = new Map<string, Question>();
+const decisions = new Map<string, PendingDecision>();
 const contexts = new Map<string, ProposalContext>();
 const heldResumes = new Map<string, string[]>();
 const research = new Map<string, ResearchState>();
@@ -88,18 +93,19 @@ const ITEM_SCHEMA: Record<Proposal["tool"], z.ZodType> = {
 	propose_stories: storyDraftSchema,
 	update_brief: updateBriefPayloadSchema,
 	resolve_question: resolveQuestionPayloadSchema,
-	raise_decision: raiseDecisionPayloadSchema,
 };
 
 function snapshot(): {
 	proposals: Proposal[];
 	questions: Question[];
+	decisions: PendingDecision[];
 	research: ResearchState[];
 	permissions: PermissionRequest[];
 } {
 	return {
 		proposals: [...proposals.values()],
 		questions: [...questions.values()],
+		decisions: [...decisions.values()],
 		research: [...research.values()],
 		permissions: [...permissions.values()],
 	};
@@ -216,7 +222,6 @@ export async function resolveProposalItem(input: {
 	if (resolution.type === "accept") {
 		await enqueueWrite(() => applyItem(proposal, input.item));
 		notifyGate(proposal, input.item);
-		dispatchResearch(proposal, input.item);
 	} else if (resolution.type === "reject" && proposal.tool === "update_brief") {
 		const attach = contexts.get(proposal.id)?.attach;
 		const resolves = proposal.items[input.item]?.payload.resolves;
@@ -251,51 +256,102 @@ export async function answerQuestion(input: {
 	}
 	questions.delete(input.questionId);
 	broadcast();
-	if (question.kind === "shape") {
-		await tryResolveDecision(
-			question.sessionId,
-			question.question,
-			input.answer,
-		);
-	}
 	await dispatchResume(
 		question.sessionId,
 		resolvedPrompt("question", question.question, input.answer),
 	);
 }
 
-export function hasPendingDecision(sessionId: string): boolean {
-	for (const proposal of proposals.values()) {
-		if (proposal.tool !== "raise_decision") continue;
-		if (proposal.sessionId !== sessionId) continue;
-		if (proposal.items.some((item) => item.resolution === undefined)) {
-			return true;
-		}
+// Raise a decision: append it to the thread's Decisions checklist (the single
+// source of truth the propose_epics gate reads) and mint its UI-render cache
+// record. Refuses a normalized duplicate race-free inside the queued write.
+// Returns a failure message the tool surfaces as an error, or undefined.
+export async function recordDecision(
+	binding: ReadyBinding,
+	payload: RaiseDecisionPayload,
+): Promise<string | undefined> {
+	if (binding.attach?.type !== "shaping") {
+		return "this session is not bound to a shaping thread";
 	}
-	return false;
+	const slug = binding.attach.id;
+	const target = normalizeDecision(payload.decision);
+	const written = await enqueueWrite(async () => {
+		let current: ShapingThread;
+		try {
+			current = await readShapingThread(slug);
+		} catch (error) {
+			if (error instanceof ApiError && error.code === "NOT_FOUND")
+				return "missing";
+			throw error;
+		}
+		const duplicate = parseDecisions(current.body).some(
+			(each) => normalizeDecision(each.text) === target,
+		);
+		if (duplicate) return "duplicate";
+		await writeShaping({
+			path: current.path,
+			frontmatter: current.frontmatter,
+			body: appendDecision(current.body, payload.decision, payload.settledBy),
+		});
+		return "written";
+	});
+	if (written === "missing") return "no shaping thread for this session";
+	if (written === "duplicate") return "this decision is already raised";
+	const pending = pendingDecisionSchema.parse({
+		id: randomUUID(),
+		sessionId: binding.sessionId,
+		slug,
+		createdAt: new Date().toISOString(),
+		decision: payload.decision,
+		settledBy: payload.settledBy,
+		...(payload.context !== undefined ? { context: payload.context } : {}),
+		...(payload.recommendation !== undefined
+			? { recommendation: payload.recommendation }
+			: {}),
+		...(payload.options !== undefined ? { options: payload.options } : {}),
+	});
+	decisions.set(pending.id, pending);
+	broadcast();
+	if (payload.settledBy === "research") {
+		dispatchResearch(slug, payload.decision, payload.context);
+	}
+	return undefined;
 }
 
-async function tryResolveDecision(
-	sessionId: string,
+// The single funnel for settling a decision: the queued checklist write, then
+// on success the cache cleanup and the shape session's resume. Returns whether
+// the decision resolved (false when nothing matched — already settled).
+async function settleDecision(
+	slug: string,
 	decision: string,
 	answer: string,
-): Promise<void> {
-	const thread = boardSnapshot().shaping.find(
-		(each) => each.frontmatter.sessions.shape === sessionId,
-	);
-	if (thread === undefined) return;
-	const resolved = await enqueueWrite(async () => {
-		const current = await readShapingThread(thread.slug);
+	prompt: string,
+): Promise<boolean> {
+	const sessionId = await enqueueWrite(async () => {
+		const current = await readShapingThread(slug);
 		const body = resolveDecision(current.body, decision, answer);
-		if (body === undefined) return false;
+		if (body === undefined) return undefined;
 		await writeShaping({
 			path: current.path,
 			frontmatter: current.frontmatter,
 			body,
 		});
-		return true;
+		return current.frontmatter.sessions.shape;
 	});
-	if (resolved) clearResearch(thread.slug, decision.trim());
+	if (sessionId === undefined) return false;
+	clearResearch(slug, decision);
+	const target = normalizeDecision(decision);
+	for (const [id, pending] of decisions) {
+		if (
+			pending.slug === slug &&
+			normalizeDecision(pending.decision) === target
+		) {
+			decisions.delete(id);
+		}
+	}
+	broadcast();
+	await dispatchResume(sessionId, prompt);
+	return true;
 }
 
 export async function resolveShapingDecision(input: {
@@ -303,52 +359,40 @@ export async function resolveShapingDecision(input: {
 	decision: string;
 	answer: string;
 }): Promise<void> {
-	const sessionId = await enqueueWrite(async () => {
-		const thread = await readShapingThread(input.slug);
-		const body = resolveDecision(thread.body, input.decision, input.answer);
-		if (body === undefined) {
-			throw new ApiError("NOT_FOUND", {
-				message: `no open decision matching "${input.decision}"`,
-			});
-		}
-		await writeShaping({
-			path: thread.path,
-			frontmatter: thread.frontmatter,
-			body,
+	const resolved = await settleDecision(
+		input.slug,
+		input.decision,
+		input.answer,
+		resolvedPrompt("decision", input.decision, input.answer),
+	);
+	if (!resolved) {
+		throw new ApiError("NOT_FOUND", {
+			message: `no open decision matching "${input.decision}"`,
 		});
-		return thread.frontmatter.sessions.shape;
-	});
-	clearResearch(input.slug, input.decision.trim());
-	if (sessionId !== undefined) {
-		await dispatchResume(
-			sessionId,
-			resolvedPrompt("decision", input.decision, input.answer),
-		);
 	}
 }
 
 function researchKey(slug: string, decision: string): string {
-	return JSON.stringify([slug, decision]);
+	return JSON.stringify([slug, normalizeDecision(decision)]);
 }
 
 function clearResearch(slug: string, decision: string): void {
 	if (research.delete(researchKey(slug, decision))) broadcast();
 }
 
-// Accepting a research-tagged decision dispatches a cold research session
-// through the serial queue; its finding resolves the decision the way a user
-// answer does. A failure leaves the decision open and surfaces on the item.
-function dispatchResearch(proposal: Proposal, index: number): void {
-	if (proposal.tool !== "raise_decision") return;
-	const payload = proposal.items[index]?.payload;
-	const attach = contexts.get(proposal.id)?.attach;
-	if (payload?.settledBy !== "research" || attach?.type !== "shaping") return;
-	const slug = attach.id;
-	const decision = payload.decision.trim();
+// A research-tagged decision dispatches a cold research session through the
+// serial queue; its finding settles the decision the way a user answer does.
+// A failure leaves the decision open and surfaces on the item.
+function dispatchResearch(
+	slug: string,
+	decision: string,
+	context: string | undefined,
+): void {
+	const target = normalizeDecision(decision);
 	const key = researchKey(slug, decision);
-	research.set(key, { slug, decision, status: "pending" });
+	research.set(key, { slug, decision: target, status: "pending" });
 	broadcast();
-	void dispatch(() => runResearch(slug, decision, payload.context), {
+	void dispatch(() => runResearch(slug, decision, context), {
 		kind: "research",
 	}).catch((error) => {
 		const state = research.get(key);
@@ -365,9 +409,10 @@ async function runResearch(
 	decision: string,
 	context: string | undefined,
 ): Promise<void> {
+	const target = normalizeDecision(decision);
 	const thread = await readShapingThread(slug);
 	const open = thread.decisions.some(
-		(each) => !each.checked && each.text === decision,
+		(each) => !each.checked && normalizeDecision(each.text) === target,
 	);
 	if (!open) {
 		// Resolved by hand while queued; nothing left to research.
@@ -386,28 +431,14 @@ async function runResearch(
 	if (result.isError) throw new Error(result.text);
 	const finding = result.text.trim();
 	if (finding === "") throw new Error("the session returned an empty finding");
-	const sessionId = await enqueueWrite(async () => {
-		const current = await readShapingThread(slug);
-		const body = resolveDecision(
-			current.body,
-			decision,
-			finding.replace(SINGLE_LINE, " "),
-		);
-		if (body === undefined) return undefined;
-		await writeShaping({
-			path: current.path,
-			frontmatter: current.frontmatter,
-			body,
-		});
-		return current.frontmatter.sessions.shape;
-	});
-	clearResearch(slug, decision);
-	if (sessionId !== undefined) {
-		await dispatchResume(
-			sessionId,
-			resolvedPrompt("research", decision, finding),
-		);
-	}
+	const settled = await settleDecision(
+		slug,
+		decision,
+		finding.replace(SINGLE_LINE, " "),
+		resolvedPrompt("research", decision, finding),
+	);
+	// A human answered first: settleDecision found the item checked and no-oped.
+	if (!settled) clearResearch(slug, decision);
 }
 
 async function applyItem(proposal: Proposal, index: number): Promise<void> {
@@ -498,23 +529,6 @@ async function applyItem(proposal: Proposal, index: number): Promise<void> {
 				path: current.path,
 				frontmatter: current.frontmatter,
 				body,
-			});
-			return;
-		}
-		case "raise_decision": {
-			const payload = proposal.items[index]?.payload;
-			if (payload === undefined) return;
-			const attach = contexts.get(proposal.id)?.attach;
-			if (attach?.type !== "shaping") {
-				throw new ApiError("BAD_REQUEST", {
-					message: "this proposal is not bound to a shaping thread",
-				});
-			}
-			const thread = await readShapingThread(attach.id);
-			await writeShaping({
-				path: thread.path,
-				frontmatter: thread.frontmatter,
-				body: appendDecision(thread.body, payload.decision, payload.settledBy),
 			});
 			return;
 		}
@@ -673,8 +687,6 @@ function itemSummary(proposal: Proposal, index: number): string {
 			return `${proposal.items[index]?.payload.section ?? ""} section`;
 		case "resolve_question":
 			return proposal.items[index]?.payload.question ?? "";
-		case "raise_decision":
-			return proposal.items[index]?.payload.decision ?? "";
 	}
 }
 
@@ -743,6 +755,7 @@ export default defineService({
 			handle = undefined;
 			proposals.clear();
 			questions.clear();
+			decisions.clear();
 			contexts.clear();
 			heldResumes.clear();
 			research.clear();

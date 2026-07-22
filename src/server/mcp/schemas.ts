@@ -88,12 +88,39 @@ export const resolveQuestionPayloadSchema = z.object({
 export type ResolveQuestionPayload = z.infer<
 	typeof resolveQuestionPayloadSchema
 >;
-export const raiseDecisionPayloadSchema = z.object({
-	decision: z.string().min(1),
-	context: z.string().optional(),
-	settledBy: z.enum(["human", "research"]),
-});
+export const raiseDecisionPayloadSchema = z
+	.object({
+		decision: z.string().min(1),
+		context: z.string().optional(),
+		settledBy: z.enum(["human", "research"]),
+		recommendation: z.string().optional(),
+		options: z.array(z.string().min(1)).max(6).optional(),
+	})
+	.refine(
+		(payload) =>
+			payload.settledBy !== "human" || payload.recommendation !== undefined,
+		{
+			message: "a human decision carries your recommended answer",
+			path: ["recommendation"],
+		},
+	);
 export type RaiseDecisionPayload = z.infer<typeof raiseDecisionPayloadSchema>;
+
+// The UI-render cache record for one raised decision, keyed to its line in the
+// thread's Decisions checklist. In-memory only: a restart drops the cache but
+// the `- [ ]` line survives as the gate and the answerable record.
+export const pendingDecisionSchema = z.object({
+	id: z.uuid(),
+	sessionId: z.uuid(),
+	slug: z.string(),
+	createdAt: z.iso.datetime(),
+	decision: z.string().min(1),
+	settledBy: z.enum(["human", "research"]),
+	context: z.string().optional(),
+	recommendation: z.string().optional(),
+	options: z.array(z.string().min(1)).max(6).optional(),
+});
+export type PendingDecision = z.infer<typeof pendingDecisionSchema>;
 export const flagRiskPayloadSchema = z.object({
 	title: z.string().min(1),
 	detail: z.string().min(1),
@@ -162,11 +189,6 @@ export const proposalSchema = z.discriminatedUnion("tool", [
 		tool: z.literal("resolve_question"),
 		items: itemsOf(resolveQuestionPayloadSchema),
 	}),
-	z.object({
-		...proposalBase,
-		tool: z.literal("raise_decision"),
-		items: itemsOf(raiseDecisionPayloadSchema),
-	}),
 ]);
 export type Proposal = z.infer<typeof proposalSchema>;
 
@@ -206,6 +228,7 @@ export type PermissionRequest = z.infer<typeof permissionRequestSchema>;
 export const proposalSnapshotSchema = z.object({
 	proposals: z.array(proposalSchema),
 	questions: z.array(questionSchema),
+	decisions: z.array(pendingDecisionSchema),
 	research: z.array(researchStateSchema),
 	permissions: z.array(permissionRequestSchema),
 });
