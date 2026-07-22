@@ -248,18 +248,38 @@ export async function answerQuestion(input: {
 	questionId: string;
 	answer: string;
 }): Promise<void> {
-	const question = questions.get(input.questionId);
-	if (question === undefined) {
-		throw new ApiError("NOT_FOUND", {
-			message: `no question with id ${input.questionId}`,
+	await answerQuestions({ answers: [input] });
+}
+
+// Batch answering: every id must exist and share one session, so the joined
+// answers resume that session with a single dispatch (the assistant reloads
+// once, not per answer).
+export async function answerQuestions(input: {
+	answers: { questionId: string; answer: string }[];
+}): Promise<void> {
+	const resolved = input.answers.map((answer) => {
+		const question = questions.get(answer.questionId);
+		if (question === undefined) {
+			throw new ApiError("NOT_FOUND", {
+				message: `no question with id ${answer.questionId}`,
+			});
+		}
+		return { question, answer: answer.answer };
+	});
+	const sessionIds = new Set(resolved.map((each) => each.question.sessionId));
+	if (sessionIds.size > 1) {
+		throw new ApiError("BAD_REQUEST", {
+			message: "batched answers must belong to one session",
 		});
 	}
-	questions.delete(input.questionId);
+	const sessionId = resolved[0]?.question.sessionId;
+	if (sessionId === undefined) return;
+	for (const { question } of resolved) questions.delete(question.id);
 	broadcast();
-	await dispatchResume(
-		question.sessionId,
-		resolvedPrompt("question", question.question, input.answer),
-	);
+	const prompt = resolved
+		.map((each) => resolvedPrompt("question", each.question.question, each.answer))
+		.join("\n\n");
+	await dispatchResume(sessionId, prompt);
 }
 
 // Raise a decision: append it to the thread's Decisions checklist (the single

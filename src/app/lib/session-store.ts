@@ -2,6 +2,7 @@ import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createStore, produce } from "solid-js/store";
 import type { Preset } from "../../board/schema.ts";
 import type {
+	PendingDecision,
 	PermissionRequest,
 	Proposal,
 	ProposalResolution,
@@ -66,6 +67,10 @@ interface SessionsState {
 	chats: Record<string, ChatState>;
 	proposals: Record<string, LoggedProposal>;
 	questions: Record<string, LoggedQuestion>;
+	// The snapshot's pending-decision render cache, replaced wholesale (a
+	// resolved decision leaves the set; its `[x]` line in the thread file is the
+	// record). Keyed by decision id.
+	decisions: Record<string, PendingDecision>;
 	// The server's in-flight/failed research decisions, replaced wholesale on
 	// every snapshot (a resolved decision leaves the set).
 	research: ResearchState[];
@@ -82,6 +87,7 @@ const [store, setStore] = createStore<SessionsState>({
 	chats: {},
 	proposals: {},
 	questions: {},
+	decisions: {},
 	research: [],
 	permissions: [],
 	refineSpawns: {},
@@ -285,6 +291,13 @@ function applyProposalSnapshot(snapshot: ProposalSnapshot): void {
 			}
 			for (const logged of Object.values(state.questions)) {
 				if (!pendingQuestions.has(logged.id)) logged.pending = false;
+			}
+			const pendingDecisionIds = new Set(snapshot.decisions.map((d) => d.id));
+			for (const decision of snapshot.decisions) {
+				state.decisions[decision.id] = decision;
+			}
+			for (const id of Object.keys(state.decisions)) {
+				if (!pendingDecisionIds.has(id)) delete state.decisions[id];
 			}
 			state.research = snapshot.research;
 			state.permissions = snapshot.permissions;
@@ -580,6 +593,52 @@ export async function answerQuestion(
 	}
 }
 
+// Batch answering: one round-trip for every pending question in the group.
+// On success each question keeps its answer for its inert record's badge.
+export async function answerQuestions(
+	answers: { question: LoggedQuestion; answer: string }[],
+): Promise<void> {
+	try {
+		await api.proposal.answerAll({
+			answers: answers.map((each) => ({
+				questionId: each.question.id,
+				answer: each.answer,
+			})),
+		});
+		setStore(
+			produce((state) => {
+				for (const { question, answer } of answers) {
+					const logged = state.questions[question.id];
+					if (logged !== undefined) logged.answeredWith = answer;
+				}
+			}),
+		);
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to answer questions",
+		);
+		throw error;
+	}
+}
+
+export async function resolveDecision(
+	decision: PendingDecision,
+	answer: string,
+): Promise<void> {
+	try {
+		await api.shaping.resolveDecision({
+			slug: decision.slug,
+			decision: decision.decision,
+			answer,
+		});
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "failed to resolve decision",
+		);
+		throw error;
+	}
+}
+
 export function chatFor(sessionId: string): ChatState {
 	return store.chats[sessionId] ?? { items: [], busy: false };
 }
@@ -664,6 +723,46 @@ export function unanchoredQuestions(
 				question.sessionId === sessionId &&
 				question.pending &&
 				!anchored.has(question.id),
+		)
+		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+// The pending decisions for this session, sorted oldest-first. Decisions
+// always render as an actionable widget (never inert), so they need no
+// supersession — a newer proposal or question does not retire them.
+export function pendingDecisions(sessionId: string): PendingDecision[] {
+	return Object.values(store.decisions)
+		.filter((decision) => decision.sessionId === sessionId)
+		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+// A pending question is superseded once the session has moved on: any newer
+// pending proposal or pending decision in the same session makes it a stale
+// record. A superseded question renders inert (display only).
+export function isSuperseded(question: LoggedQuestion): boolean {
+	const newerProposal = Object.values(store.proposals).some(
+		(proposal) =>
+			proposal.sessionId === question.sessionId &&
+			proposal.pending &&
+			proposal.createdAt > question.createdAt,
+	);
+	if (newerProposal) return true;
+	return Object.values(store.decisions).some(
+		(decision) =>
+			decision.sessionId === question.sessionId &&
+			decision.createdAt > question.createdAt,
+	);
+}
+
+// The session's actionable questions: pending and not superseded, oldest
+// first. The question group renders these together above the composer.
+export function activeQuestions(sessionId: string): LoggedQuestion[] {
+	return Object.values(store.questions)
+		.filter(
+			(question) =>
+				question.sessionId === sessionId &&
+				question.pending &&
+				!isSuperseded(question),
 		)
 		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }

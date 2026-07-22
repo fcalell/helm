@@ -12,15 +12,18 @@ import {
 	Switch,
 } from "solid-js";
 import {
+	activeQuestions,
 	type ChatItem,
 	chatFor,
 	hydrateChat,
+	pendingDecisions,
 	sendChatMessage,
 	sessionStore,
 	unanchoredProposals,
-	unanchoredQuestions,
 } from "../lib/session-store.ts";
+import { DecisionWidget } from "./decision-widget.tsx";
 import { ProposalWidget } from "./proposal-widget.tsx";
+import { QuestionGroup } from "./question-group.tsx";
 import { QuestionWidget } from "./question-widget.tsx";
 import { ToolCallLine } from "./tool-call-line.tsx";
 
@@ -126,6 +129,12 @@ export function ChatPane(props: ChatPaneProps) {
 	const chat = () => chatFor(props.sessionId);
 	const [draft, setDraft] = createSignal("");
 	const matches = createMemo(() => slashMatches(draft()));
+	// A pending decision or question must be answered through its widget before
+	// the composer accepts free text; pending proposals do not defer it (a
+	// free-text reply alongside Accept/Edit/Reject is supported).
+	const deferred = () =>
+		pendingDecisions(props.sessionId).length > 0 ||
+		activeQuestions(props.sessionId).length > 0;
 	let transcriptRef: HTMLDivElement | undefined;
 
 	createEffect(() => {
@@ -149,7 +158,7 @@ export function ChatPane(props: ChatPaneProps) {
 
 	function send(): void {
 		const text = draft().trim();
-		if (text === "" || chat().busy) return;
+		if (text === "" || chat().busy || deferred()) return;
 		const command = SLASH_COMMANDS.find((each) => each.name === text);
 		setDraft("");
 		void sendChatMessage(props.sessionId, command?.prompt ?? text);
@@ -181,9 +190,10 @@ export function ChatPane(props: ChatPaneProps) {
 				<For each={unanchoredProposals(props.sessionId, chat().items)}>
 					{(proposal) => <ProposalWidget proposal={proposal} />}
 				</For>
-				<For each={unanchoredQuestions(props.sessionId, chat().items)}>
-					{(question) => <QuestionWidget question={question} />}
+				<For each={pendingDecisions(props.sessionId)}>
+					{(decision) => <DecisionWidget decision={decision} />}
 				</For>
+				<QuestionGroup sessionId={props.sessionId} />
 				<Show when={chat().busy}>
 					<Loader text="assistant is working" class="text-xs" />
 				</Show>
@@ -217,6 +227,7 @@ export function ChatPane(props: ChatPaneProps) {
 					size="sm"
 					rows={2}
 					value={draft()}
+					disabled={deferred()}
 					onInput={(event) => setDraft(event.currentTarget.value)}
 					onKeyDown={(event) => {
 						if (event.key === "Enter" && !event.shiftKey) {
@@ -225,11 +236,15 @@ export function ChatPane(props: ChatPaneProps) {
 						}
 					}}
 					placeholder={
-						chat().busy ? "Waiting for the assistant…" : "Message the chat…"
+						deferred()
+							? "Answer the question above to continue…"
+							: chat().busy
+								? "Waiting for the assistant…"
+								: "Message the chat…"
 					}
 					aria-label="Chat message"
 				/>
-				<Button type="submit" size="sm" disabled={chat().busy}>
+				<Button type="submit" size="sm" disabled={chat().busy || deferred()}>
 					Send
 				</Button>
 			</form>
