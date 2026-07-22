@@ -28,7 +28,7 @@ import { dispatch } from "../dispatcher.ts";
 import type { ReadyBinding } from "../mcp/registry.ts";
 import type { ContestFlagPayload, FlagRiskPayload } from "../mcp/schemas.ts";
 import { enqueueWrite } from "../write-queue.ts";
-import { boardSnapshot } from "./board.ts";
+import { boardSnapshot, broadcastNotice } from "./board.ts";
 import { messageSession, onSessionClosed, runColdSession } from "./sessions.ts";
 
 // One ready-gate attempt per story, in memory only (like pending proposals):
@@ -88,9 +88,18 @@ function logError(error: unknown): void {
 	log?.error(`gate: ${String(error)}`);
 }
 
-function logAndAbort(attempt: Attempt, error: unknown): void {
-	logError(error);
+// Every gate abort routes here: a log line for the diagnostic, a toast so the
+// drop never vanishes from the UI, then the state removal. `message` names the
+// specific cause at the call site.
+function abortWith(attempt: Attempt, message: string, error?: unknown): void {
+	if (error !== undefined) logError(error);
+	else logError(`aborted ${attempt.storyId}: ${message}`);
+	broadcastNotice({ kind: "gate-aborted", message });
 	abort(attempt);
+}
+
+function logAndAbort(attempt: Attempt, error: unknown): void {
+	abortWith(attempt, `ready gate for ${attempt.storyId} failed`, error);
 }
 
 async function readFresh(storyId: string): Promise<Story> {
@@ -176,8 +185,11 @@ function enqueueRound(attempt: Attempt): void {
 		kind: "adversary",
 		storyId: attempt.storyId,
 	}).catch((error) => {
-		logError(error);
-		abort(attempt);
+		abortWith(
+			attempt,
+			`ready gate for ${attempt.storyId} could not run the adversary`,
+			error,
+		);
 	});
 }
 
@@ -185,8 +197,10 @@ async function runRound(attempt: Attempt): Promise<void> {
 	if (attempts.get(attempt.storyId) !== attempt) return;
 	const story = await readFresh(attempt.storyId).catch(() => undefined);
 	if (story === undefined || story.frontmatter.status !== "refining") {
-		logError(`story ${attempt.storyId} left refining; attempt aborted`);
-		abort(attempt);
+		abortWith(
+			attempt,
+			`ready gate for ${attempt.storyId} stopped: the story left refining`,
+		);
 		return;
 	}
 	attempt.briefHash = briefHash(story.body);
@@ -202,16 +216,25 @@ async function runRound(attempt: Attempt): Promise<void> {
 	if (attempts.get(attempt.storyId) !== attempt) return;
 	const after = await readFresh(attempt.storyId).catch(() => undefined);
 	if (after === undefined) {
-		logError(
-			`story ${attempt.storyId} unreadable after a round; attempt aborted`,
+		abortWith(
+			attempt,
+			`ready gate for ${attempt.storyId} stopped: the story vanished`,
 		);
-		abort(attempt);
 		return;
 	}
 	if (briefHash(after.body) !== attempt.briefHash) {
-		// The brief moved mid-flight: this round's verdict read stale text and
-		// is discarded, and a fresh round attacks the new brief. The attempt
-		// (rounds, overrides, pending fixes) survives.
+		// The brief moved mid-flight, so this round read stale text; discard it
+		// without spending the round budget and re-run against the new brief.
+		// Rounds/overrides survive; the re-queue reads the fresh brief.
+		attempt.rounds.pop();
+		attempt.pendingFixes.clear();
+		attempt.pendingFlags = false;
+		attempt.adversarySessionId = undefined;
+		broadcastNotice({
+			kind: "gate-restarted",
+			message:
+				"brief edited mid-round; re-running the adversary against the new brief",
+		});
 		enqueueRound(attempt);
 		return;
 	}
@@ -276,8 +299,10 @@ async function evaluate(attempt: Attempt): Promise<void> {
 	}
 	const story = await readFresh(attempt.storyId).catch(() => undefined);
 	if (story === undefined) {
-		logError(`story ${attempt.storyId} unreadable; attempt aborted`);
-		abort(attempt);
+		abortWith(
+			attempt,
+			`ready gate for ${attempt.storyId} stopped: the story vanished`,
+		);
 		return;
 	}
 	if (!checkReadyGate(story.brief).ok) {
@@ -321,7 +346,11 @@ async function writePass(attempt: Attempt): Promise<void> {
 			});
 		});
 	} catch (error) {
-		abort(attempt);
+		abortWith(
+			attempt,
+			`ready gate for ${attempt.storyId} could not record the pass`,
+			error,
+		);
 		throw error;
 	}
 	abort(attempt);
