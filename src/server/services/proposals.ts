@@ -277,7 +277,9 @@ export async function answerQuestions(input: {
 	for (const { question } of resolved) questions.delete(question.id);
 	broadcast();
 	const prompt = resolved
-		.map((each) => resolvedPrompt("question", each.question.question, each.answer))
+		.map((each) =>
+			resolvedPrompt("question", each.question.question, each.answer),
+		)
 		.join("\n\n");
 	await dispatchResume(sessionId, prompt);
 }

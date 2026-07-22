@@ -139,12 +139,20 @@ export async function runColdSession(input: {
 	kind: SessionKind;
 	prompt: string;
 	attach?: Attach;
+	// Grader spawns run in the story's worktree with the check command's Bash
+	// patterns; other cold kinds omit these and run in the main checkout.
+	cwd?: string;
+	tools?: readonly string[];
+	extraTools?: readonly string[];
 }): Promise<{ sessionId: string; done: Promise<SessionResult | undefined> }> {
 	try {
 		return await runTurn({
 			kind: input.kind,
 			prompt: input.prompt,
 			attach: input.attach,
+			cwd: input.cwd,
+			tools: input.tools,
+			extraTools: input.extraTools,
 		});
 	} catch (error) {
 		throw asSpawnFailed(error);
@@ -240,6 +248,9 @@ interface TurnOptions {
 	prompt: string;
 	resume?: string;
 	attach?: Attach;
+	cwd?: string;
+	tools?: readonly string[];
+	extraTools?: readonly string[];
 }
 
 interface TrackedTurn {
@@ -357,6 +368,9 @@ async function runTurn(
 		resume: options.resume,
 		seedSystemPrompt:
 			options.resume === undefined ? await seedFor(kind, attach) : undefined,
+		cwd: options.cwd,
+		tools: options.tools,
+		extraTools: options.extraTools,
 	});
 	const init = await tracked.child.started;
 	// Only the resumable chat kinds persist their id on the card; a cold

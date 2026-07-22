@@ -131,6 +131,19 @@ export const contestFlagPayloadSchema = z.object({
 	argument: z.string().min(1),
 });
 export type ContestFlagPayload = z.infer<typeof contestFlagPayloadSchema>;
+export const gradeCriteriaPayloadSchema = z.object({
+	grades: z
+		.array(
+			z.object({
+				criterion: z.string().min(1),
+				verdict: z.enum(["pass", "fail", "unclear"]),
+				evidence: z.string().min(1),
+			}),
+		)
+		.min(1),
+});
+export type GradeCriteriaPayload = z.infer<typeof gradeCriteriaPayloadSchema>;
+export type CriterionGrade = GradeCriteriaPayload["grades"][number];
 export const updateCardPayloadSchema = z.object({
 	note: z.string().min(1),
 });

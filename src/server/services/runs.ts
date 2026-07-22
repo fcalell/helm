@@ -35,6 +35,7 @@ import {
 	steeringPrompt,
 } from "../../sessions/prompts.ts";
 import { cancelQueued, dispatch, queueSnapshot } from "../dispatcher.ts";
+import { dispatchReviewGrading, setGraderLog } from "../grader.ts";
 import { compactHookUrl, runHookUrl } from "../mcp/registry.ts";
 import type { AskUserPayload } from "../mcp/schemas.ts";
 import {
@@ -162,6 +163,12 @@ export function checkFilePath(storyId: string): string {
 	return join(worktreesDir(managedRepo()), `${storyId}.check.json`);
 }
 
+// The review grader's typed output, written beside the check file when a
+// grade_criteria call lands; review.get serves it and the exits delete it.
+export function reviewFilePath(storyId: string): string {
+	return join(worktreesDir(managedRepo()), `${storyId}.review.json`);
+}
+
 // `exitCode: null` means the command timed out and its group was killed.
 // `commitLint` carries the Conventional Commit findings on the branch's
 // commits, empty when all pass; absent on captures without a lint pass (a
@@ -174,6 +181,20 @@ export const checkResultSchema = z.object({
 	finishedAt: z.iso.datetime(),
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
+
+export const criterionGradeSchema = z.object({
+	criterion: z.string().min(1),
+	verdict: z.enum(["pass", "fail", "unclear"]),
+	evidence: z.string().min(1),
+});
+export const reviewGradesSchema = z.object({
+	grades: z.array(criterionGradeSchema).min(1),
+	gradedAt: z.iso.datetime(),
+	// The graded brief's snapshot hash: a stale grade is dropped when the open
+	// run entry's brief no longer matches this.
+	brief: z.string(),
+});
+export type ReviewGrades = z.infer<typeof reviewGradesSchema>;
 
 const CHECK_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -350,6 +371,12 @@ interface PresetSpawn {
 	env?: Record<string, string>;
 }
 
+// The check command's two allowlist patterns (bare and argument-carrying),
+// shared by the Auto preset and the review grader spawn.
+export function checkCommandTools(command: string): readonly string[] {
+	return [`Bash(${command})`, `Bash(${command}:*)`];
+}
+
 function presetSpawn(preset: Preset, config: RepoConfig): PresetSpawn {
 	if (preset === "auto") {
 		return {
@@ -357,7 +384,7 @@ function presetSpawn(preset: Preset, config: RepoConfig): PresetSpawn {
 			extraTools:
 				config.checkCommand === undefined
 					? []
-					: [`Bash(${config.checkCommand})`, `Bash(${config.checkCommand}:*)`],
+					: checkCommandTools(config.checkCommand),
 		};
 	}
 	return {
@@ -806,6 +833,7 @@ async function finishRun(
 		}
 	}
 
+	let reviewClosed = false;
 	try {
 		await enqueueWrite(async () => {
 			const current = await readStoryFile(path, epicId);
@@ -871,6 +899,7 @@ async function finishRun(
 					status = "blocked";
 				}
 			}
+			reviewClosed = openRun !== undefined && status === "review";
 			await writeStory({
 				path: current.path,
 				frontmatter: { ...current.frontmatter, status, runs },
@@ -882,6 +911,9 @@ async function finishRun(
 			`run ${state.storyId}: close write failed: ${errorText(writeError)}`,
 		);
 	}
+	// Fire-and-forget the review grader once a review close landed: grading is
+	// evidence, never a gate, so it never blocks or fails the close.
+	if (reviewClosed) dispatchReviewGrading(state.storyId);
 	await cleanup(state);
 }
 
@@ -1600,6 +1632,7 @@ export default defineService({
 	name: "runs",
 	start: async (ctx) => {
 		log = ctx.log;
+		setGraderLog(ctx.log);
 		await reconcile();
 		return () => {
 			states.clear();

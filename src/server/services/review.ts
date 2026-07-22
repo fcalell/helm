@@ -33,6 +33,7 @@ import {
 	type ResumeSpec,
 	type RunDispatch,
 	readStoryOrApiError,
+	reviewFilePath,
 	settingsFilePath,
 } from "./runs.ts";
 
@@ -69,6 +70,7 @@ async function removeArtifacts(storyId: string): Promise<void> {
 	for (const path of [
 		briefFilePath(storyId),
 		checkFilePath(storyId),
+		reviewFilePath(storyId),
 		settingsFilePath(storyId),
 		pidFilePath(storyId),
 	]) {
@@ -225,7 +227,13 @@ function requestChangesSpec(comments: ReviewComment[]): ResumeSpec {
 			const runs = [...fresh.frontmatter.runs];
 			const last = runs.at(-1);
 			if (last === undefined) return undefined;
-			const { outcome: _o, error: _e, stat: _s, ...reopened } = last;
+			const {
+				outcome: _o,
+				error: _e,
+				stat: _s,
+				grades: _g,
+				...reopened
+			} = last;
 			runs[runs.length - 1] = reopened;
 			return { ...fresh.frontmatter, status: "running", runs };
 		},

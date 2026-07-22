@@ -15,6 +15,9 @@ import {
 	type CheckResult,
 	checkFilePath,
 	checkResultSchema,
+	type ReviewGrades,
+	reviewFilePath,
+	reviewGradesSchema,
 } from "../../server/services/runs.ts";
 import {
 	diffFiles,
@@ -34,6 +37,24 @@ async function readCheck(storyId: string): Promise<CheckResult | null> {
 	}
 	try {
 		const parsed = checkResultSchema.safeParse(JSON.parse(raw));
+		return parsed.success ? parsed.data : null;
+	} catch {
+		return null;
+	}
+}
+
+// The grade artifact, same tolerant read: an absent or malformed file reads as
+// `null` (a review not yet graded, or grading that never landed).
+async function readGrades(storyId: string): Promise<ReviewGrades | null> {
+	let raw: string;
+	try {
+		raw = await readFile(reviewFilePath(storyId), "utf8");
+	} catch (error) {
+		if (isENOENT(error)) return null;
+		throw error;
+	}
+	try {
+		const parsed = reviewGradesSchema.safeParse(JSON.parse(raw));
 		return parsed.success ? parsed.data : null;
 	} catch {
 		return null;
@@ -71,6 +92,7 @@ export const review = {
 			return {
 				briefBody,
 				check: await readCheck(input.storyId),
+				grades: await readGrades(input.storyId),
 				files: await diffFiles(worktree, repo.mainBranch),
 			};
 		}),

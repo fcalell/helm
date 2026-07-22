@@ -10,6 +10,7 @@ import {
 	writeStory,
 } from "../../board/store.ts";
 import type { BoardToolName, SessionKind } from "../../sessions/kinds.ts";
+import { recordReviewGrades } from "../grader.ts";
 import { boardSnapshot, managedRepo } from "../services/board.ts";
 import {
 	contestGateFlag,
@@ -29,6 +30,7 @@ import {
 	askUserPayloadSchema,
 	contestFlagPayloadSchema,
 	flagRiskPayloadSchema,
+	gradeCriteriaPayloadSchema,
 	proposeEpicsPayloadSchema,
 	proposeStoriesDefinePayloadSchema,
 	proposeStoriesShapePayloadSchema,
@@ -250,6 +252,22 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 				"Contest recorded. The user will accept the risk as an open " +
 					"question or dismiss the flag.",
 			);
+		},
+	},
+	grade_criteria: {
+		description:
+			"Report your grade for every acceptance criterion in one call: each " +
+			"criterion verbatim, a pass/fail/unclear verdict, and the evidence.",
+		inputSchema: () => gradeCriteriaPayloadSchema,
+		handle: async (binding, args) => {
+			const parsed = gradeCriteriaPayloadSchema.safeParse(args);
+			if (!parsed.success) return err(z.prettifyError(parsed.error));
+			if (binding.kind !== "review" || binding.attach?.type !== "story") {
+				return err("grade_criteria is available only to a review session");
+			}
+			const failure = recordReviewGrades(binding, parsed.data);
+			if (failure !== undefined) return err(failure);
+			return ok("Grades recorded. End your turn.");
 		},
 	},
 	update_card: {

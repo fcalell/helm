@@ -25,6 +25,7 @@ export const BOARD_TOOLS = [
 	"resolve_question",
 	"contest_flag",
 	"flag_risk",
+	"grade_criteria",
 	"update_card",
 	"ask_user",
 ] as const;
@@ -135,13 +136,15 @@ const REFINE_BODY = `The brief is the artifact; the chat is disposable. Fill it 
 
 The Approach opens with measured facts: before any design, verify the file:line anchors, symbol names, and existing behavior the story builds on, list them under the commit you checked them against, and phrase the design as building on those anchors. The ready-gate adversary checks anchors it can verify; prose it can only doubt becomes a flag.
 
-Acceptance criteria are a "- [ ]" checklist of measurable, testable statements: name the observable behavior and how to check it, never "works well". Every criterion ends with its verification-mode tag, and the gate refuses Ready while any criterion is untagged: (test) an automated test proves it; (command) the repo's check-command output proves it; (file) reading a named file proves it — state with an on-disk representation must carry a (file) criterion naming that file, never only its in-memory effect; (live) only a human driving the running app can prove it — UI-visible behavior gets at least one (live).
+Acceptance criteria are a "- [ ]" checklist of measurable, testable statements: name the observable behavior and how to check it, never "works well". Every criterion ends with its verification-mode tag, and the gate refuses Ready while any criterion is untagged: (test) an automated test proves it; (command) the repo's check-command output proves it; (file) reading a named file proves it, so state with an on-disk representation carries a (file) criterion naming that file, never only its in-memory effect; (live) only a human driving the running app can prove it, so UI-visible behavior gets at least one (live).
 
 Anything genuinely the user's call is an open question: land it in the Open questions section through update_brief as "- [ ]" checklist lines, and surface each through ask_user with quick-reply options, quoting the checklist text verbatim. When the user answers, call resolve_question with that question text and the answer: accepting checks the item off and folds the answer into the Approach section.
 
 During a ready-gate round you receive the adversary's flags. Answer every flag the same turn: a fix is an update_brief proposal whose resolves field names the flag's title verbatim; a contest is a contest_flag call naming the title verbatim with your counter-argument.`;
 
 const RUN_BODY = `Commit your work on the current branch as Conventional Commits, each body saying the why. Never push, never switch branches, never edit files under .helm/ — note decisions and progress on your card through the update_card tool instead. Your prompt states the repo's check command when one is configured; run it to self-test before finishing, and when none is configured you cannot self-test — never guess a command. A denied tool call is final: the action is outside the run contract, or the user denied it from the board — either way, never retry it. When you hit a genuine mid-run decision only the user can settle, call ask_user with your recommended answer; the user's answer resumes this session. Before finishing, record closing run notes through update_card: the check command's outcome, plus one "verify:" bullet per behavior a human must check by hand.`;
+
+const REVIEW_BODY = `Each criterion carries a verification-mode tag that decides how you may prove it. (test) and (command): judge solely from the check output block in your prompt. You never decide what ran, so absent or unrelated output means unclear, never a guess. (file): prove it by Reading the named file and quoting the on-disk content with a path:line reference; a claim you cannot read on disk is unclear. (live): always unclear, with the human steps to verify it by hand as your evidence. Pass a criterion only with proof matching its mode; fail one only with evidence that contradicts it; otherwise unclear. Report through exactly ONE grade_criteria call covering every criterion verbatim, then end your turn. You are headless: nobody answers follow-ups, so never call ask_user.`;
 
 export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 	init: {
@@ -241,6 +244,13 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		model: "opus",
 		effort: "high",
 		context: "always-cold",
+		tools: READ_ONLY_TOOLS,
+		boardTools: ["grade_criteria"],
+		prompt: {
+			role: "You are Helm's review grader: grade every acceptance criterion of the finished run against the code in this worktree, from evidence only.",
+			body: REVIEW_BODY,
+			blocks: [READ_ONLY],
+		},
 	},
 	conflict: {
 		model: "fable",

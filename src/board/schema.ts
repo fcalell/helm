@@ -200,7 +200,9 @@ export type Board = z.infer<typeof boardSchema>;
 // `watch-error` is a filesystem/watcher failure; `run-skipped` is a queued
 // run dropped at dequeue (stale story, or a spawn failure); `gate-aborted` is
 // a ready-gate attempt dropped mid-flight (a status change or an error);
-// `gate-restarted` is a gate round re-fired against a brief edited mid-round.
+// `gate-restarted` is a gate round re-fired against a brief edited mid-round;
+// `grade-failed` is a review left ungraded after the grader's retry (grades
+// are evidence, never a gate, so the review still stands ungraded).
 export const noticeSchema = z.object({
 	kind: z.enum([
 		"illegal-transition",
@@ -208,6 +210,7 @@ export const noticeSchema = z.object({
 		"run-skipped",
 		"gate-aborted",
 		"gate-restarted",
+		"grade-failed",
 	]),
 	message: z.string(),
 });
