@@ -7,9 +7,9 @@ authenticated `claude` CLI, so it runs on a Claude Max subscription with no API 
 code are English.**
 
 **Pre-product stage.** The spec lives in `.helm/knowledge/`; the code layout is the **Today**
-bullet below. The next milestone is define/refine chats (`.helm/knowledge/product/roadmap.md`).
-Helm manages itself: this repo is a managed repo, and its `.helm/` is the reference instance of
-the layout Helm scaffolds ([board-storage](./.helm/knowledge/architecture/board-storage.md)).
+bullet below. Helm manages itself: this repo is a managed repo, and its `.helm/` is the reference
+instance of the layout Helm scaffolds
+([board-storage](./.helm/knowledge/architecture/board-storage.md)).
 
 @.helm/agents/index.md
 
@@ -23,9 +23,9 @@ the layout Helm scaffolds ([board-storage](./.helm/knowledge/architecture/board-
   config + the board and session services that broadcast over WS), `src/shared/` (the WS channel
   contract), `src/app/` (the SolidJS board UI), `helm.config.json` (gitignored machine paths;
   committed example), `spikes/` (throwaway reference scripts, one folder per spike).
-- **Planned shape** (detail in `.helm/knowledge/architecture/overview.md`): a Node/TypeScript
-  orchestrator that spawns headless `claude` sessions and exposes HTTP + WebSocket; a web UI (PWA)
-  as its first client; boards stored as markdown under each target repo's `.helm/`. No database.
+- **Shape** (detail in `.helm/knowledge/architecture/overview.md`): a Node/TypeScript
+  orchestrator that spawns headless `claude` sessions and exposes HTTP + WebSocket; a web UI as
+  its first client; boards stored as markdown under each target repo's `.helm/`. No database.
   Built as a `@fcalell/stack` consumer (SolidJS UI); the stack lives in the sibling `../stack`
   repo and gets improved as Helm needs, never worked around. **No tests in this repo**; stack
   changes follow `../stack`'s own rules.
