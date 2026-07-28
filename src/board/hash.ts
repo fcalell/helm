@@ -3,7 +3,10 @@ import { RUN_NOTES_SECTION } from "./schema.ts";
 // Strip the trailing `## Run notes` block (from the final such heading up to
 // the next `##` heading or end of body) so run-note appends never move the
 // hash. Anything appended after the section starts a new block that re-enters
-// the hash, so hand edits still stale the gate verdict.
+// the hash, so hand edits still stale the gate verdict. Both exits trim the
+// trailing whitespace: creating the section leaves a two-newline tail before
+// the heading that a body without the section never had, and the first note
+// would otherwise move the hash.
 export function stripRunNotes(body: string): string {
 	const headingRe = new RegExp(`^## ${RUN_NOTES_SECTION}[ \\t]*$`, "gm");
 	let start = -1;
@@ -12,10 +15,10 @@ export function stripRunNotes(body: string): string {
 		start = match.index;
 		afterHeading = match.index + match[0].length;
 	}
-	if (start === -1) return body;
+	if (start === -1) return body.trimEnd();
 	const next = /^##[ \t]/m.exec(body.slice(afterHeading));
 	const end = next === null ? body.length : afterHeading + next.index;
-	return body.slice(0, start) + body.slice(end);
+	return (body.slice(0, start) + body.slice(end)).trimEnd();
 }
 
 // FNV-1a 64-bit over the brief body, `## Run notes` excluded (run-note

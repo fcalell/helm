@@ -5,8 +5,9 @@ refinement ran through Helm itself. To triage into stories once the cost analysi
 
 ## Gate
 
-Both items triaged into story 003-08 (gate resilience); they stay here as the evidence until it
-ships.
+Both items shipped with story 003-08 (gate resilience): the strip trims trailing whitespace on
+both exits, and the mid-flight edit re-queues a fresh round while the remaining aborts log. Kept
+as the record of the defect shapes.
 
 - **Mid-flight brief edit destroys the whole gate attempt, silently.** `gate.ts:198-204`: when a
   brief edit lands while an adversary pass is in flight, the finished pass read stale text, so its

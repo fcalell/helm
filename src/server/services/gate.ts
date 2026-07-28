@@ -185,6 +185,7 @@ async function runRound(attempt: Attempt): Promise<void> {
 	if (attempts.get(attempt.storyId) !== attempt) return;
 	const story = await readFresh(attempt.storyId).catch(() => undefined);
 	if (story === undefined || story.frontmatter.status !== "refining") {
+		logError(`story ${attempt.storyId} left refining; attempt aborted`);
 		abort(attempt);
 		return;
 	}
@@ -200,9 +201,18 @@ async function runRound(attempt: Attempt): Promise<void> {
 	await run.done;
 	if (attempts.get(attempt.storyId) !== attempt) return;
 	const after = await readFresh(attempt.storyId).catch(() => undefined);
-	if (after === undefined || briefHash(after.body) !== attempt.briefHash) {
-		// The brief moved mid-flight; the landing verdict is discarded.
+	if (after === undefined) {
+		logError(
+			`story ${attempt.storyId} unreadable after a round; attempt aborted`,
+		);
 		abort(attempt);
+		return;
+	}
+	if (briefHash(after.body) !== attempt.briefHash) {
+		// The brief moved mid-flight: this round's verdict read stale text and
+		// is discarded, and a fresh round attacks the new brief. The attempt
+		// (rounds, overrides, pending fixes) survives.
+		enqueueRound(attempt);
 		return;
 	}
 	const round = currentRound(attempt);
@@ -266,6 +276,7 @@ async function evaluate(attempt: Attempt): Promise<void> {
 	}
 	const story = await readFresh(attempt.storyId).catch(() => undefined);
 	if (story === undefined) {
+		logError(`story ${attempt.storyId} unreadable; attempt aborted`);
 		abort(attempt);
 		return;
 	}
