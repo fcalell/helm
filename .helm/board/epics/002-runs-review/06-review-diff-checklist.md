@@ -17,7 +17,7 @@ repo's main branch before the card flips to Review (a conflict parks it Blocked 
 the drawer renders the diff per file side by side under the brief's ungraded acceptance-criteria
 checklist, and the run's verification evidence is surfaced: an orchestrator-run check-command
 result plus the run's own verify notes. Self-grading, the standards axis, and the `conflict`
-session are v2; no review sessions spawn (`.knowledge/product/features/review.md`).
+session are v2; no review sessions spawn (`.helm/knowledge/product/features/review.md`).
 
 ## Approach
 

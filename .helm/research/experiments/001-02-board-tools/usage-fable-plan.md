@@ -1,6 +1,6 @@
 # Usage: experiment 001-02 planning session (Fable 5, high effort)
 
-Token draw of the single session that produced `.helm/experiment-001-02-plan.md`, summed across
+Token draw of the single session that produced `.helm/research/experiments/001-02-board-tools/plan.md`, summed across
 all 79 `assistant`-entry `message.usage` blocks of its own transcript
 (`~/.claude/projects/-home-fcalell-projects-helm/9bda1eb9-147b-41b2-ad6e-0dd13b2eddb8.jsonl`; the
 session was started from the main checkout, so its transcript lives under that cwd slug, not the

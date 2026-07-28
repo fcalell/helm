@@ -33,7 +33,7 @@ $43.62 refine chat, which spent 78% of its output and 84% of its cache-reads ans
 rounds, not building the brief). Cost scales with round count, so the round count is the lever.
 
 The model side is settled and applied: `adversary` runs Opus/high, and the evidence behind it is in
-`model-matrix.md` (per-kind rationale in `.knowledge/architecture/session-kinds.md` §Model per
+`model-matrix.md` (per-kind rationale in `.helm/knowledge/architecture/session-kinds.md` §Model per
 kind). What stays open below is story sizing and gate mechanics, which no model choice fixes.
 
 - **Warm-iteration is still open.** Opus cuts breadth-discovery rounds; warming the iterative

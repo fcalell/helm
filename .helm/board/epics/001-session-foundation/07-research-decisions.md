@@ -14,14 +14,14 @@ runs:
 A shaping decision tagged as research resolves itself: instead of grilling the user, the
 orchestrator dispatches a cold read-only session that answers the question from the code and
 folds the finding back into the shaping thread
-(`.knowledge/product/features/define-refine.md` §Human and research decisions). The user answers
+(`.helm/knowledge/product/features/define-refine.md` §Human and research decisions). The user answers
 only what genuinely needs them.
 
 ## Approach
 
 - `raise_decision` already carries the human/research tag (001-04 records it without acting).
   This story makes the research tag enqueue a `research` session (Sonnet, read-only, always cold,
-  `.knowledge/architecture/session-kinds.md`) on the 001-06 dispatcher, prompted with the single
+  `.helm/knowledge/architecture/session-kinds.md`) on the 001-06 dispatcher, prompted with the single
   question and the shaping context.
 - The session's result text is the finding: the orchestrator checks the decision off in the
   shaping thread's Decisions checklist and folds the finding into the agreed notes, the same
@@ -51,7 +51,7 @@ status rendering (pending / resolved / failed) in `src/app/`. Small: every piece
 ## Out of scope
 
 - Research kind anywhere outside shaping (the registry scopes it to shaping decisions).
-- Parallel dispatch and the rate-limit meter (v2, `.knowledge/product/features/runs.md`).
+- Parallel dispatch and the rate-limit meter (v2, `.helm/knowledge/product/features/runs.md`).
 
 ## Open questions
 

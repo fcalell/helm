@@ -35,12 +35,11 @@ import {
 	runPrompt,
 	steeringPrompt,
 } from "../../sessions/prompts.ts";
-import type { ManagedRepo } from "../config.ts";
 import { cancelQueued, dispatch, queueSnapshot } from "../dispatcher.ts";
 import { compactHookUrl, runHookUrl } from "../mcp/registry.ts";
 import type { AskUserPayload } from "../mcp/schemas.ts";
-import { autoAllowlist } from "../permissions.ts";
 import { groupAlive, killProcessGroup } from "../process-group.ts";
+import { type RepoConfig, readRepoConfig } from "../repo-config.ts";
 import {
 	diffStat,
 	ensureWorktree,
@@ -110,6 +109,9 @@ interface RunState {
 	sessionId?: string;
 	branch?: string;
 	worktree?: string;
+	// Fixed at spawn from `.helm/config.json`, so the close path grades with
+	// the command the run was actually given.
+	checkCommand?: string;
 	// Set synchronously before a deliberate kill, so finishRun can tell a
 	// steer/pause/stop from a crash.
 	intent?: "steer" | "pause" | "stop";
@@ -324,17 +326,14 @@ interface PresetSpawn {
 	env?: Record<string, string>;
 }
 
-async function presetSpawn(
-	preset: Preset,
-	repo: ManagedRepo,
-): Promise<PresetSpawn> {
+function presetSpawn(preset: Preset, config: RepoConfig): PresetSpawn {
 	if (preset === "auto") {
 		return {
-			tools: await autoAllowlist(repo),
+			tools: config.tools,
 			extraTools:
-				repo.checkCommand === undefined
+				config.checkCommand === undefined
 					? []
-					: [`Bash(${repo.checkCommand})`, `Bash(${repo.checkCommand}:*)`],
+					: [`Bash(${config.checkCommand})`, `Bash(${config.checkCommand}:*)`],
 		};
 	}
 	return {
@@ -502,9 +501,11 @@ async function start(
 	});
 	state.branch = prepared.branch;
 
-	// Before any spawn work: an invalid permissions override must fail the
-	// start loudly, never spawn on a guessed allowlist.
-	const spawn = await presetSpawn(prepared.preset, repo);
+	// Before any spawn work: an invalid run config must fail the start
+	// loudly, never spawn on a guessed allowlist.
+	const config = await readRepoConfig(repo);
+	state.checkCommand = config.checkCommand;
+	const spawn = presetSpawn(prepared.preset, config);
 
 	let worktree: string;
 	try {
@@ -538,7 +539,7 @@ async function start(
 
 	const handle = spawnRunSession({
 		storyId,
-		prompt: runPrompt(repo.checkCommand, prepared.preset),
+		prompt: runPrompt(config.checkCommand, prepared.preset),
 		seedSystemPrompt: runBriefSeed(prepared.body),
 		cwd: worktree,
 		settingsPath,
@@ -747,9 +748,9 @@ async function finishRun(
 				rebaseError = errorText(error);
 			}
 			if (rebaseError === undefined) {
-				if (repo.checkCommand !== undefined) {
+				if (state.checkCommand !== undefined) {
 					try {
-						await captureCheck(state.storyId, worktree, repo.checkCommand);
+						await captureCheck(state.storyId, worktree, state.checkCommand);
 					} catch (checkError) {
 						log?.error(
 							`run ${state.storyId}: check capture failed: ${errorText(checkError)}`,
@@ -1201,10 +1202,9 @@ async function resume(
 	}
 	state.branch = branch;
 
-	const spawn = await presetSpawn(
-		current.frontmatter.preset ?? "guarded",
-		repo,
-	);
+	const config = await readRepoConfig(repo);
+	state.checkCommand = config.checkCommand;
+	const spawn = presetSpawn(current.frontmatter.preset ?? "guarded", config);
 
 	// Idempotent convergence covers an out-of-band worktree delete: session
 	// lookup is keyed to the cwd path, so a recreated path still resumes.

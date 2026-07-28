@@ -14,7 +14,7 @@ runs:
 
 The card drawer holds a live chat: the artifact under construction on top, the conversation below,
 tool calls as collapsed one-liners, and every proposal rendered as an **accept / edit / reject**
-widget (`.knowledge/product/features/define-refine.md`). This is the pure-UI slice over stories
+widget (`.helm/knowledge/product/features/define-refine.md`). This is the pure-UI slice over stories
 001-01 and 001-02.
 
 ## Approach
@@ -33,7 +33,7 @@ widget (`.knowledge/product/features/define-refine.md`). This is the pure-UI sli
   no reload.
 - Edit opens the proposal payload inline; submitting sends it back as that item's edit outcome,
   resuming the session for a re-proposal — accepting is the only write, per the spec
-  (`.knowledge/product/features/define-refine.md` §Proposal widgets).
+  (`.helm/knowledge/product/features/define-refine.md` §Proposal widgets).
 - The artifact pane is a slot the chat stories fill (Decisions checklist for shape, the brief for
   refine); this story ships the layout and the widget machinery with the shape/define widgets as
   the first concrete case.
@@ -63,7 +63,7 @@ shapes the server stories did not export.
 
 - The chat entry points and seeds (`n`, `r`, header shaping entry; 001-04 and 001-05).
 - The brief artifact pane content (001-05) and the gating badge (001-06).
-- Mobile layout polish (v2, `.knowledge/product/features/mobile.md`).
+- Mobile layout polish (v2, `.helm/knowledge/product/features/mobile.md`).
 
 ## Open questions
 

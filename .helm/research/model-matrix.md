@@ -2,7 +2,7 @@
 
 The tool for deciding which model and effort each session kind runs on. Fill the scorecard from
 measured loop data, then read the optimal pairing off the decision rule. Settled pairings fold into
-`.knowledge/architecture/session-kinds.md`; this doc is the working evidence behind them. The
+`.helm/knowledge/architecture/session-kinds.md`; this doc is the working evidence behind them. The
 strategic frame these choices sit under is [harness-optimization.md](./harness-optimization.md).
 
 ## Decision rule

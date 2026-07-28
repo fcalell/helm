@@ -3,7 +3,7 @@ sessions: {}
 ---
 # Session foundation & shaping chats
 
-Shaping thread for roadmap milestone 1 ([roadmap](../../../.knowledge/product/roadmap.md) §Next
+Shaping thread for roadmap milestone 1 ([roadmap](../../../.helm/knowledge/product/roadmap.md) §Next
 steps). Hand-authored: the conversation happened in a plain Claude Code session before the `shape`
 kind existed, so no session id is attached.
 
@@ -11,8 +11,8 @@ kind existed, so no session id is attached.
 
 - The milestone delivers the shaping surface end-to-end: session runner, in-process MCP board
   tools, proposal widgets, the shape/define/refine chats, the blocking adversary gate, and
-  research-decision dispatch. Spec: `.knowledge/product/features/define-refine.md` and
-  `.knowledge/architecture/session-kinds.md`.
+  research-decision dispatch. Spec: `.helm/knowledge/product/features/define-refine.md` and
+  `.helm/knowledge/architecture/session-kinds.md`.
 - Seven vertical slices, each demoable on its own. Server foundations land before UI, the runner
   (riskiest code) lands first and alone, and the two dispatcher consumers (gate, research) land
   last so they ride infrastructure the earlier stories proved.
@@ -21,7 +21,7 @@ kind existed, so no session id is attached.
   contract between sessions, and they double as the first real data for the board UI.
 - The stream-json spike (`spikes/stream-json/`) is the reference for CLI mechanics; re-verify its
   findings against current docs before building on them
-  (`.knowledge/architecture/claude-integration.md`).
+  (`.helm/knowledge/architecture/claude-integration.md`).
 
 ## Decisions
 

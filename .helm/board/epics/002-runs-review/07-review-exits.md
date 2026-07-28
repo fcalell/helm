@@ -12,7 +12,7 @@ runs:
 
 ## Goal
 
-The three exits close the loop (`.knowledge/product/features/review.md` §Three exits): **approve**
+The three exits close the loop (`.helm/knowledge/product/features/review.md` §Three exits): **approve**
 re-rebases if main moved, fast-forward-merges the story branch into the managed checkout's main,
 pushes best-effort, deletes the worktree, branch, and per-story artifacts, card to Done;
 **request changes** turns the user's comments into the next message in the same session and

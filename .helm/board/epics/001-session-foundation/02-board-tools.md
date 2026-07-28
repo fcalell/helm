@@ -15,7 +15,7 @@ runs:
 Chat sessions receive the orchestrator's own MCP server, and every board tool call becomes a
 recorded **proposal** the user resolves: accepting one is the single orchestrator write, an edit
 or rejection resumes the session with the reason. Claude never writes board files from chat
-(`.knowledge/architecture/claude-integration.md` §Board tools).
+(`.helm/knowledge/architecture/claude-integration.md` §Board tools).
 
 ## Approach
 
@@ -42,7 +42,7 @@ or rejection resumes the session with the reason. Claude never writes board file
   into a single resume message; answer resumes with the answer. Epic ordinals mint one above the
   highest ever used — the live tree plus git history (`--diff-filter=A` over `epics/`) — so a
   deleted epic's ordinal is never reused, even the maximum's
-  (`.knowledge/architecture/board-storage.md` §Layout retires ordinals permanently).
+  (`.helm/knowledge/architecture/board-storage.md` §Layout retires ordinals permanently).
 - Two tools ship recorded-only, their accept paths deferred with their stages: `raise_decision`'s
   accept write (the shaping thread's Decisions checklist) waits for 001-04, which first teaches
   the board module `shaping/`; `flag_risk`'s resolution semantics (accept files an open

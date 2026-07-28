@@ -24,12 +24,16 @@ Set per story, before the run:
 
 The Auto allowlist is data: Helm ships the canonical list (file edits, the repo's test/lint/build
 commands, and branch-local git: the read-only queries plus `add`/`commit`/`mv`/`rm`, never push or
-branch switching) and a repo overrides or extends it in `.helm/permissions.json`, the same
+branch switching) and a repo overrides or extends it in `.helm/config.json`, the same
 shared-with-local-override model templates use ([templates](../../architecture/templates.md)).
-The file is strict-schema `{ "auto": { "extend": [...] } | { "replace": [...] } }`; patterns are
+That file is the repo's whole run config, strict-schema
+`{ "auto": { "extend": [...] } | { "replace": [...] }, "checkCommand": "..." }`; patterns are
 non-empty and comma-free (the runner joins `--allowedTools` on commas, the same constraint the
-check command carries). A missing file means the canonical list; an invalid one fails `run.start`
-loudly, because a run must never spawn on a guessed allowlist. It shapes the Auto preset only.
+check command carries). It is versioned with the repo rather than held in the daemon's registry,
+so a clone brings its own check command and init can scaffold one
+([board-storage](../../architecture/board-storage.md) §Layout). A missing file means the canonical
+list and no check command; an invalid one fails `run.start` loudly, because a run must never spawn
+on a guessed allowlist. The `auto` block shapes the Auto preset only.
 Init proposes the repo's own test commands into it ([init](./init.md)), and the review kind's
 test-command Bash reads the same per-repo list
 ([session-kinds](../../architecture/session-kinds.md)).

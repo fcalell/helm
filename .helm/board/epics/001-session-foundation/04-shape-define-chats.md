@@ -14,7 +14,7 @@ runs:
 
 The two card-creating conversations work end-to-end: a board-level **shape** chat turns a rough
 feature into epics behind a Decisions checklist, and the **define** chat (`n`) breaks an epic into
-draft story cards (`.knowledge/product/features/define-refine.md` §Shaping the roadmap, §Defining
+draft story cards (`.helm/knowledge/product/features/define-refine.md` §Shaping the roadmap, §Defining
 an epic). Define folds in here: same tools and widgets as shape, different entry and seed.
 
 ## Approach
@@ -36,11 +36,11 @@ an epic). Define folds in here: same tools and widgets as shape, different entry
   `propose_stories` mini-cards land accepted stories in Backlog. For define sessions the
   proposal also carries the epic's goal and breakdown rationale; accept completes the epic body
   alongside the story writes, so an `n`-created epic ends with the same anatomy as a shaped one
-  (`.knowledge/architecture/board-storage.md` §Story file). A text reply like "merge 2 and 3"
+  (`.helm/knowledge/architecture/board-storage.md` §Story file). A text reply like "merge 2 and 3"
   resumes the session and triggers a re-proposal.
 - Prompts per kind instruct explore-first grilling (one question at a time, recommended answer
   attached), stamped from the generation templates
-  (`.knowledge/architecture/templates.md`).
+  (`.helm/knowledge/architecture/templates.md`).
 
 ## Blast radius
 

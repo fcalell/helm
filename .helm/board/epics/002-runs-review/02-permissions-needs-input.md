@@ -14,7 +14,7 @@ runs:
 
 Runs are supervised: the story's permission preset (Guarded default, Auto, Manual) shapes what
 prompts, the Auto allowlist is per-repo data under `.helm/`, and a headless permission prompt
-surfaces as approve/deny buttons on the card (`.knowledge/product/features/runs.md` §Permission
+surfaces as approve/deny buttons on the card (`.helm/knowledge/product/features/runs.md` §Permission
 presets). A run's `ask_user` flips the card to Needs input, renders the quick-reply form in the
 drawer, and the answer resumes the session (§Needs input); the notification leg stays v2.
 
@@ -24,7 +24,7 @@ drawer, and the answer resumes the session (§Needs input); the notification leg
 `preset: "guarded" | "auto" | "manual"`; absent means Guarded, the default, so every existing card
 keeps parsing and no migration exists. The writer's fixed key order becomes id · status · depends ·
 branch · preset · gate · sessions · runs (`src/board/markdown.ts`, mirrored in
-`.knowledge/architecture/board-storage.md`). A new `story.setPreset` RPC
+`.helm/knowledge/architecture/board-storage.md`). A new `story.setPreset` RPC
 (`src/worker/routes/story.ts`) writes the field through the write queue; it stays legal at any
 status, because the preset is read once at spawn (a change during a live run takes effect on the
 next attempt, the same semantics as a mid-run brief edit). The drawer header
@@ -50,7 +50,7 @@ replaces `row.tools` while board tools keep appending from the row. Per preset:
   Manual, never contradicting the widened denial sentence.
 - **Manual**: allowlist is `Read`, `Grep`, `Glob` only; `Edit`/`Write`/Bash all route to the
   permission tool. (The CLI never consults the tool for its own read-only tools,
-  `.knowledge/architecture/claude-integration.md` §Permission prompts, so reads stay free even
+  `.helm/knowledge/architecture/claude-integration.md` §Permission prompts, so reads stay free even
   here.)
 
 Guarded and Manual spawns add `--permission-prompt-tool mcp__helm__approve` (new runner option,
@@ -170,13 +170,13 @@ the quick-reply form from the entry's question (recommendation chip plus options
 the question-widget pattern fed from frontmatter), posting `run.answer`.
 
 **Auto allowlist as per-repo data.** A repo overrides or extends the canonical list with
-`.helm/permissions.json` (layout entry in board-storage.md): a strict-schema file
+`.helm/config.json` (layout entry in board-storage.md): a strict-schema file
 `{ "auto": { "extend": [...] } | { "replace": [...] } }`, patterns validated non-empty and
 comma-free (the runner joins `--allowedTools` on commas, the same constraint `checkCommand`
 carries). The runs service reads it from the main checkout at spawn (a new small reader beside
 `src/server/config.ts`'s pattern); a missing file means canonical, an invalid one fails
 `run.start` loudly, because a run must never spawn on a guessed allowlist. It shapes the Auto
-preset only. `.knowledge/product/features/runs.md` §Permission presets gains the concrete file
+preset only. `.helm/knowledge/product/features/runs.md` §Permission presets gains the concrete file
 name.
 
 ## Blast radius
@@ -203,8 +203,8 @@ name.
 - `src/app/`: drawer preset selector + needs-input quick-reply panel (`card-drawer.tsx`, new
   panel component), card approve/deny buttons (`story-card.tsx`), `session-store.ts`/`api.ts`
   plumbing for the new RPCs and snapshot field.
-- `.knowledge/architecture/board-storage.md`: key order, `question` field, `permissions.json`
-  layout entry. `.knowledge/product/features/runs.md`: the override file's name and shape.
+- `.helm/knowledge/architecture/board-storage.md`: key order, `question` field, `.helm/config.json`
+  layout entry. `.helm/knowledge/product/features/runs.md`: the override file's name and shape.
 - The server-side hold ceiling the spike measures on the stack's HTTP adapter, if one exists:
   raised where the stack exposes the knob, a `../stack` improvement if it does not.
 - `helm.config.example.json`, `src/server/config.ts`: untouched (the override file is per-repo
@@ -219,7 +219,7 @@ name.
   permission on the proposal channel; `run.permission` approve releases the exact commit
   (`git log` shows it), and a deny lands in the session stream as the denial message.
 - [ ] A Manual run's first `Edit` call prompts too (approve releases the edit).
-- [ ] An Auto run with `.helm/permissions.json` extending the allowlist executes the added
+- [ ] An Auto run with `.helm/config.json` extending the allowlist executes the added
   command prompt-free; a file carrying a comma pattern fails `run.start` with a loud
   validation error and no spawn.
 - [ ] A run's `ask_user` flips the card `running → needs-input`, the payload lands as the open
@@ -237,12 +237,12 @@ name.
 - [ ] The spike evidence (prompt-tool round trip over streamable HTTP, a hold surviving well
   past 5 minutes with `MCP_TOOL_TIMEOUT` raised and any measured server-side limit named and
   raised, the read-only Bash classification under a prompt tool) is recorded in
-  `.knowledge/architecture/claude-integration.md` §Permission prompts, measured against the
+  `.helm/knowledge/architecture/claude-integration.md` §Permission prompts, measured against the
   orchestrator's real HTTP server.
 
 ## Out of scope
 
-- Notifications for prompts and needs-input → v2 (`.knowledge/product/features/mobile.md`).
+- Notifications for prompts and needs-input → v2 (`.helm/knowledge/product/features/mobile.md`).
 - Activity timeline, steering, pause/stop UI, and the mid-run brief-edit notice → 002-03.
 - Queue/dispatcher routing for runs and resumes, concurrency cap, rate-limit meter → 002-04;
   `run.answer` spawns directly the way `run.start` does.
@@ -253,7 +253,7 @@ name.
   and reconciliation parks the card.
 - The deny-with-reason + needs-input-resume fallback for holds longer than the raised timeout:
   recorded in claude-integration.md, built only if hour-plus holds prove real.
-- Per-preset allowlist overrides beyond Auto (`guarded`/`manual` blocks in `permissions.json`).
+- Per-preset allowlist overrides beyond Auto (`guarded`/`manual` blocks in `.helm/config.json`).
 
 ## Open questions
 

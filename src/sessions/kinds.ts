@@ -41,7 +41,7 @@ export type ContextPolicy =
 	| "compact-at-boundaries";
 
 // One registry row per kind, mirroring the table in
-// `.knowledge/architecture/session-kinds.md`. `tools`/`systemPrompt` are
+// `.helm/knowledge/architecture/session-kinds.md`. `tools`/`systemPrompt` are
 // absent on rows whose tooling is not built yet (`review` needs a repo test
 // command, `conflict` worktree tools); spawning one of those throws until
 // its mechanics land.

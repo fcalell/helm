@@ -14,14 +14,14 @@ runs:
 
 "Move to Ready" runs the cold adversary pass and enables only on a pass: critical findings arrive
 as `flag_risk` widgets, the verdict persists in the story's `gate` frontmatter bound to a brief
-hash, and any brief edit stales it (`.knowledge/product/features/define-refine.md` §Ready gate).
+hash, and any brief edit stales it (`.helm/knowledge/product/features/define-refine.md` §Ready gate).
 The story also builds the **serial dispatcher** every non-chat kind rides.
 
 ## Approach
 
 - The dispatcher is a one-at-a-time queue in `src/server/`: non-chat sessions (`adversary` now,
   `research` in 001-07, runs later) enqueue and spawn in order; chat kinds keep bypassing it
-  (`.knowledge/architecture/session-kinds.md`).
+  (`.helm/knowledge/architecture/session-kinds.md`).
 - Move-to-ready first checks completeness (all sections set, no unresolved open question) and the
   recorded verdict: an unchanged brief with a valid `gate` hash re-enters Ready for free.
   Otherwise it enqueues a cold `adversary` session (Fable, read-only + `flag_risk`) that reads
@@ -29,7 +29,7 @@ The story also builds the **serial dispatcher** every non-chat kind rides.
   (already-dismissed flags with their reasons), which it is instructed not to re-raise; the card
   stays `refining` behind a **gating** badge.
 - Findings route to the story's refine session first
-  (`.knowledge/product/features/define-refine.md` §Ready gate): the orchestrator resumes it with
+  (`.helm/knowledge/product/features/define-refine.md` §Ready gate): the orchestrator resumes it with
   the flags, and the session answers each with a fix (an `update_brief` proposal whose new
   `resolves` field names the flag, extending 001-02's payload schemas) or a contest
   (`contest_flag`, a new tool on the 001-02 MCP server, enabled for refine only while a gate
@@ -45,14 +45,14 @@ The story also builds the **serial dispatcher** every non-chat kind rides.
   waits for the user. The `gate` block accumulates dismissals from every round; a re-raise that
   slips past the register takes the normal fix-or-contest path.
 - A pass writes the `gate` block (timestamp, brief-body hash, dismissed flags with reasons,
-  `.knowledge/architecture/board-storage.md` §Story file) and flips status to `ready` through the
+  `.helm/knowledge/architecture/board-storage.md` §Story file) and flips status to `ready` through the
   transition machine. A verdict landing after a mid-flight brief edit fails the hash check and is
   discarded; the flags are the adversary's whole output, no report file.
 - Brief hashing lives in `src/board/` next to the frontmatter writer so hand edits stale the
   verdict the same way chat edits do.
 - The gate write goes through the same read-validate-write serialization the story routes use
   today (`src/worker/routes/story.ts`), so the dispatcher never bypasses the single-writer rule
-  (`.knowledge/architecture/board-storage.md` §Mutation rules).
+  (`.helm/knowledge/architecture/board-storage.md` §Mutation rules).
 
 ## Blast radius
 

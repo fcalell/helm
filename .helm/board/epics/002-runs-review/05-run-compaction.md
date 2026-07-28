@@ -18,8 +18,8 @@ one probe turn, session id stable, clean result), so the orchestrator's provisio
 kill-summarize-reseed handoff is retired. The story hardens the native mechanism: auto-compact
 forced on for every run segment, the brief moved into every segment's system prompt so the
 contract structurally survives summarization, the compact boundary surfaced on the activity
-timeline, and `.knowledge/` rewritten from measurement
-(`.knowledge/architecture/claude-integration.md` §Context management).
+timeline, and `.helm/knowledge/` rewritten from measurement
+(`.helm/knowledge/architecture/claude-integration.md` §Context management).
 
 ## Approach
 
@@ -99,8 +99,8 @@ board-storage change: frontmatter is untouched (same session id, same entry).
 - `src/sessions/events.ts`: `parseCompactBoundary`.
 - `src/app/lib/session-store.ts`: the `compact` chat item;
   `src/app/components/activity-pane.tsx`: the marker row.
-- `.knowledge/architecture/claude-integration.md`, `.knowledge/architecture/session-kinds.md`,
-  `.knowledge/product/features/runs.md`: the measured rewrite.
+- `.helm/knowledge/architecture/claude-integration.md`, `.helm/knowledge/architecture/session-kinds.md`,
+  `.helm/knowledge/product/features/runs.md`: the measured rewrite.
 - Untouched: the dispatcher and queue, the meter, the board watcher/store and schema, the MCP
   layer, worktrees, `reconcile`, every non-run session kind's spawn path.
 

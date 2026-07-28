@@ -14,23 +14,23 @@ runs:
 
 `r` on a Backlog card opens the refine conversation and the brief fills in section by section as
 widgets, with open questions as a checklist and weak criteria flagged
-(`.knowledge/product/features/define-refine.md` §Refining a story). The brief drawer pane shows
+(`.helm/knowledge/product/features/define-refine.md` §Refining a story). The brief drawer pane shows
 the artifact under construction the whole time.
 
 ## Approach
 
 - `r` spawns a `refine` session (Fable, read-only + `update_brief` / `resolve_question`) and
   flips the card `backlog → refining` in the same move (the state machine's entry into refining,
-  `.knowledge/product/features/board.md` §Status state machine). The seed is the epic body's
+  `.helm/knowledge/product/features/board.md` §Status state machine). The seed is the epic body's
   conclusions (transcripts are not readable), the card, and the canonical brief template
   (goal · approach · blast radius · acceptance criteria · out of scope · open questions,
-  `.knowledge/architecture/templates.md`).
+  `.helm/knowledge/architecture/templates.md`).
 - `update_brief` proposes one section at a time; accepting writes that section into the story
   body through the board store, and the artifact pane re-renders from the file, so hand edits and
   chat edits look the same.
 - Open questions land in the brief's Open questions section through `update_brief` as plain
   checklist text (the file format stores no options,
-  `.knowledge/architecture/board-storage.md` §Story file); the quick-reply options ride the
+  `.helm/knowledge/architecture/board-storage.md` §Story file); the quick-reply options ride the
   session's paired `ask_user` payload and exist only on the widget. `resolve_question` checks
   the item off and folds the answer into the approach on accept.
 - Weak-criteria flagging is a UI heuristic on the criteria section (unmeasurable phrasing gets a

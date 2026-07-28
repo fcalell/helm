@@ -15,7 +15,7 @@ runs:
 Every board action is a visible control and the app-level hotkey layer is gone: each card carries
 one status-driven action button, the header carries the board-level entries, and the only keyboard
 behavior left is native focus activation plus the drawer's own dismiss
-(`.knowledge/product/features/board.md` §Screen layout). The action set includes **Ready → Run**:
+(`.helm/knowledge/product/features/board.md` §Screen layout). The action set includes **Ready → Run**:
 the original plan had 002-08 execute first and 002-01 build its Run entry on this pattern, but
 002-01 shipped without one, so today `run.start` has no UI caller at all and this story, the
 epic's last, closes that gap.

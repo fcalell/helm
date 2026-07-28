@@ -1,8 +1,7 @@
 # Coding conventions
 
-> **Load when:** writing or editing any TypeScript. Baseline code hygiene. No code exists yet;
-> these bind from the first code commit. Toolchain files (`tsconfig.json`, `biome.json`) are
-> created at that milestone, hand-owned and committed.
+> **Load when:** writing or editing any TypeScript. Baseline code hygiene. The toolchain files
+> (`tsconfig.json`, `biome.json`) are hand-owned and committed.
 
 ## TypeScript
 
@@ -27,7 +26,7 @@
 ## Comments
 
 - **Only comment non-obvious code**: don't restate the code.
-- **No design/architecture/product rationale in code comments.** The *why* lives in `.knowledge/`,
+- **No design/architecture/product rationale in code comments.** The *why* lives in `.helm/knowledge/`,
   never inline. A "why we chose this" comment reads as a fixed constraint and misleads later work.
   Reserve comments for non-obvious *technical* facts the code can't show: platform/library gotchas,
   API limits, non-obvious prop/data contracts.
@@ -38,10 +37,10 @@
   leave one `// TODO:` naming the known ceiling + the upgrade trigger (`// TODO: O(n²) scan; switch
   to a Map if the list grows past ~100`). That's a permitted non-obvious *technical* fact (the limit
   + when to revisit), not the forbidden *why*. Behavioral/scope deferrals go to
-  `.knowledge/product/roadmap.md`, never a code comment.
+  `.helm/knowledge/product/roadmap.md`, never a code comment.
 
 ## Error handling
 
 - Validate inputs before acting on them. One error scheme at the API boundary, defined when the
-  API is built and recorded in `.knowledge/architecture/`; don't invent parallel schemes per
+  API is built and recorded in `.helm/knowledge/architecture/`; don't invent parallel schemes per
   module.

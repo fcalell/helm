@@ -8,8 +8,8 @@ subscription meter as fresh input + output + 2% of cache reads, split by model t
 ## Harness reference (loop emulation)
 
 How the 001/002 loops were driven before Helm can drive itself; the durable findings live in
-`.knowledge/` ([claude-integration](../.knowledge/architecture/claude-integration.md) §Verifying
-without burning the pool, [define-refine](../.knowledge/product/features/define-refine.md)
+`.helm/knowledge/` ([claude-integration](../knowledge/architecture/claude-integration.md) §Verifying
+without burning the pool, [define-refine](../knowledge/product/features/define-refine.md)
 §Refining a story), this list keeps the operational detail:
 
 - One `spawn.sh` per stage mirrors `runner.ts` flags (`-p`, stream-json + verbose + partial

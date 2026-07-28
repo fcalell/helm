@@ -15,12 +15,17 @@ investigates, proposals render as widgets, and accepting a widget writes the fil
   A single `@.helm/agents/index.md` line is added to the repo's root `CLAUDE.md` (created if absent),
   the one write Helm makes outside `.helm/`, so the repo keeps just one file named `CLAUDE.md`.
 - `.helm/agents/` rule docs for the practices the repo should follow, plus a **ubiquitous-language
-  glossary** (`.helm/agents/glossary.md`) kept glossary-only (no implementation detail); `index.md`
-  imports them, so chats and runs speak the repo's language concisely.
-- `.helm/knowledge/`, the repo's knowledge base (what/why docs) with its own navigation index, pulled
-  on demand rather than loaded every session.
-- The per-repo run config: the Auto-preset allowlist override and the repo's test commands,
-  proposed from the detected stack ([runs](./runs.md) §Permission presets).
+  glossary** (`.helm/agents/glossary.md`) kept glossary-only (no implementation detail). `index.md`
+  imports the glossary, so chats and runs speak the repo's language concisely, and maps the rule
+  docs as pull-on-demand: importing them all would put every rule in every session's standing
+  context, the cost this flow exists to cut (§Migrating an existing repo).
+- `.helm/knowledge/`, the repo's knowledge base (what/why docs) with its own navigation index,
+  imported by `agents/index.md` so a session always knows what it can pull, while the entries
+  themselves stay on demand.
+- `.helm/research/`, the repo's working evidence (experiments, ledgers, findings), mapped by its own
+  index and never auto-loaded ([board-storage](../../architecture/board-storage.md) §Research).
+- `.helm/config.json`, the per-repo run config: the Auto-preset allowlist override and the repo's
+  check command, proposed from the detected stack ([runs](./runs.md) §Permission presets).
 - `helm.config.json` registration (path and main branch) when the repo joins the hosted
   multi-repo daemon; `helm` run inside a repo needs none
   ([overview](../../architecture/overview.md) §Shape).

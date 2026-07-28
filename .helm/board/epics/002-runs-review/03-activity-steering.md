@@ -15,7 +15,7 @@ runs:
 The drawer's Activity tab streams a run live: assistant narration surfaced, tool calls collapsed
 to one-liners, file edits as inline mini-diffs. A steering box injects a user message by killing
 the process and resuming the session with a notice that the previous action was interrupted;
-pause and stop are always available (`.knowledge/product/features/runs.md` §Activity timeline &
+pause and stop are always available (`.helm/knowledge/product/features/runs.md` §Activity timeline &
 steering). Pure UI over the stream 002-01 forwards, the epic's counterpart of 001-03.
 
 ## Approach
@@ -106,7 +106,7 @@ still works, the persistence standard the needs-input question set. A crashed, n
 running story still parks Blocked.
 
 **Routes and client.** `src/worker/routes/run.ts` gains `steer {id, message?}`, `pause {id}`,
-`stop {id}`, thin wrappers over the service; `.knowledge/architecture/api.md` records them.
+`stop {id}`, thin wrappers over the service; `.helm/knowledge/architecture/api.md` records them.
 `session-store.ts` gains the matching actions with the existing toast-on-error shape. In the
 pane: the steering box (textarea + Steer button, the chat input's layout only, deliberately
 not its behavior: the chat input disables on the session's `busy`, while steering exists
@@ -130,7 +130,7 @@ no feature-doc change.
 - `src/server/services/runs.ts`: the three service paths, the shared resume helper refactor of
   `answerRun`, intent handling in `finishRun`, the reconcile guard.
 - `src/worker/routes/run.ts`: three procedures; regenerated route index.
-- `.knowledge/architecture/board-storage.md`, `.knowledge/architecture/api.md`: field + routes.
+- `.helm/knowledge/architecture/board-storage.md`, `.helm/knowledge/architecture/api.md`: field + routes.
 - Untouched: `src/sessions/` (runner, kinds, prompts: `steeringPrompt` is reused as-is),
   the MCP layer, gate/board/proposals services, board watcher/store, worktrees module,
   `chat-pane.tsx` behavior.

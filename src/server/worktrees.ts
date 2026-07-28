@@ -354,15 +354,16 @@ export async function ensureWorktree(input: {
 			path,
 			...(hasBranch ? [branch] : ["-b", branch, repo.mainBranch]),
 		]);
-		// Non-cone sparse checkout: everything but board state, so the run
-		// still loads Helm's rules while `.helm/board/` never enters the
-		// branch.
+		// Non-cone sparse checkout: everything but board state and research,
+		// so the run still loads Helm's rules while `.helm/board/` never
+		// enters the branch and `.helm/research/` never rides along.
 		await git(path, [
 			"sparse-checkout",
 			"set",
 			"--no-cone",
 			"/*",
 			"!/.helm/board/",
+			"!/.helm/research/",
 		]);
 		return { path };
 	}

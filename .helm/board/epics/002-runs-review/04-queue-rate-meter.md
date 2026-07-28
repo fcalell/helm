@@ -15,7 +15,7 @@ runs:
 Runs dispatch through the serial dispatcher 001-06 built (concurrency cap 1; chat kinds keep
 bypassing it), and the board header's placeholders become the live rate-limit meter and queue
 occupancy fed by the `rate_limit_event` every session emits
-(`.knowledge/product/features/runs.md` §Queue & rate limits). Auto-pause on limit errors is v2
+(`.helm/knowledge/product/features/runs.md` §Queue & rate limits). Auto-pause on limit errors is v2
 with parallel runs; v1 shows the meter and the reset clock.
 
 ## Approach
@@ -66,7 +66,7 @@ and gains the same split:
 - Continuations enqueue at the front: an answer or steer resumes an in-flight attempt, which
   precedes queued fresh starts; fresh starts keep start-request order (the manual-start FIFO;
   automatic Ready-order scheduling belongs to the deferred dependency-aware queue,
-  `.knowledge/product/features/board.md` §Epics).
+  `.helm/knowledge/product/features/board.md` §Epics).
 
 Ordering is enqueue-then-kill: `steerRun` front-enqueues the resume *before* killing the live
 process, so when the killed task settles at `closed` and frees the slot, the resume is already
@@ -103,7 +103,7 @@ The 5-hour figure sums samples since the window start: `resetsAt − 5h` while t
 of now, the trailing 5 hours otherwise (a stale reset means the window rolled with no session
 since). The weekly figure is the trailing-7-day sum. A restart clears the samples; the meter is
 already a lower bound (other machines are invisible), so the loss only widens the underestimate
-and nothing persists (`.knowledge/architecture/claude-integration.md` §Rate limits). A new
+and nothing persists (`.helm/knowledge/architecture/claude-integration.md` §Rate limits). A new
 `meterChannel` (`src/shared/channels.ts`, snapshot schema in `src/shared/meter.ts`, the gate
 pattern) sends `{ queue, windows, tokens: { fiveHour, week } }` on every (re)subscribe and on
 every change — queue changes via `onQueueChange`, meter changes per event — debounced 100ms, the

@@ -2,7 +2,8 @@
 
 A board is a `.helm/` directory inside the repo it manages. Everything Helm writes into a repo lives
 under `.helm/`: the board (`.helm/board/`), the repo's agent rules (`.helm/agents/`), its knowledge
-base (`.helm/knowledge/`), and any template overrides. The one footprint outside `.helm/` is a single
+base (`.helm/knowledge/`), its working evidence (`.helm/research/`), the run config
+(`.helm/config.json`), and any template overrides. The one footprint outside `.helm/` is a single
 line in the repo's root `CLAUDE.md`, `@.helm/agents/index.md`, which pulls Helm's rules into every
 Claude Code session (native `@`-import, [claude-integration](./claude-integration.md)). Routing
 through `agents/index.md` keeps a single file named `CLAUDE.md` in the repo (its own). Removing Helm
@@ -19,13 +20,15 @@ that checkout's branch swaps the board out from under the orchestrator.
 ```
 .helm/
   agents/                # agent rule files; the repo's root CLAUDE.md imports agents/index.md
-    index.md             # single entry point; imports the glossary and rule docs below
+    index.md             # single entry point; imports the glossary and the knowledge index
     glossary.md          # ubiquitous-language glossary
-    <topic>.md           # additional Helm-managed rule docs
+    <topic>.md           # additional Helm-managed rule docs, pulled on demand
   knowledge/             # the knowledge base (what/why docs), pulled on demand
-    index.md             # navigation map, referenced from agents/index.md
+    index.md             # navigation map, imported by agents/index.md
+  research/              # working evidence: experiment plans, ledgers, findings (§Research)
+    index.md             # navigation map
   templates/             # per-repo generation-template overrides
-  permissions.json       # optional Auto-allowlist override ([runs](../product/features/runs.md) §Permission presets)
+  config.json            # optional run config: Auto-allowlist override + check command ([runs](../product/features/runs.md) §Permission presets)
   board/                 # orchestrator runtime state: watched, worktree-excluded
     shaping/
       offline-sync.md    # a roadmap thread: shape-chat session id + agreed notes
@@ -48,8 +51,8 @@ tree alone.
 One classifier decides what each path under `.helm/board/` is; the loader and the watcher both
 consume it, so a fresh load and a live edit never disagree. All board content lives under
 `.helm/board/`, which holds two directories, `shaping/` and `epics/`; the rest of `.helm/`
-(`agents/`, `knowledge/`, `templates/`) is Helm's rules, knowledge, and templates, outside the
-board and watched by nothing. The policy, at every depth:
+(`agents/`, `knowledge/`, `research/`, `templates/`) is Helm's rules, knowledge, evidence, and
+templates, outside the board and watched by nothing. The policy, at every depth:
 
 - Dotfiles are ignored.
 - Under `shaping/`, only `<slug>.md` shaping threads are valid; every other entry is invalid. A
@@ -65,6 +68,19 @@ board and watched by nothing. The policy, at every depth:
 
 An invalid path is dropped from the board (its content is never guessed at) and listed in the
 invalid banner while the file exists.
+
+## Research
+
+`.helm/research/` holds the working evidence a repo produces about its own build: experiment plans,
+measurement ledgers, and findings not yet settled. It exists because `.helm/knowledge/` is durable
+present-tense reference and rejects dated, draining, or superseded material, which otherwise has
+nowhere to go and silts up `.helm/` root. An `index.md` maps it, one folder per experiment, and
+nothing here auto-loads.
+
+Two rules keep it from growing without bound. A settled conclusion is **promoted** into the
+`.helm/knowledge/` entry it governs, and the research doc stays as the evidence behind it. A
+**drained** doc is deleted, since git history is the archive. Raw session data is reproducible from
+the CLI's own transcripts, so a repo gitignores it rather than committing it.
 
 ## Story file
 
@@ -177,10 +193,10 @@ tail capped and `exitCode: null` on timeout; absent when no check command is con
 process id, for restart reconciliation). Approve and discard delete all four with the worktree;
 the story file itself keeps the brief and run history.
 
-Worktrees are created with a sparse checkout that excludes the board state (`.helm/board/`): a story
-branch never carries board changes, so story files can't conflict at
-rebase or merge and ephemeral state (a `running` status) never enters git history through a run. The
-rest of `.helm/` stays in the worktree, so a run still loads the repo's Helm rules through the root
-`CLAUDE.md` import. The run reads its brief from the system-prompt seed
+Worktrees are created with a sparse checkout that excludes the board state (`.helm/board/`) and the
+working evidence (`.helm/research/`): a story branch never carries board changes, so story files
+can't conflict at rebase or merge and ephemeral state (a `running` status) never enters git history
+through a run, and research is bulk a run never reads. The rest of `.helm/` stays in the worktree,
+so a run still loads the repo's Helm rules through the root `CLAUDE.md` import. The run reads its brief from the system-prompt seed
 ([claude-integration](./claude-integration.md) §Context management) and updates its card through
 board tools (§Mutation rules).

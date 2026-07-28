@@ -158,7 +158,7 @@ The orchestrator hardens the native mechanism instead of driving its own:
   when compaction hit mid-work, in a *smaller* summary. Two limits hold whatever the wording. One
   message survives verbatim, so nothing else is guaranteed; and a single pass drops roughly a third
   of the decision record, since instructions steer which decisions survive rather than how many
-  (`.helm/model-matrix.md` §Compaction instructions).
+  (`.helm/research/model-matrix.md` §Compaction instructions).
 - The brief rides every segment's system prompt through `--system-prompt`, built from the
   spawn snapshot file, so the contract structurally survives summarization and a mid-run hand edit
   never rewrites it ([runs](../product/features/runs.md)). The

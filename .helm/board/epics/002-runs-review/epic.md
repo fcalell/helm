@@ -8,7 +8,7 @@ sessions: {}
 A Ready story runs headless in its own git worktree and comes back reviewable: the activity
 timeline streams live, permission prompts and mid-run questions land on the card, and review leads
 with the criteria checklist over a rebased diff, exiting through approve, request changes, or
-discard. This is roadmap step 2 (`.knowledge/product/roadmap.md` §Next steps) and the last
+discard. This is roadmap step 2 (`.helm/knowledge/product/roadmap.md` §Next steps) and the last
 milestone before the v1 Definition of Done.
 
 ## Breakdown rationale
@@ -27,7 +27,7 @@ infrastructure, and review consumes finished runs:
 4. **Run queue & rate-limit meter** routes runs through the 001-06 dispatcher and replaces the
    header placeholders with the live meter and queue occupancy.
 5. **Run compaction** is isolated because it is the least-verified mechanic in the spec
-   (`.knowledge/architecture/claude-integration.md` §Context management); it gets its own review
+   (`.helm/knowledge/architecture/claude-integration.md` §Context management); it gets its own review
    cycle the way the runner did in epic 1.
 6. **Review: rebase, diff & checklist** opens the review surface: rebase on main (a conflict
    parks in Blocked), the per-file diff, the ungraded criteria checklist pinned above, and the

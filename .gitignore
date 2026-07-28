@@ -7,3 +7,7 @@ dist/
 .claude/settings.local.json
 .stack/
 helm.config.json
+
+# raw session transcripts: reproducible from ~/.claude/projects/, distilled in
+# .helm/research/usage.md
+.helm/research/transcripts/

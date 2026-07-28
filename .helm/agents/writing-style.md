@@ -1,6 +1,6 @@
 # Writing style: prose & copy
 
-> **Load when:** writing any prose (`.knowledge/` docs, playbooks, README/comments-as-prose,
+> **Load when:** writing any prose (`.helm/knowledge/` docs, playbooks, README/comments-as-prose,
 > commit/PR bodies, and user-facing UI copy).
 
 Write so a careful human reader can't tell a machine drafted it. Lead with the claim, use plain

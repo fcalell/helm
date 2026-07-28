@@ -4,8 +4,8 @@ Measures replacing Claude Code's default system prompt with a Helm-authored one 
 Today every kind appends its contract to the default (`runner.ts:146`, `--append-system-prompt`);
 every kind moves to `--system-prompt`, with the prompts editable per repo. The measurement's remaining
 job is how those prompts are written, which §Prompt design rules and §Verdict answer. Frame and levers
-in [harness-optimization.md](./harness-optimization.md) (lever 5, prompt fit); measured tier data in
-[model-matrix.md](./model-matrix.md).
+in [harness-optimization.md](../../harness-optimization.md) (lever 5, prompt fit); measured tier data in
+[model-matrix.md](../../model-matrix.md).
 
 ## What we are testing
 
@@ -76,7 +76,7 @@ The drafts below follow six rules, aimed at H2 as much as at length.
    calls a pass on `adversary` and returned fewer flags than the same content as prose (§Verdict). A
    section headed `Method` is read as a procedure to execute. State the role and the work in one
    paragraph, then the output contract.
-2. **Imperatives, no rationale.** Why a rule exists lives in `.knowledge/`. A prompt states the rule.
+2. **Imperatives, no rationale.** Why a rule exists lives in `.helm/knowledge/`. A prompt states the rule.
 3. **Absolutes last.** The most-violated rules sit at the recency position, phrased as unconditional
    single clauses with no nesting. Untested: no arm varied ordering.
 4. **Seven invariants maximum** per kind. Past that, ranking decides what gets cut, not the author's
@@ -361,7 +361,7 @@ resolved safely, stop and report which file and why.
 ## Test matrix
 
 Every arm replays a recorded step against ground truth, the Opus 5 sweep protocol
-([model-matrix.md](./model-matrix.md) §Opus 5 sweep): `spawn.sh` mirrors `runner.ts` flags, the repo
+([model-matrix.md](../../model-matrix.md) §Opus 5 sweep): `spawn.sh` mirrors `runner.ts` flags, the repo
 sits at the recorded commit, and the control is that section's measured number at the same harness.
 Run two samples on the replace arm wherever a pass costs under $3, because every sweep figure is a
 single stochastic sample.

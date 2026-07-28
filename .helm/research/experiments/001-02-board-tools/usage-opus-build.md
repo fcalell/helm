@@ -1,6 +1,6 @@
 # Usage: experiment 001-02 build session (Opus 4.8, high effort, 1M context)
 
-Token draw of the single session that implemented `.helm/experiment-001-02-plan.md` against the
+Token draw of the single session that implemented `.helm/research/experiments/001-02-board-tools/plan.md` against the
 001-02 brief. Modeled cost uses the Opus 4.8 API rates below; on the Max subscription it is pool
 draw, not billing. This is a snapshot taken while the session was still open, so it excludes the
 last few messages (this ledger write and the final report).

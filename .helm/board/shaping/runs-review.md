@@ -3,7 +3,7 @@ sessions: {}
 ---
 # Runs & review
 
-Shaping thread for roadmap milestone 2 ([roadmap](../../../.knowledge/product/roadmap.md) §Next
+Shaping thread for roadmap milestone 2 ([roadmap](../../../.helm/knowledge/product/roadmap.md) §Next
 steps). Hand-authored: the conversation happened in a plain Claude Code session while the epic 1
 shaping stories were still landing, so no session id is attached.
 
@@ -11,15 +11,15 @@ shaping stories were still landing, so no session id is attached.
 
 - The milestone completes the v1 Definition of Done: a Ready story runs headless in its own
   worktree with the live activity timeline, and review grades the result against the brief with
-  the three exits. Spec: `.knowledge/product/features/runs.md`, `.knowledge/product/features/review.md`,
-  and `.knowledge/architecture/session-kinds.md`.
+  the three exits. Spec: `.helm/knowledge/product/features/runs.md`, `.helm/knowledge/product/features/review.md`,
+  and `.helm/knowledge/architecture/session-kinds.md`.
 - Seven vertical slices, each demoable on its own. The `run` kind with the worktree lifecycle is
   the riskiest code and lands first and alone; compaction is the least-verified mechanic in the
   spec and is isolated for its own review cycle; the review stories land last because they consume
   finished runs.
 - v1 review spawns no sessions: the criteria checklist renders ungraded, the diff supports, and
   the run's own test output is the evidence. Self-grading, the standards axis, and the `conflict`
-  kind are v2 ([roadmap](../../../.knowledge/product/roadmap.md)).
+  kind are v2 ([roadmap](../../../.helm/knowledge/product/roadmap.md)).
 - Epic 1 infrastructure is assumed: the session runner and kind registry (001-01), board tools and
   `ask_user` (001-02), the drawer chat and widgets (001-03), and the serial dispatcher (001-06).
 - Stories are implemented interactively in this repo on master, like epic 1. Whether later epic 2

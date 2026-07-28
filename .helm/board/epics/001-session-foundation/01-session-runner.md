@@ -15,7 +15,7 @@ runs:
 
 The orchestrator spawns, streams, resumes, and kills a real `claude -p` session for any registered
 session kind, with the kind fixing model, tool allowlist, system-prompt injection, and context
-policy (`.knowledge/architecture/session-kinds.md`). Session events reach the UI live over WS.
+policy (`.helm/knowledge/architecture/session-kinds.md`). Session events reach the UI live over WS.
 
 ## Approach
 
@@ -23,7 +23,7 @@ policy (`.knowledge/architecture/session-kinds.md`). Session events reach the UI
   `src/server/` service wires it to the WS channels; `src/worker/` routes expose spawn/message.
 - Spawn `claude -p` with `--output-format stream-json --verbose`, `--model` and the reasoning
   effort from the kind (the headless effort mechanism is spike-verified first,
-  `.knowledge/architecture/claude-integration.md` §Invocation model), `--allowedTools` from the
+  `.helm/knowledge/architecture/claude-integration.md` §Invocation model), `--allowedTools` from the
   kind, `--append-system-prompt` for the kind's contract, cwd = the managed repo. Parse the
   NDJSON event stream (`system/init`, `assistant`, `user`, `rate_limit_event`, `result`) and
   forward typed events over a new WS channel in `src/shared/channels.ts`. Also pass
@@ -41,7 +41,7 @@ policy (`.knowledge/architecture/session-kinds.md`). Session events reach the UI
   reference, context policy), matching the registry in `session-kinds.md`. Only the chat kinds and the two
   cold kinds this milestone uses need entries wired to behavior.
 - Reference mechanics: `spikes/stream-json/`; re-verify flags against current CLI docs first
-  (`.knowledge/architecture/claude-integration.md`).
+  (`.helm/knowledge/architecture/claude-integration.md`).
 
 ## Blast radius
 

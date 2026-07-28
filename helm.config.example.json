@@ -1,10 +1,9 @@
 {
-	"$comment": "checkCommand is optional and must be one simple command: no shell operators (&&, ||, ;, |, &) and no commas. Compound commands and commas break the run's tool allowlist.",
+	"$comment": "Where the daemon finds each repo. The repo's own run config (Auto-allowlist override, check command) lives in its .helm/config.json.",
 	"repos": [
 		{
 			"path": "/absolute/path/to/target-repo",
-			"mainBranch": "main",
-			"checkCommand": "pnpm check"
+			"mainBranch": "main"
 		}
 	]
 }

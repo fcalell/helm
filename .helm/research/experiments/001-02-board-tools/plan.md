@@ -125,7 +125,7 @@ app.use("*", async (c, next) => {
 
 ### Docs
 
-`.knowledge/architecture/runtime.md` §Node target: extend the service sentence to
+`.helm/knowledge/architecture/runtime.md` §Node target: extend the service sentence to
 `{ log, ws, http }` and one line on `http.mount`/`http.port`.
 
 ## Part B: Helm dependencies
@@ -655,7 +655,7 @@ Run `pnpm generate` to regenerate `src/worker/routes/index.ts` and the services 
 
 ## Part I: knowledge-base updates
 
-- `.knowledge/architecture/api.md`: add `proposal.resolve` and `proposal.answer` to the procedures
+- `.helm/knowledge/architecture/api.md`: add `proposal.resolve` and `proposal.answer` to the procedures
   table; document the `proposal` WS channel (snapshot semantics) next to `board`/`session`; add
   error rows:
 
@@ -664,9 +664,9 @@ Run `pnpm generate` to regenerate `src/worker/routes/index.ts` and the services 
 | `PROPOSAL_RESOLVED`      | The item is already resolved / the question already answered (HTTP 409). | none |
 | `UNSUPPORTED_RESOLUTION` | The tool's accept path lands with a later stage (`raise_decision` 001-04, `flag_risk` 001-06) (HTTP 501). | none |
 
-- `.knowledge/architecture/claude-integration.md` §Board tools: one sentence that caller identity
+- `.helm/knowledge/architecture/claude-integration.md` §Board tools: one sentence that caller identity
   rides the per-spawn endpoint (`/mcp/<token>`), so payloads never carry ids.
-- `.knowledge/architecture/board-storage.md` §Layout: one sentence that minting scans the live
+- `.helm/knowledge/architecture/board-storage.md` §Layout: one sentence that minting scans the live
   tree plus git's added-path history, which is what retires ordinals permanently.
 
 ## Edge cases (behavior settled here)

@@ -38,7 +38,7 @@ queue; every other kind dispatches through it
 Each kind's prompt **replaces** the CLI's default system prompt (`--system-prompt`,
 [claude-integration](./claude-integration.md) §Invocation model); nothing of the default's text
 reaches a Helm session. Replacement was measured against append across four kinds
-(`.helm/experiment-system-prompts.md`): quality held or improved everywhere, and the standards
+(`.helm/research/experiments/system-prompts/plan.md`): quality held or improved everywhere, and the standards
 review doubled its verified findings under the same tool narrowing. The registry row is the
 prompt's home; per-repo prompt overrides are a planned feature, and the open question there is
 whether an override replaces the whole prompt or only a body composed into a fixed frame.
@@ -90,7 +90,7 @@ registry, with the split drawn on what a kind produces rather than on price:
   which is the result that moved `run` off this row. `refine` stays here on absent evidence rather
   than a measured win: the Opus 5 sweep never ran a Fable arm, because Fable's pool was capped.
 
-Evidence for the Opus rows is the Opus 5 sweep in `.helm/model-matrix.md` §Opus 5 sweep. Two
+Evidence for the Opus rows is the Opus 5 sweep in `.helm/research/model-matrix.md` §Opus 5 sweep. Two
 consequences of the split are worth holding: **Sonnet is now assigned to no kind**, so it survives
 only in the `KindRow` union as the recorded fallback tier, and the pool balance moved (below).
 
@@ -141,7 +141,7 @@ a task in fewer tokens. The **context window** burns the same per token on every
 what fills it faster. The pools are separate and separately capped, so the split above also decides
 where a cap bites: `run` moving to Opus takes the heaviest line off the Fable pool and puts it on the
 one already carrying `adversary` and two `review` sessions per run. That pool's window is unmeasured
-(`.helm/harness-optimization.md` §Objective holds it between ~21M and ~46M weighted tokens), so read
+(`.helm/research/harness-optimization.md` §Objective holds it between ~21M and ~46M weighted tokens), so read
 the meter across the first loops on this split. Model family names are stable; the exact ids, relative pool burn, effort
 mechanics, and Fable's subscription-inclusion terms move fast, so re-verify against current docs
 before building on them ([claude-integration](./claude-integration.md)).

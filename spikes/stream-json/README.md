@@ -3,7 +3,7 @@
 Throwaway scripts that answered the roadmap's riskiest assumptions against `claude` CLI 2.1.210 on
 Max-subscription auth (July 2026). Run any script with `node <name>.ts` after `pnpm install`; each
 creates `toy-repo/` on first use. Durable conclusions live in
-[claude-integration](../../.knowledge/architecture/claude-integration.md); this file records the raw
+[claude-integration](../../.helm/knowledge/architecture/claude-integration.md); this file records the raw
 observations behind them.
 
 ## Scripts

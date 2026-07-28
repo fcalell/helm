@@ -8,7 +8,7 @@ sessions: {}
 A story is shaped, defined, and refined from the board itself: chat sessions run as real headless
 `claude` processes, structure arrives through proposal widgets instead of prose parsing, and the
 adversary gate blocks Ready. This is roadmap step 1
-(`.knowledge/product/roadmap.md` §Next steps); runs and review are step 2.
+(`.helm/knowledge/product/roadmap.md` §Next steps); runs and review are step 2.
 
 ## Breakdown rationale
 
