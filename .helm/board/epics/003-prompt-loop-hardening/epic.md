@@ -16,7 +16,7 @@ shrinking context is what moved contract-edge events) and
 
 ## Breakdown rationale
 
-Seven stories, ordered so the defect-adjacent fix lands first, prompt structure lands before the
+Eight stories, ordered so the defect-adjacent fixes land first, prompt structure lands before the
 trims that build on it, and the independent enforcement slices ride alone:
 
 1. **Brief tool validation** fixes the silent `resolves` drop (a mistyped flag title makes the
@@ -34,6 +34,9 @@ trims that build on it, and the independent enforcement slices ride alone:
 7. **Standing-context trim** is the fallback the research decision left: the CLAUDE.md injection
    cannot be suppressed under subscription auth, so the import chain itself gets the lean pass
    (it grew ~40% since the P1 measurement).
+8. **Gate resilience** triages the two live gate defects from `loop-findings.md`: the first run
+   note staling the verdict (reproduced on current code) and the mid-flight brief edit silently
+   destroying the whole attempt. One story because they share the surface and each is small.
 
 Shaping context and the decisions behind this slicing:
 [prompt-loop-hardening](../../shaping/prompt-loop-hardening.md).

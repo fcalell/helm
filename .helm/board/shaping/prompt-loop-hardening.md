@@ -52,6 +52,11 @@ plain Claude Code session, so no session id is attached.
 - CLAUDE.md suppression: measured closed. Every suppression path (`--bare`,
   `CLAUDE_CODE_SIMPLE=1`) disables subscription auth, so the batch drops the item; the standing
   lever is keeping the import chain lean (claude-integration.md §Invocation model).
+- The batch also absorbs `loop-findings.md`'s two gate defects (both verified live on current
+  code) as a gate-resilience story: same hardening frame, and the doc exists to be triaged. The
+  other planned research levers stay out: the warm adversary middle and the scope-lock overlay
+  are open experiments, the permanent shape gate is a new loop stage owed its own shaping
+  thread, and Fable-out routing waits on an unspiked rate-limit signal.
 
 ## Decisions
 
