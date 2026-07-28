@@ -38,6 +38,9 @@ const repoConfigFileSchema = z.strictObject({
 		])
 		.optional(),
 	checkCommand: checkCommandSchema.optional(),
+	// Runs orchestrator-side through a shell at worktree creation, so compound
+	// commands are legal here, unlike checkCommand.
+	worktreeSetup: z.string().min(1).optional(),
 });
 
 export const REPO_CONFIG_FILE = ".helm/config.json";
@@ -47,6 +50,7 @@ export interface RepoConfig {
 	// repo overrides or extends it.
 	tools: readonly string[];
 	checkCommand: string | undefined;
+	worktreeSetup: string | undefined;
 }
 
 // The repo's run config, read from the main checkout at spawn. A missing file
@@ -58,7 +62,11 @@ export async function readRepoConfig(repo: ManagedRepo): Promise<RepoConfig> {
 		raw = await readFile(join(repo.path, REPO_CONFIG_FILE), "utf8");
 	} catch (error) {
 		if (isENOENT(error))
-			return { tools: AUTO_ALLOWLIST, checkCommand: undefined };
+			return {
+				tools: AUTO_ALLOWLIST,
+				checkCommand: undefined,
+				worktreeSetup: undefined,
+			};
 		throw error;
 	}
 	let json: unknown;
@@ -78,11 +86,11 @@ export async function readRepoConfig(repo: ManagedRepo): Promise<RepoConfig> {
 			message: `${REPO_CONFIG_FILE}: ${z.prettifyError(parsed.error)}`,
 		});
 	}
-	const { auto, checkCommand } = parsed.data;
+	const { auto, checkCommand, worktreeSetup } = parsed.data;
 	let tools: readonly string[] = AUTO_ALLOWLIST;
 	if (auto !== undefined) {
 		tools =
 			"replace" in auto ? auto.replace : [...AUTO_ALLOWLIST, ...auto.extend];
 	}
-	return { tools, checkCommand };
+	return { tools, checkCommand, worktreeSetup };
 }

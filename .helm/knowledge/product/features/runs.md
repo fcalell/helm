@@ -27,9 +27,12 @@ commands, and branch-local git: the read-only queries plus `add`/`commit`/`mv`/`
 branch switching) and a repo overrides or extends it in `.helm/config.json`, the same
 shared-with-local-override model templates use ([templates](../../architecture/templates.md)).
 That file is the repo's whole run config, strict-schema
-`{ "auto": { "extend": [...] } | { "replace": [...] }, "checkCommand": "..." }`; patterns are
-non-empty and comma-free (the runner joins `--allowedTools` on commas, the same constraint the
-check command carries). It is versioned with the repo rather than held in the daemon's registry,
+`{ "auto": { "extend": [...] } | { "replace": [...] }, "checkCommand": "...", "worktreeSetup": "..." }`;
+patterns are non-empty and comma-free (the runner joins `--allowedTools` on commas, the same
+constraint the check command carries). `worktreeSetup` is the fresh worktree's bootstrap
+(dependency install, generated files): it runs orchestrator-side through a shell when a run's
+worktree is created, so compound commands are legal; a failure deletes the worktree and fails the
+start, and a reused worktree skips it. It is versioned with the repo rather than held in the daemon's registry,
 so a clone brings its own check command and init can scaffold one
 ([board-storage](../../architecture/board-storage.md) §Layout). A missing file means the canonical
 list and no check command; an invalid one fails `run.start` loudly, because a run must never spawn

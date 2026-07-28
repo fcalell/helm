@@ -1,4 +1,5 @@
 {
-	"$comment": "Per-repo run config. checkCommand must be one simple command: no shell operators (&&, ||, ;, |, &) and no commas, because compound commands and commas break the run's tool allowlist.",
-	"checkCommand": "pnpm check"
+	"$comment": "Per-repo run config. checkCommand must be one simple command: no shell operators (&&, ||, ;, |, &) and no commas, because compound commands and commas break the run's tool allowlist. worktreeSetup runs orchestrator-side at worktree creation, so compound commands are legal there.",
+	"checkCommand": "pnpm check",
+	"worktreeSetup": "pnpm install"
 }

@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import type { ManagedRepo } from "./config.ts";
+import { runShellCommand } from "./process-group.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -353,14 +354,19 @@ export function parseDiff(text: string): DiffFile[] {
 	return files;
 }
 
+const SETUP_TIMEOUT_MS = 10 * 60 * 1000;
+
 // Converge on branch-plus-worktree from whatever mix exists: the branch is
-// the durable artifact, the worktree disposable.
+// the durable artifact, the worktree disposable. `setup` is the repo's
+// worktree bootstrap; it runs only when the worktree is created, because
+// reuse implies an earlier setup succeeded.
 export async function ensureWorktree(input: {
 	repo: ManagedRepo;
 	storyId: string;
 	branch: string;
+	setup?: string;
 }): Promise<{ path: string }> {
-	const { repo, storyId, branch } = input;
+	const { repo, storyId, branch, setup } = input;
 	const path = worktreePath(repo, storyId);
 	// Clear stale registrations left by an out-of-band directory delete.
 	await git(repo.path, ["worktree", "prune"]);
@@ -385,6 +391,25 @@ export async function ensureWorktree(input: {
 			"!/.helm/board/",
 			"!/.helm/research/",
 		]);
+		if (setup !== undefined) {
+			const { exitCode, output } = await runShellCommand(
+				setup,
+				path,
+				SETUP_TIMEOUT_MS,
+			);
+			if (exitCode !== 0) {
+				// A half-bootstrapped worktree must not survive: reuse skips
+				// setup, so the next start would inherit the failure silently.
+				await removeWorktree(repo.path, path).catch(() => {});
+				const reason =
+					exitCode === null
+						? "timed out or failed to spawn"
+						: `failed (exit ${exitCode})`;
+				throw new Error(
+					`worktree setup \`${setup}\` ${reason}: ${output.slice(-240).trim()}`,
+				);
+			}
+		}
 		return { path };
 	}
 

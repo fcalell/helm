@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -38,7 +37,11 @@ import {
 import { cancelQueued, dispatch, queueSnapshot } from "../dispatcher.ts";
 import { compactHookUrl, runHookUrl } from "../mcp/registry.ts";
 import type { AskUserPayload } from "../mcp/schemas.ts";
-import { groupAlive, killProcessGroup } from "../process-group.ts";
+import {
+	groupAlive,
+	killProcessGroup,
+	runShellCommand,
+} from "../process-group.ts";
 import { type RepoConfig, readRepoConfig } from "../repo-config.ts";
 import {
 	branchCommits,
@@ -173,48 +176,19 @@ export const checkResultSchema = z.object({
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
 const CHECK_TIMEOUT_MS = 10 * 60 * 1000;
-// Interleaved stdout+stderr, capped to the tail.
-const CHECK_OUTPUT_CAP = 16_000;
 
 // The check is evidence for the reviewer, not a gate: a failing or timed-out
 // command still resolves (never throws), and the card still lands in Review.
-function runCheckCommand(command: string, cwd: string): Promise<CheckResult> {
-	return new Promise((resolve) => {
-		const child = spawn(command, {
-			cwd,
-			shell: true,
-			detached: true,
-			stdio: ["ignore", "pipe", "pipe"],
-		});
-		let output = "";
-		let timedOut = false;
-		const append = (chunk: Buffer): void => {
-			output = (output + chunk.toString()).slice(-CHECK_OUTPUT_CAP);
-		};
-		child.stdout.on("data", append);
-		child.stderr.on("data", append);
-		const timer = setTimeout(() => {
-			timedOut = true;
-			if (child.pid !== undefined) void killProcessGroup(child.pid);
-		}, CHECK_TIMEOUT_MS);
-		let settled = false;
-		const settle = (exitCode: number | null): void => {
-			if (settled) return;
-			settled = true;
-			clearTimeout(timer);
-			resolve({
-				command,
-				exitCode: timedOut ? null : exitCode,
-				output,
-				finishedAt: new Date().toISOString(),
-			});
-		};
-		child.on("error", (error) => {
-			append(Buffer.from(String(error)));
-			settle(null);
-		});
-		child.on("close", (code) => settle(code));
-	});
+async function runCheckCommand(
+	command: string,
+	cwd: string,
+): Promise<CheckResult> {
+	const { exitCode, output } = await runShellCommand(
+		command,
+		cwd,
+		CHECK_TIMEOUT_MS,
+	);
+	return { command, exitCode, output, finishedAt: new Date().toISOString() };
 }
 
 // The repo's commit contract (CLAUDE.md rules): a Conventional type prefix
@@ -564,7 +538,12 @@ async function start(
 	let worktree: string;
 	try {
 		worktree = (
-			await ensureWorktree({ repo, storyId, branch: prepared.branch })
+			await ensureWorktree({
+				repo,
+				storyId,
+				branch: prepared.branch,
+				setup: config.worktreeSetup,
+			})
 		).path;
 		// The reuse check's never-proceed-as-clean rule: committed `.helm/`
 		// changes on the branch abort the start.
@@ -1278,7 +1257,14 @@ async function resume(
 	// lookup is keyed to the cwd path, so a recreated path still resumes.
 	let worktree: string;
 	try {
-		worktree = (await ensureWorktree({ repo, storyId, branch })).path;
+		worktree = (
+			await ensureWorktree({
+				repo,
+				storyId,
+				branch,
+				setup: config.worktreeSetup,
+			})
+		).path;
 	} catch (error) {
 		if (error instanceof ApiError) throw error;
 		throw new ApiError("RUN_FAILED", { message: errorText(error) });

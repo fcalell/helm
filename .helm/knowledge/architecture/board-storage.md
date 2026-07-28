@@ -183,7 +183,10 @@ than a card.
 
 Worktrees live outside the repo working tree, under an orchestrator-owned directory
 (`~/.helm/worktrees/<repo>/<story-id>/`), one per story, created at first run and deleted on
-approve/discard ([review](../product/features/review.md) §Three exits). The story branch is the
+approve/discard ([review](../product/features/review.md) §Three exits). Creation runs the repo's
+`worktreeSetup` command when one is configured, so a fresh checkout is bootstrapped (dependencies
+installed, generated files present) before any run or check executes in it
+([runs](../product/features/runs.md) §Permission presets). The story branch is the
 durable artifact; the worktree is disposable. Per-story run artifacts sit beside the worktrees in
 the same directory: `<story-id>.brief.md` (the brief's spawn snapshot, seeding every segment,
 [claude-integration](./claude-integration.md) §Context management), `<story-id>.check.json`
