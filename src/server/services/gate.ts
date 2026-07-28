@@ -197,10 +197,8 @@ async function runRound(attempt: Attempt): Promise<void> {
 	if (attempts.get(attempt.storyId) !== attempt) return;
 	const story = await readFresh(attempt.storyId).catch(() => undefined);
 	if (story === undefined || story.frontmatter.status !== "refining") {
-		abortWith(
-			attempt,
-			`ready gate for ${attempt.storyId} stopped: the story left refining`,
-		);
+		logError(`story ${attempt.storyId} left refining; attempt aborted`);
+		abort(attempt);
 		return;
 	}
 	attempt.briefHash = briefHash(story.body);
@@ -216,25 +214,16 @@ async function runRound(attempt: Attempt): Promise<void> {
 	if (attempts.get(attempt.storyId) !== attempt) return;
 	const after = await readFresh(attempt.storyId).catch(() => undefined);
 	if (after === undefined) {
-		abortWith(
-			attempt,
-			`ready gate for ${attempt.storyId} stopped: the story vanished`,
+		logError(
+			`story ${attempt.storyId} unreadable after a round; attempt aborted`,
 		);
+		abort(attempt);
 		return;
 	}
 	if (briefHash(after.body) !== attempt.briefHash) {
-		// The brief moved mid-flight, so this round read stale text; discard it
-		// without spending the round budget and re-run against the new brief.
-		// Rounds/overrides survive; the re-queue reads the fresh brief.
-		attempt.rounds.pop();
-		attempt.pendingFixes.clear();
-		attempt.pendingFlags = false;
-		attempt.adversarySessionId = undefined;
-		broadcastNotice({
-			kind: "gate-restarted",
-			message:
-				"brief edited mid-round; re-running the adversary against the new brief",
-		});
+		// The brief moved mid-flight: this round's verdict read stale text and
+		// is discarded, and a fresh round attacks the new brief. The attempt
+		// (rounds, overrides, pending fixes) survives.
 		enqueueRound(attempt);
 		return;
 	}
@@ -299,10 +288,8 @@ async function evaluate(attempt: Attempt): Promise<void> {
 	}
 	const story = await readFresh(attempt.storyId).catch(() => undefined);
 	if (story === undefined) {
-		abortWith(
-			attempt,
-			`ready gate for ${attempt.storyId} stopped: the story vanished`,
-		);
+		logError(`story ${attempt.storyId} unreadable; attempt aborted`);
+		abort(attempt);
 		return;
 	}
 	if (!checkReadyGate(story.brief).ok) {
