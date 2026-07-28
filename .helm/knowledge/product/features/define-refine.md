@@ -92,8 +92,9 @@ scope · open questions), the canonical generation template for a brief
    the brief's Open questions section with quick-reply options; answering one checks it off and
    folds the answer into the approach.
 3. **Criteria get pushed on.** The template demands testable criteria; the UI flags weak ones
-   ("sync should work well" ⚠). Deliberate friction: the implementation run is graded against them
-   ([review](./review.md)).
+   ("sync should work well" ⚠), and the tool boundary refuses an Acceptance criteria or Open
+   questions proposal that is not a `- [ ]` checklist. Deliberate friction: the implementation run
+   is graded against them ([review](./review.md)).
 4. **The Approach opens with measured facts.** Before any design, the Approach leads with a facts
    block: file:line anchors, symbol names, and existing behavior the story builds on, each
    verified against a named commit, with the design phrased as "build on those anchors". A cold
@@ -115,8 +116,8 @@ lands ([board](./board.md) §Status state machine).
 **A finding routes by who can settle it**, the split shaping already uses for decisions (§Human
 and research decisions). The flags land in the story's refine session first: the orchestrator
 resumes it with the findings, and the session answers each flag with a fix or a contest. A fix is
-an `update_brief` proposal naming the flag it resolves; accepting it resolves the flag and stales
-the verdict. A contest is a `contest_flag` call whose payload carries the session's
+an `update_brief` proposal naming the flag it resolves (a title matching no open flag is refused
+at call time, naming the open titles); accepting it resolves the flag and stales the verdict. A contest is a `contest_flag` call whose payload carries the session's
 counter-argument; the flag renders as a widget with the argument attached: accepting files it as
 an open question, which blocks the gate until the brief resolves it, and dismissing records an
 override reason. A flag the session leaves unanswered when its turn ends renders contested with

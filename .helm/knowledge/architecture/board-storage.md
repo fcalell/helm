@@ -163,8 +163,8 @@ than a card.
 
 - **The orchestrator is the single writer.** UI drags, accepted proposal widgets, queue/run
   events, and hook POSTs all land as orchestrator writes to the main checkout, so concurrent
-  writers and read-modify-write races are designed out rather than locked around. A Stop hook
-  writes frontmatter directly only when the orchestrator is unreachable
+  writers and read-modify-write races are designed out rather than locked around. The run's Stop
+  hook POSTs to the orchestrator and never writes board files
   ([claude-integration](./claude-integration.md) §Hooks).
 - **Chat never writes board files.** Accepting a proposal widget is the single mutation path from
   conversation ([define-refine](../product/features/define-refine.md) §Proposal widgets).

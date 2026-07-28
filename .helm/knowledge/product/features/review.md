@@ -12,8 +12,9 @@ run's brief snapshot ([runs](./runs.md)): **✓ / ✗ / unclear, each with evide
 references, test or command output). The tally lands on the run's frontmatter entry and shows on
 the card (5/6 ✓). Grades are claims to verify, never auto-approval; a human decides every exit.
 (v2; v1 review is the checklist rendered ungraded + the diff, with the run's own evidence in
-between: the check command's result captured at close and the run's `verify:` notes naming the
-by-hand checks. See [roadmap](../roadmap.md).)
+between: the check command's result captured at close, a Conventional Commit lint of the branch's
+commits in that capture, and the run's `verify:` notes naming the by-hand checks. See
+[roadmap](../roadmap.md).)
 
 The checkbox follows the evidence. A criterion the session proves with a test it ran is checked on
 the spot; one graded from code inspection alone, or covered by no automated test, stays unchecked
