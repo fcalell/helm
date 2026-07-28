@@ -235,7 +235,7 @@ export function releaseSpawn(token: string): void;
 export function lookupSpawn(token: string): SpawnBinding | undefined;
 ```
 
-### `schemas.ts` (pure zod; no node imports — the SPA bundle reaches it via channels.ts)
+### `schemas.ts` (pure zod; no node imports, since the SPA bundle reaches it via channels.ts)
 
 ```ts
 const slugSchema = z

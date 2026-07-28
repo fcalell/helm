@@ -60,11 +60,10 @@ session is v2; in v1 any conflicting rebase parks the card in Blocked for manual
   card parking Blocked. Merges run one at a time once parallel runs land.
 - **Request changes**: the user's comments (per-criterion or free-form) become the next message in
   the **same session, same worktree**, so full implementation context is preserved; card → Running.
-  The follow-up's tier follows what failed: an unmet criterion or a free-form comment runs at
-  high effort, the one escalation above the medium default (the first attempt failing is evidence
-  the story needs it); a round carrying only accepted standards findings resumes on Sonnet at
-  medium, mechanical application of the findings' located edits
-  ([session-kinds](../../architecture/session-kinds.md) §Model per kind).
+  Every comment is an unmet criterion or a free-form note, and either is evidence the first
+  attempt failed, so the follow-up runs at high effort, the one escalation above the medium
+  default. The model stays on the `run` row, because a resume that switches tier throws away the
+  session's warm cache ([session-kinds](../../architecture/session-kinds.md) §Model per kind).
 - **Discard**: worktree + branch deleted, card → Ready, runs history kept. The brief survives; only
   the attempt is thrown away.
 

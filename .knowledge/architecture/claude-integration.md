@@ -121,6 +121,31 @@ The orchestrator hardens the native mechanism instead of driving its own:
   is `--settings` > project > user (measured: the same over-threshold task under
   `{"autoCompactEnabled": false}` emitted zero boundaries), so a user-global disable never starves
   a run. The CLI owns the trigger; no orchestrator watching, no threshold constant.
+- A **PreCompact hook** moves compaction off mid-edit and steers the summary. The hook fires before
+  every compaction, auto and manual, with `trigger`, `cwd`, `transcript_path`, and
+  `custom_instructions` on stdin; its stdout is the decision. The run's hook POSTs to the
+  orchestrator, which answers from the worktree's `git status --porcelain`: uncommitted edits return
+  `{"decision":"block"}` and the compaction is skipped (measured: zero boundaries, and the session
+  ran to a clean finish), a committed tree returns `{"customInstructions": …}`. Blocking is bounded
+  at three consecutive refusals per run, because the alternative failure is unrecoverable: a run
+  that outgrows its window with compaction blocked dies on "Prompt is too long". Leaving compaction
+  unblocked has its own breaker, `terminal_reason: "rapid_refill_breaker"`, which ends the session
+  when context refills within three turns of a compact three times running.
+- **`customInstructions` is the only hook-output field that reaches the summary.** Measured on
+  2.1.220 across four candidate shapes against a forced auto-compaction: top-level
+  `customInstructions` landed on every boundary in the run, `systemMessage` also landed, and both
+  `hookSpecificOutput.customInstructions` and `hookSpecificOutput.additionalContext` did not. Helm
+  uses `customInstructions`, the field name the input payload itself carries.
+- **The instruction splits the transcript by what the worktree can give back.** File contents, tool
+  output, and dead-end exploration are on disk and re-readable, so the summary drops them; commits,
+  files touched, satisfied criteria and their evidence, check status, decisions with the
+  alternatives they rejected, and loose ends are not recoverable, so the summary keeps them.
+  Instruction shape measurably changes what survives: on the same 220k-token run session, the
+  instruction Helm ships kept more decisions and 2.4x the file/flag/symbol detail of a bare compact
+  when compaction hit mid-work, in a *smaller* summary. Two limits hold whatever the wording. One
+  message survives verbatim, so nothing else is guaranteed; and a single pass drops roughly a third
+  of the decision record, since instructions steer which decisions survive rather than how many
+  (`.helm/model-matrix.md` §Compaction instructions).
 - The brief rides every segment's system prompt through `--append-system-prompt`, built from the
   spawn snapshot file, so the contract structurally survives summarization and a mid-run hand edit
   never rewrites it ([runs](../product/features/runs.md)). The

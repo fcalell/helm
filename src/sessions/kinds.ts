@@ -38,7 +38,7 @@ export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 export type ContextPolicy =
 	| "reseed-on-stale"
 	| "always-cold"
-	| "compact-under-pressure";
+	| "compact-at-boundaries";
 
 // One registry row per kind, mirroring the table in
 // `.knowledge/architecture/session-kinds.md`. `tools`/`systemPrompt` are
@@ -149,8 +149,8 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		systemPrompt: SHAPE_PROMPT,
 	},
 	research: {
-		model: "sonnet",
-		effort: "high",
+		model: "opus",
+		effort: "medium",
 		context: "always-cold",
 		tools: READ_ONLY_TOOLS,
 		boardTools: [],
@@ -193,15 +193,15 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		systemPrompt: `You are Helm's ready-gate adversary: attack the brief for gaps, risks, and ambiguity a cold reader would hit, checking its claims against the repository where they can be checked. ${WORK_READ_ONLY} Raise each critical flaw with one flag_risk call: a short title plus the detail naming where an implementer would stumble. Never re-raise a risk the user has already dismissed. If the brief holds, call no tools and end your turn.`,
 	},
 	run: {
-		model: "fable",
+		model: "opus",
 		effort: "medium",
-		context: "compact-under-pressure",
+		context: "compact-at-boundaries",
 		tools: AUTO_ALLOWLIST,
 		boardTools: ["update_card", "ask_user"],
 		systemPrompt: RUN_PROMPT,
 	},
 	review: {
-		model: "sonnet",
+		model: "opus",
 		effort: "high",
 		context: "always-cold",
 	},

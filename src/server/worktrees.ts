@@ -48,7 +48,7 @@ async function branchExists(
 	}
 }
 
-async function isDirty(worktree: string): Promise<boolean> {
+export async function isDirty(worktree: string): Promise<boolean> {
 	return (await git(worktree, ["status", "--porcelain"])).trim() !== "";
 }
 

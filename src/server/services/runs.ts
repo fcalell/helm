@@ -37,7 +37,7 @@ import {
 } from "../../sessions/prompts.ts";
 import type { ManagedRepo } from "../config.ts";
 import { cancelQueued, dispatch, queueSnapshot } from "../dispatcher.ts";
-import { runHookUrl } from "../mcp/registry.ts";
+import { compactHookUrl, runHookUrl } from "../mcp/registry.ts";
 import type { AskUserPayload } from "../mcp/schemas.ts";
 import { autoAllowlist } from "../permissions.ts";
 import { groupAlive, killProcessGroup } from "../process-group.ts";
@@ -45,6 +45,7 @@ import {
 	diffStat,
 	ensureWorktree,
 	helmDiffPaths,
+	isDirty,
 	rebaseOntoMain,
 	safetyCommit,
 	worktreeExists,
@@ -73,6 +74,25 @@ const RESUME_MESSAGE = "Continue the run.";
 
 const PERMISSION_TOOL = `mcp__${MCP_SERVER_NAME}__approve`;
 
+// Consecutive PreCompact refusals before the hook lets a compaction through.
+// Blocking is a deferral, never a veto: past this the window matters more than
+// the boundary, and an unblocked compaction beats "Prompt is too long".
+const COMPACT_BLOCK_LIMIT = 3;
+
+// Steers the summary a compaction writes. Delivered as `customInstructions`,
+// the one hook-output field the CLI reads for this (measured: `systemMessage`
+// also lands, the `hookSpecificOutput` forms do not).
+const COMPACT_INSTRUCTIONS = `You are mid-implementation of a story brief. Your working tree is on disk and every file can be re-read, so file contents, tool output, and exploration that led nowhere are recoverable and must be dropped. Your own intent and history are not recoverable. Preserve those in full, under these headings.
+
+1. Commits: every commit so far, sha and subject, plus the branch name, and whether the tree is currently clean or has uncommitted edits.
+2. Files touched: every file created or modified, each with a one-line note of what changed in it. List all of them; never summarize as "and others".
+3. Acceptance criteria: each criterion already satisfied, with the evidence that satisfied it, and each one still open.
+4. Check command: the repo's check command, its exit status the last time you ran it, and any failure still outstanding.
+5. Decisions: every design decision where an alternative existed, with the alternative you rejected and why. Without this you will re-litigate settled questions.
+6. Loose ends: anything left unverified, untestable, or deferred, and anything a human must check by hand.
+
+Write dense reference notes for yourself, not prose for a reader.`;
+
 // CLI-side ceiling for a held permission approval (default 5 minutes, raised
 // to four hours); the server side showed no ceiling on the orchestrator's
 // HTTP adapter (claude-integration.md §Permission prompts).
@@ -84,6 +104,8 @@ interface RunState {
 	hookToken: string;
 	hookPosted: boolean;
 	exited: boolean;
+	// Consecutive PreCompact refusals; reset once one is let through.
+	compactBlocks: number;
 	pid?: number;
 	sessionId?: string;
 	branch?: string;
@@ -205,6 +227,19 @@ function runSettings(worktree: string, hookToken: string) {
 						{
 							type: "command",
 							command: `curl -s -m 5 -X POST ${runHookUrl(hookToken)}`,
+						},
+					],
+				},
+			],
+			// The response body is this hook's stdout, which the CLI reads as
+			// the compaction decision; a silent curl (orchestrator down) reads
+			// as no decision and compaction proceeds.
+			PreCompact: [
+				{
+					hooks: [
+						{
+							type: "command",
+							command: `curl -s -m 5 -X POST ${compactHookUrl(hookToken)}`,
 						},
 					],
 				},
@@ -412,6 +447,7 @@ async function freshStart(storyId: string): Promise<{ sessionId: string }> {
 		hookToken: randomUUID(),
 		hookPosted: false,
 		exited: false,
+		compactBlocks: 0,
 	};
 	states.set(storyId, state);
 	hookTokens.set(state.hookToken, state);
@@ -902,6 +938,7 @@ async function resumeRun(
 		hookToken: randomUUID(),
 		hookPosted: false,
 		exited: false,
+		compactBlocks: 0,
 	};
 	states.set(storyId, state);
 	hookTokens.set(state.hookToken, state);
@@ -1275,6 +1312,47 @@ function addUsage(run: Run, result: SessionResult | undefined): Partial<Run> {
 			Math.round(((run.minutes ?? 0) + (result?.minutes ?? 0)) * 10) / 10;
 	}
 	return patch;
+}
+
+export interface CompactDecision {
+	decision?: "block";
+	reason?: string;
+	customInstructions?: string;
+}
+
+// Answers the run's PreCompact hook, so compaction lands on a committed tree
+// and carries Helm's summary instructions when it does. An unknown token or a
+// worktree git failure returns the empty decision, which is the CLI's default
+// behavior: never block on a state we cannot read.
+export async function runCompactHook(
+	token: string,
+): Promise<CompactDecision | undefined> {
+	const state = hookTokens.get(token);
+	if (state === undefined) return undefined;
+	const worktree = state.worktree;
+	if (worktree === undefined) return {};
+	let dirty: boolean;
+	try {
+		dirty = await isDirty(worktree);
+	} catch (error) {
+		log?.error(
+			`run ${state.storyId}: compact-hook status failed: ${errorText(error)}`,
+		);
+		return {};
+	}
+	if (dirty && state.compactBlocks < COMPACT_BLOCK_LIMIT) {
+		state.compactBlocks += 1;
+		log?.info(
+			`run ${state.storyId}: compaction deferred (${state.compactBlocks}/${COMPACT_BLOCK_LIMIT}), worktree dirty`,
+		);
+		return {
+			decision: "block",
+			reason:
+				"Uncommitted edits: finish the change and commit it, then compaction runs at that boundary.",
+		};
+	}
+	state.compactBlocks = 0;
+	return { customInstructions: COMPACT_INSTRUCTIONS };
 }
 
 export function runHookPosted(token: string): boolean {

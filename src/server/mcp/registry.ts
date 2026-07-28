@@ -33,6 +33,14 @@ export function runHookUrl(token: string): string {
 	return `http://127.0.0.1:${port}/hooks/run/${token}`;
 }
 
+// The PreCompact hook's POST target. Unlike the Stop backstop this one is
+// answered: the response body is the hook's stdout, which the CLI reads as
+// the compaction decision.
+export function compactHookUrl(token: string): string {
+	if (port === undefined) throw new Error("MCP port is not set");
+	return `http://127.0.0.1:${port}/hooks/compact/${token}`;
+}
+
 export function registerSpawn(
 	token: string,
 	binding: { kind: SessionKind; attach?: Attach },

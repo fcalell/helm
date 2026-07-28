@@ -37,13 +37,13 @@ parallel interactive Opus session on the shared pool plus the orchestration sess
 draw. Under α≈0.02 the ledger predicts ~2% per pool; the meter read ~4% on both, so the gap on
 each pool is its unledgered session's draw, size unknown. The 002-04 readings **tightened the
 bounds**: the Fable pool moved 8% total while carrying 22.8M ledgered cache reads (the loop's run
-plus its high-tier fix-up) beside ~587k fresh + output and two unledgered Fable sessions — at
+plus its high-tier fix-up) beside ~587k fresh + output and two unledgered Fable sessions, at
 α ≈ 0.10 the cache reads alone exceed that movement on every admissible cap, so the cache-read
 weight is bounded at roughly **α ≤ 0.05**, with α≈0.02 still the best fit (ledgered ~4.5%
 predicted, ~3.5% residual for the two unledgered sessions, in line with 002-03's
 orchestration-only residual). Hold pool draw as fresh + output + a small cache-read term,
 weighted somewhere in 0–5%. One tension opened: the shared pool was quiet for the first time
-(the parallel session was Fable) and read ~4% on ~827k weighted, implying a ~21M shared window —
+(the parallel session was Fable) and read ~4% on ~827k weighted, implying a ~21M shared window:
 half the ~46M the 002-02 fit implied; either an unlogged Opus/Sonnet draw shared the window or
 the 002-02 reading overestimated it. The exact before/after readings protocol resolves this next
 loop. Two things survive any α: dollars overweight cache-heavy stages, and cutting iterations
@@ -67,9 +67,9 @@ Three facts order the levers:
    cap at 50% of the Opus/Sonnet one; the window sizes stay unconfirmed `est`, and the 002-04
    quiet-shared reading put them in tension: ~21M implied for the shared window against the ~46M
    the 002-02 fit implied (cost-unit paragraph above). Spend is bounded per pool,
-   so spreading burn across pools matters as much as reducing it. Because the gate's adversary (Opus)
-   and the Sonnet stages (research, review) draw the same bucket, the fallback must not assume a spare
-   Opus pool is large or free of the Sonnet load already on it.
+   so spreading burn across pools matters as much as reducing it. Because `adversary`, `research`,
+   `review`, and `run` all draw the same bucket, the fallback must not assume a spare Opus pool is
+   large or free of the load already on it.
 
 So the heavy levers cut iterations and context length; per-call tier and effort are fine-tuning on
 top. "Pick a cheaper model" is near the bottom of the list, and on a capped pool it can even be
@@ -150,8 +150,8 @@ principle, not a build item).
 - **Escalate on evidence, not prediction** `live`. Run escalates itself on a review failure; nothing
   predicts difficulty from a brief.
 - **Pool-aware scheduling** `planned`. Spread burn across pools and use queue backpressure to ride out
-  caps. Note the asymmetry: the Fable fallback does not *spread* load, it *relocates* all six Fable
-  kinds onto the one shared Sonnet/Opus pool already carrying adversary, research, and review, so it
+  caps. Note the asymmetry: the Fable fallback does not *spread* load, it *relocates* all five Fable
+  kinds onto the one shared Opus pool already carrying `adversary`, `research`, `review`, and `run`, so it
   can cascade into a second pool-out. Scheduling must cap or queue the relocated load, not fire it all
   at once. The fallback strategy (matrix) is this lever's first instance and its hardest case.
 

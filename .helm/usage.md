@@ -128,7 +128,7 @@ kind registry) and the steered refine sessions that drove the fix, contest, unan
 dismissal paths for real, so the gate's whole round machinery is exercised rather than mocked.
 The run also ran the longest (45 minutes, 185 turns) against the milestone's widest blast radius
 (26 files across every src/ module). Spec review graded 11/11 with zero unclear; the standards
-round's two blockers split on adjudication — the attempt-leak fix landed, while the suggested
+round's two blockers split on adjudication: the attempt-leak fix landed, while the suggested
 `review/blocked → ready` reopening was rejected as a gate bypass and reduced to a message reword.
 The Sonnet-medium follow-up held the cosmetic-round price at $1.54 for a ten-item payload.
 

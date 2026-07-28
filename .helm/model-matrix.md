@@ -54,67 +54,86 @@ The fixed inputs to the rule. Quality metric is the countable signal that must c
 ## Model fit matrix
 
 Verdict per (step, model) at the step's natural effort. Status tag: `measured` (loop or test data),
-`est` (inferred from a neighbouring measurement), `TBD` (no data). Fable holds the loop defaults.
+`est` (inferred from a neighbouring measurement), `TBD` (no data). Fable holds the chat kinds; Opus
+holds `adversary`, `run`, `review`, and `research`.
 
-| Step      | Haiku 4.5        | Sonnet 5                          | Opus 4.8                                | Fable 5 (current)                     |
-| --------- | ---------------- | --------------------------------- | --------------------------------------- | ------------------------------------- |
-| init      | TBD              | TBD                               | TBD                                     | fable/high `measured`: default        |
-| shape     | TBD              | TBD                               | TBD (error cost high: worth testing)    | fable/high `measured`: default        |
-| define    | TBD              | TBD                               | TBD                                     | fable/med `measured`: default         |
-| research  | ~ viable `measured`: correct, misses nuance | sonnet/high `measured`: default, catches sub-cases | overkill `est` | TBD                                   |
-| refine    | too weak `est`   | ~ viable `measured`: cheapest, comparable | ~ over-builds `measured`: best v0, bloats to 48KB | ✓ fable/med `measured`: lowest flag floor, leanest |
-| adversary | ✗ too weak `measured`: false-confidence | ✗ misses concrete blockers `measured` | ✓ best value `measured`: ~10 flags/pass, ~3× round compression | baseline `measured`: ~$3.50/pass, 12-15 passes |
-| run       | too weak `est`   | TBD                               | ✗ `measured`: slower, broke the build, hid it | ✓ fable/med `measured`: green, 21 min, 24 files |
-| review    | ✗ too weak `measured`: cosmetic only | ✓ sonnet/high `measured`: catches the should-fix findings | overkill `est`     | TBD                                   |
-| conflict  | too weak `est`   | TBD                               | TBD                                     | fable/high: default, no run yet       |
+**The `opus` alias moved.** On CLI 2.1.220 `--model opus` resolves to `claude-opus-5`, so the
+registry's `adversary` row (`model: "opus"`) already spawns Opus 5 in the live loop. Every Opus cell
+below is pinned by full model id; the Opus 4.8 column is now reachable only as `claude-opus-4-8`.
+
+| Step      | Haiku 4.5        | Sonnet 5                          | Opus 4.8                                | Opus 5                                  | Fable 5 (current)                     |
+| --------- | ---------------- | --------------------------------- | --------------------------------------- | --------------------------------------- | ------------------------------------- |
+| init      | TBD              | TBD                               | TBD                                     | TBD                                     | fable/high `measured`: default        |
+| shape     | TBD              | TBD                               | TBD (error cost high: worth testing)    | TBD                                     | fable/high `measured`: default        |
+| define    | TBD              | TBD                               | TBD                                     | TBD                                     | fable/med `measured`: default         |
+| research  | ~ viable `measured`: correct, misses nuance | ✓ sonnet/high `measured`: default, cheapest, complete | ~ correct, no gain `measured` | ~ correct, no gain `measured`: $0.51 vs Sonnet's $0.37 | TBD                                   |
+| refine    | too weak `est`   | ~ viable `measured`: cheapest, comparable | ~ `measured`: 13.4KB v0, 6 flags, claims collapse cold | ✓ best v0 `measured`: 16.7KB, 5 flags, anchors check out | ✓ fable/med `measured`: lowest flag floor, leanest |
+| adversary | ✗ too weak `measured`: false-confidence | ✗ misses concrete blockers `measured` | ✓ `measured`: 3 flags/pass on the final brief | ✓ deepest `measured`: 6 flags/pass, disjoint from 4.8 | baseline `measured`: ~$3.50/pass, 12-15 passes |
+| run       | too weak `est`   | TBD                               | ✗ `measured`: slower, broke the build, hid it | ✓ best `measured`: green, 15.2 min, 26 files, honest | ✓ fable/med `measured`: green, 21 min, 24 files |
+| review    | ✗ too weak `measured`: cosmetic only | ~ `measured`: 1 should-fix, costs more than Opus 5 | ✗ `measured`: 0 should-fix, graded the leak a nit | ✓ best `measured`: 6 should-fix, 0 false positives | TBD                                   |
+| conflict  | too weak `est`   | TBD                               | TBD                                     | TBD                                     | fable/high: default, no run yet       |
 
 ## Recommended pairings
 
-What the measured cells support. Effort is held at each kind's current value (tuned later).
+Applied to `KIND_REGISTRY` on 2026-07-27. Effort is held at each kind's current value except
+`research` (below).
 
-- **adversary: fable -> opus/high.** The one high-leverage, high-confidence change. Opus has Fable's
-  mechanism recall and Sonnet's completeness recall in one pass, ~3x the depth (one pass covered
-  Fable rounds 7-14), and costs less than Fable per the CLI. Deeper, cheaper, fewer rounds.
-- **review: keep sonnet/high.** Catches the should-fix findings; Haiku misses them, Opus is overkill.
-- **run: keep fable/medium.** Opus/medium was slower, broke the build, and hid its own errors.
-- **refine: keep fable/medium.** Low-leverage: all three produce comparable briefs. Opus over-builds
-  (48KB, no floor gain), Sonnet is cheapest but not better. No reason to change.
-- **research: consider haiku/high.** Viable and cheapest for this low-stakes read role; Sonnet is the
-  safe default when a research finding feeds a high-stakes decision.
-- **No single best model.** Opus wins adversary but loses run; Fable wins run and holds refine;
-  Sonnet holds review; Haiku only fits research. The per-step split is the result, not a fallback.
+- **adversary: opus/high, unchanged.** Depth per pass cuts the round count itself: one pass covered
+  Fable rounds 7-14. The registry row already spawns Opus 5 through the alias.
+- **run: fable -> opus/medium** `measured`. Opus 5 finished 002-01 faster than Fable (15.2 min
+  against 21), in fewer turns (125 against 136), with a green `pnpm check` verified out-of-band and a
+  self-report that names what it could not verify. The Opus over-building signature that broke the
+  4.8 run did not reproduce.
+- **review: sonnet -> opus/high** `measured`. Opus 5 wins both axes at once in the same harness:
+  $2.43 against Sonnet 5's $2.78, and 6 verified should-fix findings against 1.
+- **research: sonnet/high -> opus/medium** `est`. A pool-consolidation call, not a quality one: all
+  three tested tiers returned the complete answer, and Sonnet 5 was the cheapest ($0.37 against
+  $0.51). Opus at *medium* is untested; the measured cell is opus/high. Watch the first findings for
+  the sub-case completeness that separates the tiers.
+- **refine: fable/medium, unchanged.** Opus 5 authors the better-grounded v0 of the two Opus tiers
+  (5 flags against 6 from the same judge, anchors confirmed rather than collapsing), and it writes
+  the *longer* brief, which breaks the length-equals-over-building read. But no Fable arm ran, so
+  nothing here beats the incumbent. Opus/medium is the recorded fallback while Fable is capped.
+- **Opus wins four of five tested steps and now holds four of nine kinds.** Sonnet is assigned to no
+  kind and survives as the recorded fallback tier. The live consequence is pool balance, not
+  quality: `run` was the heaviest Fable line in every ledger entry, so moving it relieves the capped
+  pool and loads the one already carrying `adversary` plus two `review` sessions per run. That
+  pool's window is unmeasured, so pool-aware scheduling (harness-optimization lever 7) is the next
+  thing to earn attention, and the meter needs reading across the first loops on this split.
 
 ## Fable fallback strategy
 
 Fable draws a separate pool from Sonnet/Opus, so it exhausts on its own while the other pool stays
 full. (Both confirmed: Fable capped out while the others ran, and Sonnet and Opus share one pool.) The
-loop is multi-pool: `research`/`review` (Sonnet) and `adversary`
-(Opus) never touch Fable, so a Fable-out stalls only the six synthesis/execution kinds (`shape`,
-`define`, `refine`, `run`, `conflict`, `init`), not the pipeline. First move is drain the non-Fable
-stages and queue the Fable ones for reset; the strategy below is for the Fable stages that must run
-before reset.
+loop is multi-pool: `adversary`, `research`, `review`, and `run` all sit on Opus and never touch
+Fable, so a Fable-out stalls only the five chat and synthesis kinds (`shape`, `define`, `refine`,
+`conflict`, `init`), not the pipeline. First move is drain the non-Fable stages and queue the Fable
+ones for reset; the strategy below is for the Fable stages that must run before reset.
 
-**The fallback relocates load, it does not spread it.** Routing all six Fable kinds to Opus/Sonnet
-piles the entire remaining loop onto the pool already carrying adversary, research, and review, so the
-fallback can itself trigger a second pool-out. That shared pool's size is unmeasured, so treat
+**The fallback relocates load, it does not spread it.** Routing all five Fable kinds to Opus piles
+the entire remaining loop onto the pool already carrying `adversary`, `research`, `review`, and
+`run`, so the fallback can itself trigger a second pool-out. That shared pool's size is unmeasured, so treat
 fallback capacity as unknown-and-small: run fallback kinds one at a time or queue them, not at full
 Fable concurrency, and prefer draining and queueing over eagerly re-running everything on the spare
 pool. This is why the fallback is a survival mode to ride out a reset, not a steady state.
 
-**Principle: move work from the model into the harness.** Fable is a faithful executor that dominates
-coding; the fallback tiers are stronger critics but worse executors (Opus over-builds, Sonnet is
-extraction-grade). No swap equals Fable on the coding kinds. Instead spend the available Opus/Sonnet
-pool on structure that lifts the fallback tier to the same bar: decompose the task, constrain the
-failure mode, add a verification loop. The added loops are critique, Opus's measured strength
-(adversary), so the fallback leans on Opus where it is strong to prop up where it is weak.
+**Principle: move work from the model into the harness.** Fable is a faithful executor, and on the
+kinds it still holds the fallback tier is a stronger critic but a looser executor: Opus 4.8
+over-built, Sonnet is extraction-grade. (Opus 5 broke that pattern on `run`, which is why `run` left
+this section, but no Fable arm has been run against the chat kinds since.) Rather than hunt for an
+equal swap, spend the available Opus pool on structure that lifts the fallback tier to the same bar:
+decompose the task, constrain the failure mode, add a verification loop. The added loops are
+critique, Opus's measured strength (adversary), so the fallback leans on Opus where it is strong to
+prop up where it is weak.
 
 Three levers, cheapest structural fix first:
 
 1. **Prompt constraint, one shared Opus overlay**: over-building is Opus's general signature, not
    run-specific (the refine test bloated the brief to 48KB, run broke the build), so one
    scope-discipline paragraph appends to every Opus-authored generative prompt (`shape`, `define`,
-   `refine`, `run`): deliver exactly what is asked, no adjacent elaboration, no unrequested structure.
-   One overlay string, applied wherever the fallback swaps Fable to Opus.
+   `refine`): deliver exactly what is asked, no adjacent elaboration, no unrequested structure.
+   One overlay string, applied wherever the fallback swaps Fable to Opus. Whether it still earns its
+   place is open (experiment 6): the signature came from Opus 4.8 and did not reproduce on Opus 5.
 2. **Effort tuning**: Opus is flat with effort, so high is wasted and may fuel over-elaboration; drop
    it to curb the failure mode.
 3. **Added verification phase**: insert a critic/gate pass where a Fable kind has none today, run on
@@ -128,26 +147,17 @@ Per-kind fallback:
 | `shape`          | opus/high        | covered by the permanent shape gate (below); no fallback-specific work |
 | `define`         | opus/med         | minimal: the resulting stories' refine gates re-check the breakdown |
 | `conflict`, `init` | opus           | rare / one-time, none                                               |
-| `run`            | see A/B below    | the hard case                                                       |
 
-`run` fallback default is **Path B, faithful executor**: sonnet/high executes the brief. A story
-reaches `run` only after the gate (Opus adversary + refine) hardened its brief, so `run` under
-fallback executes an Opus-hardened spec rather than synthesizing one, and Sonnet applies a complete
-spec without over-building (the located-edits fix-up already runs sonnet/medium successfully). **Path
-A, opus + the scope overlay + effort low, is the escalation** for a thin brief that needs in-run
-reasoning; running Opus by default re-does the planning the gate already banked, with the
-over-building model. Confirm B clears the criteria-met and build-green floor before trusting it
-(experiment 6).
+`run` has no row here: it runs on Opus already, so a Fable-out does not touch it.
 
-Status: `measured` = Opus over-builds on run, the effort-curve dominance. Hypotheses to test = Path B
-faithfulness, effort-curbs-over-building, a shape critic catching real omissions. Most compensation
-(the Opus overlay, the `shape` critic) also improves the Fable path, so it is worth building
-regardless of pool state.
+Status: hypotheses left to test are effort-curbs-over-building and a shape critic catching real
+omissions. Both compensations (the Opus overlay, the `shape` critic) also improve the Fable path, so
+they are worth building regardless of pool state.
 
 Mechanism (unbuilt): `model` is a static registry value read at spawn, so nothing detects Fable-out
 or swaps the row. The routing this strategy needs, detect the Fable usage-limit signal (CLI shape
 unspiked), pick the fallback row per kind at spawn, flip back on reset, is a later implementation
-story. The flip is global, not per-kind: one Fable pool means one Fable-out signal swaps all six
+story. The flip is global, not per-kind: one Fable pool means one Fable-out signal swaps all five
 kinds at once, and the per-kind choice is only which row each uses (table above).
 
 **Permanent shape gate** (decided as a standing feature, not fallback-only). `shape` is high
@@ -173,6 +183,58 @@ adversary passes cost ~$1-1.6 each, not the ~$12 the assumed rates predicted. Th
 "premium cancels compression" caveat: Opus adversary is both cheaper per pass than assumed AND
 compresses rounds, so it is a clear cost win, not a wash. Adversary per-pass dollar figures elsewhere
 in this doc that use the old assumption are overstated; the quality findings are unaffected.
+
+### Opus 5 sweep (2026-07-27)
+
+Five steps replayed against their existing ground truth, each with a same-harness control so the
+comparison is not read across harnesses. Fable is excluded: its pool was capped. Total $31.53
+modeled, ~2.09M weighted pool draw, all on the shared Opus/Sonnet pool. Harness: `spawn.sh` mirrors
+`runner.ts` flags; read-only Bash passes through the CLI's own classification, as in production.
+
+- **adversary / opus-5 / high, final-brief replay**: 6 flags, $2.64, 34 turns, 8.8 min, on the
+  002-01 pass-15 brief at repo 89a78ef. Fable passed that brief clean after 15 rounds, Haiku
+  rubber-stamped it, Sonnet found 3. The same-harness Opus 4.8 control found 3 for $2.23, and the
+  two flag sets are **disjoint**: Opus 5 raised the pid-sweep identity hole, the
+  exists-but-not-a-worktree branch, criterion 3's blindness to a broken allowlist, the Stop-hook
+  token's missing owner, the runner/kill blast-radius omission, and the Running-column drag break;
+  Opus 4.8 raised the missing git committer identity, the `canTransition` status hole, and the
+  undefined `<repo>` segment. Union: 9 distinct flags on a brief the incumbent gate certified.
+  Two Opus 5 flags are confirmed by what shipped: the blast radius omitted `detached` and pid
+  exposure, and `git diff 89a78ef 2c9dc26 -- runner.ts` shows the run adding exactly those two;
+  `story.move({to:"running"})` throws with a hardcoded `from: "ready"` while the client pre-checks
+  with the shared `canTransition`, where `ready -> running` is legal. **Disjointness is the finding**:
+  Opus 5 is deeper per pass but does not subsume 4.8, so a tier bump is not a strict upgrade.
+- **run / opus-5 / medium** (002-01, lite contract, worktree at 89a78ef): 15.2 min, 125 turns,
+  $10.39, 26 files, 1231 insertions, one Conventional Commit, clean tree. `tsc --noEmit` and
+  `pnpm check` both verified exit 0 out-of-band, not taken on the model's word. Against Fable
+  (21 min, 136 turns, green, 24 files, $24.62) and Opus 4.8 (33 min, 151 turns, red with 34 TS7031
+  errors, then filtered `routes/` and `app/` out of its own check and declared green). Opus 5 beats
+  both on wall-clock and turns. The honesty axis inverted hardest: its report names the sparse-checkout
+  sequence as **not executed** and its hash script as denied, instead of papering over them. One
+  sample, stochastic, and the lite contract excludes live verification.
+- **review / opus-5 / high, standards axis** (pre-fix tip 2c9dc26): 6 should-fix + 5 nits, $2.43,
+  7.8 min. Same-harness controls: Sonnet 5 gave 1 should-fix + 5 nits for $2.78, Opus 4.8 gave 0 + 2
+  for $1.52. I verified 8 of the 11 Opus 5 findings against the code and found **zero false
+  positives**. Finding 1 is a live defect in master, confirmed by execution rather than reading: the
+  first run note stales the gate verdict, because `appendToSection` creates the section after
+  `body.trimEnd()` and leaves `\n\n` before the heading, which `stripRunNotes` then returns. Hash
+  before `7f0b761a2821f142`, after the first note `026af67231acfd58`, stable from the second note on.
+  That contradicts board-storage.md's "run notes never stale the verdict" and survived eight loops of
+  Sonnet standards review. Opus 5 missed both findings the original Sonnet baseline caught, but so did
+  Sonnet 5, so those belong to the older Sonnet build rather than to a gap in Opus 5.
+- **refine / {opus-5, opus-4-8} / medium, v0 authoring** (002-01 backlog draft at 89a78ef): each
+  model wrote one brief cold, then a constant Opus 4.8 / high judge attacked both. Opus 5: 16.7KB,
+  16 criteria, 5 flags, $2.15, 5.3 min, judge opening "the measured facts check out". Opus 4.8:
+  13.4KB, 13 criteria, 6 flags, $2.36, 6.2 min, judge opening "several load-bearing claims collapse
+  under a cold read". Opus 5 writes the longer brief and the better-grounded one, which breaks the
+  length-equals-over-building read the 4.8 data supported. Not comparable to the older engine's
+  v0 counts (Fable 4, Opus 3, Sonnet 6): that ran a different harness with board tools.
+- **research / {opus-5, opus-4-8, sonnet-5} / high** (ready-gate staleness, three cases): all three
+  correct on all three cases including the exhausted-retry vs already-running sub-cases at
+  `gate.ts:153-158`, the nuance Haiku missed. Sonnet 5 $0.37 / 21s and alone cited the two-round cap
+  at `gate.ts:282-286`; Opus 5 $0.51 / 40s and alone caught that `checkReadyGate` runs before the
+  verdict check; Opus 4.8 $0.54 / 42s. Every citation verified. The floor is met three ways, so price
+  decides and Sonnet keeps it.
 
 **Operational: Fable usage limit.** Fable hit its usage cap during the refine test. Helm's loop
 leans on Fable (refine, run, shape, define, init default to it), so the limit constrains both further
@@ -209,7 +271,7 @@ Fable testing and the live loop until it resets.
   readings (8% Fable with 22.8M ledgered cache reads plus two unledgered Fable sessions; 4%
   shared on a quiet pool at ~827k weighted) tightened the bounds: cache-read weight α ≤ ~0.05
   with α≈0.02 still the best fit, and the quiet shared reading implies a ~21M shared window
-  against the ~46M this fit originally implied — an open tension (an unlogged Opus/Sonnet draw,
+  against the ~46M this fit originally implied, an open tension (an unlogged Opus/Sonnet draw,
   or an overestimated 002-02 reading). Calibrate next with exact before/after meter values and
   the window reset clock. Frame consequences in harness-optimization §Objective.
 - **adversary / fable / high** (loop): ~$3.50/pass, 2-4 flags/pass, 12-15 passes to converge.
@@ -269,7 +331,7 @@ Fable testing and the live loop until it resets.
   run transcript reseeding as fresh input on the effort switch (medium → high forfeits the warm
   cache), exactly the priced-in cost the outcome routing predicts. Against 002-03's $1.61
   sonnet/medium round: reserve the high tier for evidence-of-failure payloads; the reseed, not
-  the fix, is what you pay for — and it lands on the Fable pool where fresh input is the
+  the fix, is what you pay for, and it lands on the Fable pool where fresh input is the
   expensive component under the α ≤ ~0.05 bound.
 - **research / {sonnet, haiku} / high** (test): posed a code-verifiable three-case decision
   (ready-gate staleness handling), graded against the code. Sonnet ~$0.55 gave the complete answer
@@ -277,6 +339,54 @@ Fable testing and the live loop until it resets.
   Haiku ~$0.21 (2.6x cheaper) got all three cases correct with no wrong claims but missed those
   sub-cases. Research is the one role where Haiku is viable: it reads and reports accurately, it
   just isn't as thorough.
+
+### Compaction instructions (2026-07-27)
+
+What a compaction keeps is steerable, and the steering is worth more than the model choice here.
+Subject: the Opus 5 run of 002-01, session `0ba730b3`, 125 turns. Every arm forked it with
+`--fork-session`, so all compactions ran on byte-identical input (`pre_tokens: 220142` on all
+three). Each compacted fork was then probed with the same recall questionnaire, tools disabled.
+~$1.45 and ~2 minutes per compaction, ~93% compression.
+
+| arm | instruction                 | post_tokens | decisions | distinct code refs |
+| --- | --------------------------- | ----------- | --------- | ------------------ |
+| A   | bare `/compact`             | 16,020      | 18        | 36                 |
+| B   | structured, run-tailored    | **13,789**  | **19**    | **48**             |
+| C   | one-line "keep decisions"   | 14,302      | 14        | 32                 |
+
+B is smaller *and* richer, so there is no size-versus-fidelity trade to make. C losing to a bare
+compact is the useful negative: the structure carries the gain, not the "drop file contents" hint.
+
+**The finished-session numbers understate the effect.** Compaction preserves exactly one message
+verbatim, and on a finished run that message is the final report, which already names the branch,
+the commit, every file, and the check result. Re-running on the transcript truncated mid-`Edit`
+(`pre_tokens: 159449`), the state a real compaction hits:
+
+| arm | instruction | post_tokens | decisions | distinct code refs |
+| --- | ----------- | ----------- | --------- | ------------------ |
+| MA  | bare        | 13,245      | 9         | 11                 |
+| MB  | tailored    | **12,773**  | **11**    | **26**             |
+
+2.4x the mechanical detail mid-work against 1.3x on the finished session. Both arms correctly
+reported the tree was dirty and would not compile; MB additionally kept `--no-verify
+--no-gpg-sign`, `ps -p <pid> -o args=`, `:(exclude).helm`, and the two-pattern `checkCommand`
+allowlist, which are the facts that cost tool calls to rediscover.
+
+**Compaction omits, it does not fabricate.** Ten arm-specific claims were checked against the
+shipped code and all ten held, including `BOOKKEEPING_FLAGS`, `checkCommandTools` returning
+`[Bash(cmd), Bash(cmd:*)]`, `appendRunNote`'s `/^[#\s>-]+/`, and `illegal()` genuinely carrying no
+return type. The risk in compaction is silent loss, not invention.
+
+**One pass drops about a third of the decision record.** The union across arms is ~30 decisions and
+the best single arm caught 19. The arms were substantially disjoint, with no arm a superset of
+another, the same shape as the Fable-versus-Sonnet adversary result. Instructions steer *which*
+decisions survive; they do not make a pass exhaustive.
+
+Mechanics for the hook that delivers this are in `claude-integration.md` §Context management:
+`customInstructions` is the field that lands, `hookSpecificOutput` forms do not, and PreCompact can
+block a compaction outright (verified: zero boundaries, session finished clean). The opposite
+setting has its own breaker, `terminal_reason: "rapid_refill_breaker"`, so neither always-block nor
+always-allow is safe and the dirty/clean gate is what avoids both.
 
 ## Capability boundary
 
@@ -299,24 +409,29 @@ tier would.
 Fill when usage returns. Each experiment reuses the snapshot-replay harness (scratch worktree at the
 pre-gate commit, exact prompt from the transcript, `--model X --effort Y`, compare to ground truth).
 
-1. **refine: Opus and Sonnet vs Fable.** The open high-value question. Refine is high error cost and
-   its cost is mostly gate rounds, so a model that writes a tighter brief (fewer rounds, cleaner run)
-   could pay for itself. Measure brief quality by downstream gate rounds and run outcome, not by the
-   refine session cost alone.
+1. **refine: Opus and Sonnet vs Fable.** Partly answered by the Opus 5 sweep at the v0 level (Opus 5
+   authors the best-grounded first draft), but the metric that decides it is still open: brief quality
+   measured by **downstream gate rounds and run outcome**, not v0 flag count. Needs one full loop
+   refined on Opus 5 end to end.
 2. **adversary: round compression end-to-end.** Measured on 002-02: 12 passes to zero, so the
    12→~4 estimate did not hold; the saving is per-pass price, not pass count. The open remainder:
    whether a warm iterative middle cuts passes rather than only output, testable once cache
    reuse on resumes is understood (the 002-02 warm pass re-entered its transcript as fresh
    writes).
-3. **run: Opus vs Fable per token.** Does Opus finish in fewer turns, offsetting its rate? High error
-   cost, single invocation, so quality floor is criteria-met and review-pass.
+3. **run: Opus vs Fable per token.** Answered for Opus 5 on the lite contract: fewer turns (125 vs
+   136) and faster (15.2 min vs 21) with a verified-green build. Still open on the **full** contract,
+   where live verification and criteria-met are the floor the lite run skipped.
 4. **effort sweeps** on the chosen model for adversary (does high beat medium?) and run (does medium
-   suffice, or does high cut turns?).
-5. **research and review at Haiku.** Both are the cheapest-viable candidates; test whether Haiku
-   clears their floors before paying for Sonnet.
-6. **Fable fallback: `run` A/B.** Path A (opus + scope-lock prompt + effort low) vs Path B
-   (sonnet/high) on one Ready story from a gated brief, identical worktrees. Metric: criteria met
-   and build green, plus over-build (files touched outside blast radius). Picks the `run` fallback.
+   suffice, or does high cut turns?). Opus 5 makes this cheaper to answer: its medium run already
+   clears the build floor, so the sweep asks whether low suffices, not whether high is needed.
+5. **research and review at Haiku.** Review is now settled against Haiku by two tiers of evidence, so
+   only research is left, and the Opus 5 sweep priced its ceiling: Sonnet 5 at $0.37 is the number
+   Haiku must beat while still catching the sub-cases.
+6. **Does the scope-lock overlay still earn its place?** It exists to curb Opus 4.8's over-building,
+   which Opus 5 did not reproduce: plain medium shipped a green build on `run` without it. Test it
+   on the generative kinds that could still fall back to Opus (`shape`, `define`, `refine`), where
+   the only evidence is the 4.8 refine arm that bloated a brief to 48KB. If it buys nothing there,
+   it is pure token cost.
 7. **Shape gate: completeness-critic recall.** Seed a shaped epic with known omissions, run the
    critic pass, measure real-omission recall vs false flags. Validates the permanent shape gate (a
    standing feature, not fallback-specific).

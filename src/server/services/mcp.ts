@@ -3,13 +3,13 @@ import { StreamableHTTPTransport } from "@hono/mcp";
 import { Hono } from "hono";
 import { lookupSpawn, setMcpPort } from "../mcp/registry.ts";
 import { buildMcpServer } from "../mcp/server.ts";
-import { runHookPosted } from "./runs.ts";
+import { runCompactHook, runHookPosted } from "./runs.ts";
 
 // Hosts the orchestrator's board-tools MCP server. Each spawn reaches its own
 // `/mcp/<token>` endpoint (per-spawn URL in `--mcp-config`), so a tool call
 // resolves to its binding server-side. Fresh server + transport per request,
-// the spike-verified stateless pattern. The run Stop hook's token-addressed
-// POST endpoint mounts beside it.
+// the spike-verified stateless pattern. The run's token-addressed hook
+// endpoints (Stop, PreCompact) mount beside it.
 export default defineService({
 	name: "mcp",
 	start: (ctx) => {
@@ -29,6 +29,12 @@ export default defineService({
 				? c.body(null, 204)
 				: c.text("unknown run token", 404),
 		);
+		app.post("/hooks/compact/:token", async (c) => {
+			const decision = await runCompactHook(c.req.param("token"));
+			return decision === undefined
+				? c.text("unknown run token", 404)
+				: c.json(decision);
+		});
 		ctx.http.mount("/mcp", (request) => app.fetch(request));
 		ctx.http.mount("/hooks", (request) => app.fetch(request));
 	},

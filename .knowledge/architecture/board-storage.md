@@ -60,7 +60,7 @@ board and watched by nothing. The policy, at every depth:
 - Inside an epic directory only `epic.md` and story files `<NN>-<slug>.md` are valid; every other
   entry (a stray file, an editor dropping like `01-x.md~`, a subdirectory) is invalid.
 - Ordinals are unique: two directories parsing to the same epic number, or two files to the same
-  story number in one epic, are **all** invalid — no winner is elected, so a restart shows what was
+  story number in one epic, are **all** invalid: no winner is elected, so a restart shows what was
   live. Deleting the collision rehabilitates the survivor.
 
 An invalid path is dropped from the board (its content is never guessed at) and listed in the

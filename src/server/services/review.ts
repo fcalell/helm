@@ -185,8 +185,10 @@ export async function discardReview(storyId: string): Promise<void> {
 }
 
 // Request changes: the comments become the next message in the same session
-// and worktree, routed to Fable at high effort (a user-comment payload is the
-// escalation case, session-kinds.md §Model per kind). The entry reopens
+// and worktree, routed to Opus at high effort (a user-comment payload is the
+// escalation case, session-kinds.md §Model per kind). The model follows the
+// `run` row, so the resume stays in the tier of the session it resumes and
+// keeps its warm cache. The entry reopens
 // (outcome, error, and stat cleared) and the close path re-runs
 // rebase/check/stat on the follow-up's finish, summing usage onto the entry.
 export async function requestReviewChanges(
@@ -231,7 +233,7 @@ function requestChangesSpec(comments: ReviewComment[]): ResumeSpec {
 			from: "review",
 			reason: "story left review during the exit; the move wins",
 		},
-		model: "fable",
+		model: "opus",
 		effort: "high",
 	};
 }

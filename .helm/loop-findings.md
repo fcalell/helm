@@ -14,44 +14,32 @@ refinement ran through Helm itself. To triage into stories once the cost analysi
   status-changed abort at `gate.ts:184`, so it vanishes from the UI with no diagnostic. Triggered
   by resolving a proposal while a round is landing. Origin: 001-06.
 
+- **The first run note stales the gate verdict, defeating the hash exclusion.** `hash.ts:24-32` plus
+  `markdown.ts:165-179`: `appendToSection` builds the new section from `body.trimEnd()` and joins it
+  as `…text` + `"\n\n## Run notes\n\n" + line + "\n"`, so creating the section leaves a two-newline
+  tail before the heading. `stripRunNotes` cuts from the heading, returns that tail, and the hash
+  moves. Executed on the shipped code: body hashes `7f0b761a2821f142`, hashes `026af67231acfd58`
+  after the first `update_card` note, then stays stable for every later note. So every run's first
+  note breaks `verdictValid`, and a follow-up `run.start` or a move back to `ready` refuses with
+  "brief edited since the gate". This contradicts board-storage.md's rule that run notes never stale
+  the verdict. Fix: normalize the trailing whitespace on both sides of the strip. Found by the Opus 5
+  standards-review test (model-matrix §Opus 5 sweep); eight loops of Sonnet standards review missed
+  it. Origin: 002-01.
+
 ## Cost / model tuning
 
 The loop cost $122 (modeled); the gate was ~$86 of it (adversary passes $52.54 + ~$34 of the
 $43.62 refine chat, which spent 78% of its output and 84% of its cache-reads answering 12 gate
 rounds, not building the brief). Cost scales with round count, so the round count is the lever.
 
-- **Do NOT blind-swap `adversary` fable -> sonnet.** Empirically tested: re-ran Sonnet/high as the
-  adversary on the exact pass 1 / 7 / 15 brief snapshots against the pre-merge repo (89a78ef),
-  compared to Fable's real flags. Result: Fable and Sonnet find largely DISJOINT real flaws.
-  Sonnet matched ~1.5 of Fable's 5 pass-1 flags and 0 of 4 pass-7 flags, missing every concrete
-  lifecycle/permission blocker (allowlist-forbids-commit, gate-freshness, spawn-to-init bound,
-  init-write races), the class whose omission makes a run fail. But on the final brief Fable
-  passed clean, Sonnet found 3 real issues (api.md blast-radius omission, always-cold-vs-run
-  context mismatch, unspiked duration_ms), all confirmed against the shipped code. So the two are
-  different adversaries: Fable attacks mechanism/runtime, Sonnet attacks spec/doc completeness. A
-  swap trades ~$36 for a gate blind to the exact blockers it exists to catch; a missed blocker
-  costs a failed run + fix-up, erasing the saving.
-- **Make `adversary` Opus/high (supersedes the two-lens idea).** Same empirical test extended to
-  Opus/high on passes 1/7/15. Opus is not a different adversary like Sonnet; it is strictly
-  stronger: 4 of Fable's 5 pass-1 flags and ~3 of 4 pass-7 flags (Fable's mechanism recall) PLUS
-  Sonnet's completeness flags PLUS new real ones neither found (the `<repo>` path derivation, the
-  generated-index-file trap, the un-spike-gated non-cone sparse-checkout pattern), all verified
-  against shipped code. Killer result: Opus's single pass 7 raised 10 flags that Fable discovered
-  across its rounds 7-14, roughly 3x the depth per pass. Since round count (not per-token price)
-  drives gate cost, that compression ~cancels Opus's per-pass premium (~$12 vs Fable ~$3.50 in the
-  harness; Opus rates assumed): adversary line stays ~neutral (~4-5 Opus passes ~= 15 Fable
-  passes), and the real saving is the refine session shortening (84% of its cost is length-scaled
-  cache-reads). Estimated gate ~$65-70 vs $86, with a materially better brief and fewer
-  failure-prone rounds. Trivial code change: widen the `KindRow` model union to include `"opus"`.
-  A two-lens Fable+Sonnet design is dominated: Opus gets both catch-profiles in one model.
-- **Sonnet-only is a false economy for the adversary role.** Cheapest per pass (~$5) but misses
-  the concrete lifecycle/permission blockers (gate-freshness, spawn-to-init bound, allowlist) AND
-  needs the same round count, so no compression. Good for `review` (its current role), wrong for
-  the gate.
-- **Composes with warm-iteration.** Opus cuts breadth-discovery rounds; warming the iterative
-  middle (one adversary session across the back-and-forth, single cold pass for sign-off) cuts the
-  per-round cold re-read tax. Confirm the round compression by running one full Opus gate and
-  counting actual rounds to convergence before committing. `refine`/`run` untouched.
+The model side is settled and applied: `adversary` runs Opus/high, and the evidence behind it is in
+`model-matrix.md` (per-kind rationale in `.knowledge/architecture/session-kinds.md` §Model per
+kind). What stays open below is story sizing and gate mechanics, which no model choice fixes.
+
+- **Warm-iteration is still open.** Opus cuts breadth-discovery rounds; warming the iterative
+  middle (one adversary session across the back-and-forth, single cold pass for sign-off) would cut
+  the per-round cold re-read tax on top. Confirm the round compression by running one full Opus
+  gate and counting actual rounds to convergence before committing. `refine`/`run` untouched.
 - **12 rounds because the story was an epic.** 33 flags collapsed into 6 hard sub-problems
   (lifecycle races, git convergence, checkCommand plumbing, .helm bar integrity, crash
   reconciliation, hash semantics), 5 of which recurred across 3-10 rounds each. One 28KB brief
