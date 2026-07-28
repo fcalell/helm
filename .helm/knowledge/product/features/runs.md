@@ -39,7 +39,9 @@ test-command Bash reads the same per-repo list
 ([session-kinds](../../architecture/session-kinds.md)).
 
 Permission prompts surface as **approve/deny buttons on the card** (and as notifications), never
-lost in a terminal.
+lost in a terminal. A denial is final for the segment: an exact (tool, input) repeat of a denied
+call is auto-denied without re-prompting. The match is exact, never normalized, because a
+normalized match risks auto-denying a variant the user would approve.
 
 ## Needs input, a first-class state
 

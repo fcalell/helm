@@ -113,6 +113,9 @@ interface RunState {
 	// An ask_user question landed this segment; its stop parks the run on
 	// needs-input, so the closing contract does not apply.
 	questionPosted: boolean;
+	// Exact (tool, input) signatures the user denied this segment; a verbatim
+	// retry is auto-denied without re-prompting.
+	deniedCalls: Set<string>;
 	pid?: number;
 	sessionId?: string;
 	branch?: string;
@@ -459,6 +462,7 @@ async function freshStart(storyId: string): Promise<{ sessionId: string }> {
 		stopBlocks: 0,
 		notePosted: false,
 		questionPosted: false,
+		deniedCalls: new Set(),
 	};
 	states.set(storyId, state);
 	hookTokens.set(state.hookToken, state);
@@ -960,6 +964,7 @@ async function resumeRun(
 		stopBlocks: 0,
 		notePosted: false,
 		questionPosted: false,
+		deniedCalls: new Set(),
 	};
 	states.set(storyId, state);
 	hookTokens.set(state.hookToken, state);
@@ -1430,6 +1435,34 @@ export async function runStopHook(
 export function runNotePosted(storyId: string): void {
 	const state = states.get(storyId);
 	if (state !== undefined) state.notePosted = true;
+}
+
+// The permission path's denial memory: exact signature match only, because
+// normalized matching risks auto-denying a call the user would approve.
+function deniedCallKey(
+	toolName: string,
+	input: Record<string, unknown>,
+): string {
+	return `${toolName} ${JSON.stringify(input)}`;
+}
+
+export function isDeniedCall(
+	storyId: string,
+	toolName: string,
+	input: Record<string, unknown>,
+): boolean {
+	return (
+		states.get(storyId)?.deniedCalls.has(deniedCallKey(toolName, input)) ??
+		false
+	);
+}
+
+export function recordDeniedCall(
+	storyId: string,
+	toolName: string,
+	input: Record<string, unknown>,
+): void {
+	states.get(storyId)?.deniedCalls.add(deniedCallKey(toolName, input));
 }
 
 async function isClaudeProcess(pid: number): Promise<boolean> {

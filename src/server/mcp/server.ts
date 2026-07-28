@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { KIND_REGISTRY, MCP_SERVER_NAME } from "../../sessions/kinds.ts";
 import { recordPermission } from "../services/proposals.ts";
+import { isDeniedCall, recordDeniedCall } from "../services/runs.ts";
 import type { SpawnBinding } from "./registry.ts";
 import { TOOL_TABLE } from "./tools.ts";
 
@@ -46,13 +47,28 @@ async function handleApprove(
 			],
 		};
 	}
-	const approved = await recordPermission(
-		binding.attach.id,
-		parsed.data.tool_name,
-		parsed.data.input,
-	);
+	const { tool_name, input } = parsed.data;
+	const storyId = binding.attach.id;
+	// Denial memory: a verbatim retry of a call the user denied this segment
+	// never re-prompts.
+	if (isDeniedCall(storyId, tool_name, input)) {
+		return {
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify({
+						behavior: "deny",
+						message:
+							"the user already denied this exact call this segment; a denied call is final, do not retry it",
+					}),
+				},
+			],
+		};
+	}
+	const approved = await recordPermission(storyId, tool_name, input);
+	if (!approved) recordDeniedCall(storyId, tool_name, input);
 	const verdict = approved
-		? { behavior: "allow", updatedInput: parsed.data.input }
+		? { behavior: "allow", updatedInput: input }
 		: { behavior: "deny", message: "denied from the board" };
 	return { content: [{ type: "text", text: JSON.stringify(verdict) }] };
 }
