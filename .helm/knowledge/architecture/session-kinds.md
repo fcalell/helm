@@ -39,9 +39,11 @@ Each kind's prompt **replaces** the CLI's default system prompt (`--system-promp
 [claude-integration](./claude-integration.md) §Invocation model); nothing of the default's text
 reaches a Helm session. Replacement was measured against append across four kinds
 (`.helm/research/experiments/system-prompts/plan.md`): quality held or improved everywhere, and the standards
-review doubled its verified findings under the same tool narrowing. The registry row is the
-prompt's home; per-repo prompt overrides are a planned feature, and the open question there is
-whether an override replaces the whole prompt or only a body composed into a fixed frame.
+review doubled its verified findings under the same tool narrowing. The registry row holds the
+prompt as a spec (`kinds.ts` `KindPromptSpec`), and `composePrompt` joins it in a fixed frame:
+role paragraph, kind body, shared blocks, stopping clause last. Per-repo prompt overrides are a
+planned feature that replaces only the body; the frame is not editable, because a whole-prompt
+edit that reintroduces a labelled skeleton raises that kind's draw by half again (below).
 
 Three authoring rules are measured, not stylistic:
 

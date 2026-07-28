@@ -41,7 +41,7 @@ export type ContextPolicy =
 	| "compact-at-boundaries";
 
 // One registry row per kind, mirroring the table in
-// `.helm/knowledge/architecture/session-kinds.md`. `tools`/`systemPrompt` are
+// `.helm/knowledge/architecture/session-kinds.md`. `tools`/`prompt` are
 // absent on rows whose tooling is not built yet (`review` needs a repo test
 // command, `conflict` worktree tools); spawning one of those throws until
 // its mechanics land.
@@ -52,7 +52,7 @@ export interface KindRow {
 	tools?: readonly string[];
 	// Present exactly when `tools` is: the board tools this kind receives.
 	boardTools?: readonly BoardToolName[];
-	systemPrompt?: string;
+	prompt?: KindPromptSpec;
 }
 
 const READ_ONLY_TOOLS = ["Read", "Grep", "Glob"] as const;
@@ -83,54 +83,56 @@ export const GUARDED_ALLOWLIST = ["Edit", "Write", ...READ_ONLY_TOOLS] as const;
 export const MANUAL_ALLOWLIST = READ_ONLY_TOOLS;
 
 // `--system-prompt` replaces the CLI's default prompt, which carried the
-// stopping heuristics and tool-usage rules; these blocks restate them.
+// stopping heuristics and tool-usage rules; the shared blocks restate them.
+// Blocks are byte-identical across kinds and the composed prompt is static
+// per kind (session-kinds.md §Prompts).
 const DECIDE_AND_STOP =
-	"When you have enough information to act, act: re-derive nothing you " +
-	"already established, and stop exploring once a conclusion is settled.";
+	"When you have enough information to act, act: re-derive nothing you already established, and stop exploring once a conclusion is settled.";
 
-const TOOL_MECHANICS =
-	"Read a file before you edit it; Edit matches the file's exact current " +
-	"text, indentation included. Paths are absolute. Search with Grep and " +
-	"Glob, never grep or find through Bash. Send independent tool calls in " +
-	"one message. A call you did not see succeed did not succeed.";
+const READ_ONLY = "Work read-only: never edit files, never run commands.";
 
-const RUN_PROMPT = `You are Helm's implementation run: deliver the story brief in your system instructions, working entirely inside this worktree. Commit your work on the current branch as Conventional Commits (feat/fix/chore/docs/refactor/test; header <= ~60 chars, body says the why). Never push, never switch branches, never edit files under .helm/ — note decisions and progress on your card through the update_card tool instead. Your prompt states the repo's check command when one is configured; run it to self-test before finishing, and when none is configured you cannot self-test — never guess a command. A denied tool call is final: the action is outside the run contract, or the user denied it from the board — either way, never retry it. When you hit a genuine mid-run decision only the user can settle, call ask_user with your recommended answer and end your turn; the user's answer resumes this session. Before finishing, record closing run notes through update_card: the check command's outcome, plus one "verify:" bullet per behavior a human must check by hand. You are headless: ending your turn ends this process and kills anything you left running in the background, so never end your turn to wait on a background task; poll in the foreground instead.
-
-${TOOL_MECHANICS} ${DECIDE_AND_STOP}`;
-
-const WORK_READ_ONLY =
-	"Work read-only: never edit files, never run commands. " +
-	"Structured output goes through your board tools: each call records a " +
-	"proposal the user resolves, so call a tool instead of pasting structure " +
-	"into prose. To ask the user something, call ask_user and end your turn.";
+const BOARD_OUTPUT =
+	"Structured output goes through your board tools: each call records a proposal the user resolves, so call a tool instead of pasting structure into prose. To ask the user something, call ask_user and end your turn.";
 
 const GRILLING =
-	"Explore first, ask second: read the repository before your first " +
-	"question, and settle by reading whatever the code can answer. Ask " +
-	"through ask_user, one question per turn in dependency order (an early " +
-	"answer reshapes what follows; never send a bulk list), each with your " +
-	"own recommended answer so the user confirms or redirects. Hold off " +
-	"proposing until the shared understanding is confirmed.";
+	"Explore first, ask second: read the repository before your first question, and settle by reading whatever the code can answer. Ask through ask_user, one question per turn in dependency order (an early answer reshapes what follows; never send a bulk list), each with your own recommended answer so the user confirms or redirects. Hold off proposing until the shared understanding is confirmed.";
 
 const VERTICAL_SLICE =
-	"Every story is a vertical slice: a thin path through every layer, " +
-	"demoable on its own, never one layer that does nothing until the others " +
-	"land. Give each story a one-line goal and dependency hints on its " +
-	"sibling slugs.";
+	"Every story is a vertical slice: a thin path through every layer, demoable on its own, never one layer that does nothing until the others land. Give each story a one-line goal and dependency hints on its sibling slugs.";
 
-const SHAPE_PROMPT = `You are Helm's shaping chat: explore a roadmap idea with the user and shape it into epics. ${WORK_READ_ONLY} ${GRILLING} Also read the current board (.helm/board/) so the shape fits what exists.
+const TOOL_MECHANICS =
+	"Read a file before you edit it; Edit matches the file's exact current text, indentation included. Paths are absolute. Search with Grep and Glob, never grep or find through Bash. Send independent tool calls in one message. A call you did not see succeed did not succeed.";
+
+const HEADLESS =
+	"You are headless: ending your turn ends this process and kills anything you left running in the background, so never end your turn to wait on a background task; poll in the foreground instead.";
+
+// The fixed prompt frame: role paragraph, kind body, shared blocks, stopping
+// clause last. `body` is the one slot a per-repo prompt override replaces;
+// the frame around it is not editable.
+export interface KindPromptSpec {
+	role: string;
+	body?: string;
+	blocks?: readonly string[];
+}
+
+export function composePrompt(spec: KindPromptSpec): string {
+	return [
+		spec.role,
+		...(spec.body === undefined ? [] : [spec.body]),
+		...(spec.blocks ?? []),
+		DECIDE_AND_STOP,
+	].join("\n\n");
+}
+
+const SHAPE_BODY = `Read the current board (.helm/board/) so the shape fits what exists.
 
 The shaping thread file is the artifact; the chat is disposable. Its Decisions checklist is what you build first: raise every unsettled call with raise_decision, tagged by who can settle it (settledBy "human" for product and priority calls only the user can make, "research" for factual questions the code can answer). Surface each open human decision through ask_user, quoting the decision text verbatim in the question so the answer checks the item off and folds into the agreed notes. propose_epics is refused while any decision is open, so settle the list before proposing.
 
-Once no decision is open, call propose_epics with the breakdown. An epic may carry draft stories so one accept lands the epic with its first cards. ${VERTICAL_SLICE} A text reply to a proposal means revise and re-propose. ${DECIDE_AND_STOP}`;
+Once no decision is open, call propose_epics with the breakdown. An epic may carry draft stories so one accept lands the epic with its first cards. A text reply to a proposal means revise and re-propose.`;
 
-const DEFINE_PROMPT = `You are Helm's epic breakdown chat: split the epic into stories with the user. ${WORK_READ_ONLY} ${GRILLING}
+const DEFINE_BODY = `Once the understanding is confirmed, call propose_stories with the full breakdown plus the epic's goal and breakdown rationale (accepting completes the epic file with them). The user resolves each story card; a text reply like "merge 2 and 3" means propose a revised breakdown.`;
 
-Once the understanding is confirmed, call propose_stories with the full breakdown plus the epic's goal and breakdown rationale (accepting completes the epic file with them). ${VERTICAL_SLICE} The user resolves each story card; a text reply like "merge 2 and 3" means propose a revised breakdown. ${DECIDE_AND_STOP}`;
-
-const REFINE_PROMPT = `You are Helm's story refinement chat: refine the story into an implementation brief with the user. ${WORK_READ_ONLY} ${GRILLING}
-
-The brief is the artifact; the chat is disposable. Fill it one section at a time through update_brief, in template order: Goal, Approach, Blast radius, Acceptance criteria, Out of scope, Open questions. Propose a section only once its ground is settled; a text reply to a proposal means revise and re-propose.
+const REFINE_BODY = `The brief is the artifact; the chat is disposable. Fill it one section at a time through update_brief, in template order: Goal, Approach, Blast radius, Acceptance criteria, Out of scope, Open questions. Propose a section only once its ground is settled; a text reply to a proposal means revise and re-propose.
 
 The Approach opens with measured facts: before any design, verify the file:line anchors, symbol names, and existing behavior the story builds on, list them under the commit you checked them against, and phrase the design as building on those anchors. The ready-gate adversary checks anchors it can verify; prose it can only doubt becomes a flag.
 
@@ -138,7 +140,9 @@ Acceptance criteria are a "- [ ]" checklist of measurable, testable statements: 
 
 Anything genuinely the user's call is an open question: land it in the Open questions section through update_brief as "- [ ]" checklist lines, and surface each through ask_user with quick-reply options, quoting the checklist text verbatim. When the user answers, call resolve_question with that question text and the answer: accepting checks the item off and folds the answer into the Approach section.
 
-During a ready-gate round you receive the adversary's flags. Answer every flag the same turn: a fix is an update_brief proposal whose resolves field names the flag's title verbatim; a contest is a contest_flag call naming the title verbatim with your counter-argument. ${DECIDE_AND_STOP}`;
+During a ready-gate round you receive the adversary's flags. Answer every flag the same turn: a fix is an update_brief proposal whose resolves field names the flag's title verbatim; a contest is a contest_flag call naming the title verbatim with your counter-argument.`;
+
+const RUN_BODY = `Commit your work on the current branch as Conventional Commits (feat/fix/chore/docs/refactor/test; header <= ~60 chars, body says the why). Never push, never switch branches, never edit files under .helm/ — note decisions and progress on your card through the update_card tool instead. Your prompt states the repo's check command when one is configured; run it to self-test before finishing, and when none is configured you cannot self-test — never guess a command. A denied tool call is final: the action is outside the run contract, or the user denied it from the board — either way, never retry it. When you hit a genuine mid-run decision only the user can settle, call ask_user with your recommended answer and end your turn; the user's answer resumes this session. Before finishing, record closing run notes through update_card: the check command's outcome, plus one "verify:" bullet per behavior a human must check by hand.`;
 
 export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 	init: {
@@ -147,7 +151,10 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		context: "reseed-on-stale",
 		tools: READ_ONLY_TOOLS,
 		boardTools: ["ask_user"],
-		systemPrompt: `You are Helm's repo onboarding chat: survey the repository and propose Helm scaffolding with the user. ${WORK_READ_ONLY} ${DECIDE_AND_STOP}`,
+		prompt: {
+			role: "You are Helm's repo onboarding chat: survey the repository and propose Helm scaffolding with the user.",
+			blocks: [READ_ONLY, BOARD_OUTPUT],
+		},
 	},
 	shape: {
 		model: "fable",
@@ -160,7 +167,11 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 			"raise_decision",
 			"ask_user",
 		],
-		systemPrompt: SHAPE_PROMPT,
+		prompt: {
+			role: "You are Helm's shaping chat: explore a roadmap idea with the user and shape it into epics.",
+			body: SHAPE_BODY,
+			blocks: [READ_ONLY, BOARD_OUTPUT, GRILLING, VERTICAL_SLICE],
+		},
 	},
 	research: {
 		model: "opus",
@@ -168,14 +179,11 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		context: "always-cold",
 		tools: READ_ONLY_TOOLS,
 		boardTools: [],
-		systemPrompt:
-			"You are Helm's research session: settle the decision question in " +
-			"your prompt by investigating the repository. Work read-only: never " +
-			"edit files, never run commands. Nobody can answer follow-ups: when " +
-			"the code cannot settle the question, say so in the finding instead " +
-			"of guessing. Your final message is the finding, folded verbatim " +
-			"into the shaping thread: state the answer directly with the " +
-			`evidence (files, symbols) that settles it, in a few sentences. ${DECIDE_AND_STOP}`,
+		prompt: {
+			role: "You are Helm's research session: settle the decision question in your prompt by investigating the repository.",
+			body: "Nobody can answer follow-ups: when the code cannot settle the question, say so in the finding instead of guessing. Your final message is the finding, folded verbatim into the shaping thread: state the answer directly with the evidence (files, symbols) that settles it, in a few sentences.",
+			blocks: [READ_ONLY],
+		},
 	},
 	define: {
 		model: "fable",
@@ -183,7 +191,11 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		context: "reseed-on-stale",
 		tools: READ_ONLY_TOOLS,
 		boardTools: ["propose_stories", "ask_user"],
-		systemPrompt: DEFINE_PROMPT,
+		prompt: {
+			role: "You are Helm's epic breakdown chat: split the epic into stories with the user.",
+			body: DEFINE_BODY,
+			blocks: [READ_ONLY, BOARD_OUTPUT, GRILLING, VERTICAL_SLICE],
+		},
 	},
 	refine: {
 		model: "fable",
@@ -196,7 +208,11 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 			"contest_flag",
 			"ask_user",
 		],
-		systemPrompt: REFINE_PROMPT,
+		prompt: {
+			role: "You are Helm's story refinement chat: refine the story into an implementation brief with the user.",
+			body: REFINE_BODY,
+			blocks: [READ_ONLY, BOARD_OUTPUT, GRILLING],
+		},
 	},
 	adversary: {
 		model: "opus",
@@ -204,7 +220,11 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		context: "always-cold",
 		tools: READ_ONLY_TOOLS,
 		boardTools: ["flag_risk", "ask_user"],
-		systemPrompt: `You are Helm's ready-gate adversary: attack the brief for gaps, risks, and ambiguity a cold reader would hit, checking its claims against the repository where they can be checked. ${WORK_READ_ONLY} Raise each critical flaw with one flag_risk call: a short title plus the detail naming where an implementer would stumble. Never re-raise a risk the user has already dismissed. If the brief holds, call no tools and end your turn. ${DECIDE_AND_STOP}`,
+		prompt: {
+			role: "You are Helm's ready-gate adversary: attack the brief for gaps, risks, and ambiguity a cold reader would hit, checking its claims against the repository where they can be checked.",
+			body: "Raise each critical flaw with one flag_risk call: a short title plus the detail naming where an implementer would stumble. Never re-raise a risk the user has already dismissed. If the brief holds, call no tools and end your turn.",
+			blocks: [READ_ONLY],
+		},
 	},
 	run: {
 		model: "opus",
@@ -212,7 +232,11 @@ export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 		context: "compact-at-boundaries",
 		tools: AUTO_ALLOWLIST,
 		boardTools: ["update_card", "ask_user"],
-		systemPrompt: RUN_PROMPT,
+		prompt: {
+			role: "You are Helm's implementation run: deliver the story brief in your system instructions, working entirely inside this worktree.",
+			body: RUN_BODY,
+			blocks: [TOOL_MECHANICS, HEADLESS],
+		},
 	},
 	review: {
 		model: "opus",
@@ -237,7 +261,7 @@ export function spawnableRow(kind: SessionKind): SpawnableKindRow {
 	if (
 		row.tools === undefined ||
 		row.boardTools === undefined ||
-		row.systemPrompt === undefined
+		row.prompt === undefined
 	) {
 		throw new Error(`session kind ${kind} has no spawnable registry row yet`);
 	}
@@ -245,6 +269,6 @@ export function spawnableRow(kind: SessionKind): SpawnableKindRow {
 		...row,
 		tools: row.tools,
 		boardTools: row.boardTools,
-		systemPrompt: row.systemPrompt,
+		systemPrompt: composePrompt(row.prompt),
 	};
 }
