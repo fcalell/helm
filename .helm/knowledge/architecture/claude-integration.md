@@ -58,6 +58,13 @@ One `claude -p` process per chat turn or run segment:
   replaces by running `git status`. The repo's `CLAUDE.md` and its import chain survive: they ride
   a `<system-reminder>` in the first user message, not the system prompt. What remains fixed is a
   one-line SDK identity the CLI always sends. Measured 2026-07-27 on CLI 2.1.220.
+  Suppressing that injection is possible but closed to Helm: `--bare` (and `CLAUDE_CODE_SIMPLE=1`,
+  the env var it sets, which suppresses on its own) drops the CLAUDE.md reminder entirely, but
+  either form also restricts auth to `ANTHROPIC_API_KEY`/`apiKeyHelper`: the keychain login and
+  `CLAUDE_CODE_OAUTH_TOKEN` are ignored ("Not logged in" with a live login present), so every
+  suppression path forces API billing and violates the subscription constraint. The remaining
+  levers on the injection's size are cwd placement (discovery walks up from cwd) and keeping the
+  import chain itself lean. Measured 2026-07-28 on CLI 2.1.220 via the capture probe.
 - `--model`: the per-kind model, so read-only chats stay cheap and implementation runs on the
   frontier model ([session-kinds](./session-kinds.md)).
 - `--effort <level>`: the per-kind reasoning effort (`low` · `medium` · `high` · `xhigh` ·
