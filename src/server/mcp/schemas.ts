@@ -1,5 +1,9 @@
 import { z } from "@fcalell/plugin-api/schema";
-import { BRIEF_SECTIONS, storyIdSchema } from "../../board/schema.ts";
+import {
+	BRIEF_SECTIONS,
+	CHECKLIST_RE,
+	storyIdSchema,
+} from "../../board/schema.ts";
 import { sessionKindSchema } from "../../sessions/kinds.ts";
 
 // Pure zod, no node imports: the SPA bundle reaches this file through
@@ -50,13 +54,32 @@ export const proposeStoriesDefinePayloadSchema = z.object({
 	stories: z.array(storyDraftSchema).min(1),
 	...epicBodySchema.shape,
 });
-export const updateBriefPayloadSchema = z.object({
-	section: z.enum(BRIEF_SECTIONS),
-	content: z.string().min(1),
-	// Gate-round fixes name the flag title they resolve; accepting the edit
-	// settles that flag.
-	resolves: z.string().optional(),
-});
+const CHECKLIST_SECTIONS = new Set<string>([
+	"Acceptance criteria",
+	"Open questions",
+]);
+function isChecklist(content: string): boolean {
+	const lines = content.split("\n").filter((line) => line.trim() !== "");
+	return lines.length > 0 && lines.every((line) => CHECKLIST_RE.test(line));
+}
+export const updateBriefPayloadSchema = z
+	.object({
+		section: z.enum(BRIEF_SECTIONS),
+		content: z.string().min(1),
+		// Gate-round fixes name the flag title they resolve; accepting the edit
+		// settles that flag.
+		resolves: z.string().optional(),
+	})
+	.refine(
+		(value) =>
+			!CHECKLIST_SECTIONS.has(value.section) || isChecklist(value.content),
+		{
+			message:
+				"Acceptance criteria and Open questions are checklists: every " +
+				'non-blank line must be "- [ ] <text>"',
+			path: ["content"],
+		},
+	);
 export type UpdateBriefPayload = z.infer<typeof updateBriefPayloadSchema>;
 export const resolveQuestionPayloadSchema = z.object({
 	question: z.string().min(1),

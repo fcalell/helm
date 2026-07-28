@@ -1,6 +1,6 @@
 ---
 id: 003-01
-status: backlog
+status: done
 depends: []
 sessions: {}
 ---

@@ -116,6 +116,10 @@ export const BRIEF_SECTIONS = [
 ] as const;
 export type BriefSection = (typeof BRIEF_SECTIONS)[number];
 
+// The one checklist-line shape: the board parser and the tool-boundary
+// validation must accept exactly the same lines.
+export const CHECKLIST_RE = /^\s*[-*]\s*\[([ xX])\]\s+(.*)$/;
+
 export const checklistItemSchema = z.object({
 	text: z.string(),
 	checked: z.boolean(),

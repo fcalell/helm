@@ -164,11 +164,16 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 			if (binding.attach?.type !== "story") {
 				return err("this session is not bound to a story");
 			}
-			const proposal = recordProposal(binding, "update_brief", [parsed.data]);
 			if (parsed.data.resolves !== undefined) {
-				gateFixProposed(binding.attach.id, parsed.data.resolves);
+				const failure = gateFixProposed(
+					binding.attach.id,
+					parsed.data.resolves,
+				);
+				if (failure !== undefined) return err(failure);
 			}
-			return recordedProposal(proposal);
+			return recordedProposal(
+				recordProposal(binding, "update_brief", [parsed.data]),
+			);
 		},
 	},
 	resolve_question: {

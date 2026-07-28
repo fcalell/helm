@@ -399,17 +399,31 @@ export function gateBriefEdited(storyId: string, resolves?: string): void {
 
 // The refine session answered a flag with an update_brief fix; while the
 // proposal is pending the flag stays open instead of conceding at turn end.
-export function gateFixProposed(storyId: string, resolves: string): void {
+// Returns an error message for the tool result, or undefined on success.
+export function gateFixProposed(
+	storyId: string,
+	resolves: string,
+): string | undefined {
 	const attempt = attempts.get(storyId);
-	if (attempt === undefined) return;
-	const flag = currentRound(attempt)?.flags.find(
-		(each) =>
-			each.title === resolves &&
-			(each.status === "open" || each.status === "contested"),
+	if (attempt === undefined) return "no gate round is open for this story";
+	const unresolved = (currentRound(attempt)?.flags ?? []).filter(
+		(each) => each.status === "open" || each.status === "contested",
 	);
-	if (flag === undefined || attempt.pendingFixes.has(resolves)) return;
-	attempt.pendingFixes.add(resolves);
-	broadcast();
+	const flag = unresolved.find((each) => each.title === resolves);
+	if (flag === undefined) {
+		if (unresolved.length === 0) {
+			return "no unresolved flags in the current round; drop resolves";
+		}
+		return (
+			`no unresolved flag titled "${resolves}"; unresolved flags: ` +
+			unresolved.map((each) => `"${each.title}"`).join(", ")
+		);
+	}
+	if (!attempt.pendingFixes.has(resolves)) {
+		attempt.pendingFixes.add(resolves);
+		broadcast();
+	}
+	return undefined;
 }
 
 // A rejected fix: the rejection resumes the session for a re-proposal; until

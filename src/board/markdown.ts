@@ -3,6 +3,7 @@ import {
 	BRIEF_SECTIONS,
 	type Brief,
 	type BriefSection,
+	CHECKLIST_RE,
 	type ChecklistItem,
 	type DecisionItem,
 	type DecisionSettler,
@@ -37,7 +38,6 @@ export function splitFrontmatter(raw: string): SplitFile | undefined {
 }
 
 const HEADING_RE = /^(#{1,2})\s+(.*)$/;
-const CHECKLIST_RE = /^\s*[-*]\s*\[([ xX])\]\s+(.*)$/;
 
 export function parseChecklist(text: string): ChecklistItem[] {
 	const items: ChecklistItem[] = [];
