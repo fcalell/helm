@@ -277,7 +277,7 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 	ask_user: {
 		description:
 			"Ask the user one question, with your recommended answer and optional " +
-			"quick-reply options. End your turn after calling.",
+			"quick-reply options.",
 		inputSchema: () => askUserPayloadSchema,
 		handle: async (binding, args) => {
 			const parsed = askUserPayloadSchema.safeParse(args);

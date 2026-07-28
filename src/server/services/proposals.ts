@@ -27,11 +27,9 @@ import {
 	writeStory,
 } from "../../board/store.ts";
 import {
-	decisionResolvedPrompt,
 	proposalOutcomePrompt,
-	questionAnswerPrompt,
 	researchPrompt,
-	researchResolvedPrompt,
+	resolvedPrompt,
 } from "../../sessions/prompts.ts";
 import { proposalChannel } from "../../shared/channels.ts";
 import { dispatch } from "../dispatcher.ts";
@@ -262,7 +260,7 @@ export async function answerQuestion(input: {
 	}
 	await dispatchResume(
 		question.sessionId,
-		questionAnswerPrompt(question.question, input.answer),
+		resolvedPrompt("question", question.question, input.answer),
 	);
 }
 
@@ -324,7 +322,7 @@ export async function resolveShapingDecision(input: {
 	if (sessionId !== undefined) {
 		await dispatchResume(
 			sessionId,
-			decisionResolvedPrompt(input.decision, input.answer),
+			resolvedPrompt("decision", input.decision, input.answer),
 		);
 	}
 }
@@ -405,7 +403,10 @@ async function runResearch(
 	});
 	clearResearch(slug, decision);
 	if (sessionId !== undefined) {
-		await dispatchResume(sessionId, researchResolvedPrompt(decision, finding));
+		await dispatchResume(
+			sessionId,
+			resolvedPrompt("research", decision, finding),
+		);
 	}
 }
 

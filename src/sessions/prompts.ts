@@ -24,22 +24,33 @@ export function proposalOutcomePrompt(
 	return [
 		`The user resolved your ${tool} proposal:`,
 		...lines,
-		"Accepted items are on the board. Nothing was written for edited or",
-		"rejected items: propose revised versions that address each edit and",
-		"rejection.",
+		"Accepted items are on the board. Nothing was written for edited or rejected items: propose revised versions that address each edit and rejection.",
 	].join("\n");
 }
 
-// A decision answered from the shaping drawer's checklist: the item is
-// already checked off and the answer folded into the agreed notes.
-export function decisionResolvedPrompt(
-	decision: string,
+// One resolved item returning to its chat: an ask_user answer, or a
+// Decisions-checklist item settled by the user or a research session. The
+// checklist sources arrive after the board write already happened.
+export type ResolutionSource = "decision" | "research" | "question";
+
+export function resolvedPrompt(
+	source: ResolutionSource,
+	subject: string,
 	answer: string,
 ): string {
+	if (source === "question") {
+		return [
+			"The user answered your question.",
+			`Question: ${subject}`,
+			`Answer: ${answer}`,
+		].join("\n");
+	}
 	return [
-		"The user resolved an open decision from the Decisions checklist.",
-		`Decision: ${decision}`,
-		`Answer: ${answer}`,
+		source === "research"
+			? "A research session resolved an open decision from the Decisions checklist."
+			: "The user resolved an open decision from the Decisions checklist.",
+		`Decision: ${subject}`,
+		`${source === "research" ? "Finding" : "Answer"}: ${answer}`,
 		"The item is checked off and the answer is in the agreed notes.",
 		"Continue shaping; propose epics once no decision is open.",
 	].join("\n");
@@ -64,30 +75,6 @@ export function researchPrompt(
 		"</thread>",
 	);
 	return parts.join("\n");
-}
-
-// A research finding landed: the checklist write already happened, the same
-// one an accepted user resolution makes.
-export function researchResolvedPrompt(
-	decision: string,
-	finding: string,
-): string {
-	return [
-		"A research session resolved an open decision from the Decisions",
-		"checklist.",
-		`Decision: ${decision}`,
-		`Finding: ${finding}`,
-		"The item is checked off and the finding is in the agreed notes.",
-		"Continue shaping; propose epics once no decision is open.",
-	].join("\n");
-}
-
-export function questionAnswerPrompt(question: string, answer: string): string {
-	return [
-		"The user answered your question.",
-		`Question: ${question}`,
-		`Answer: ${answer}`,
-	].join("\n");
 }
 
 // The refine seed rides the system prompt (never the transcript): the epic
@@ -121,8 +108,7 @@ export function refineSeedPrompt(
 // triggered the resume.
 export function reseedPrompt(cardRaw: string, message: string): string {
 	return [
-		"The earlier chat for this card was lost (its transcript expired).",
-		"The card's current content follows; continue from it.",
+		"The earlier chat for this card was lost (its transcript expired). The card's current content follows; continue from it.",
 		"",
 		"<card>",
 		cardRaw.trimEnd(),
@@ -156,19 +142,14 @@ export function adversaryPrompt(
 	return parts.join("\n");
 }
 
-// Routes a round's flags to the story's refine session.
+// Routes a round's flags to the story's refine session. The fix/contest
+// mechanics live in the refine system prompt, which is always present under
+// reseed-on-stale; this message only points back at it.
 export function gateFlagsPrompt(
 	flags: { title: string; detail: string }[],
 ): string {
 	return [
-		"The ready-gate adversary reviewed this brief cold and raised the",
-		"flags below. Answer every flag this turn, each with exactly one of:",
-		"- a fix: an update_brief proposal for the affected section whose",
-		'  "resolves" field names the flag title verbatim;',
-		"- a contest: a contest_flag call naming the flag title verbatim,",
-		"  carrying your counter-argument.",
-		"A flag you leave unanswered is shown to the user as contested with",
-		"no counter-argument.",
+		"The ready-gate adversary reviewed this brief cold and raised the flags below. Answer every flag this turn as your system prompt specifies; an unanswered flag is recorded as contested with no counter-argument.",
 		"",
 		...flags.map((flag) => `- ${flag.title}: ${flag.detail}`),
 	].join("\n");
@@ -217,15 +198,11 @@ export interface ReviewComment {
 // The request-changes resume: the review returned the user's comments, and
 // the session continues where it stopped. The rebase notice matters because
 // the review close rebased the branch onto main, so the commit ids the model
-// remembers may no longer exist.
+// remembers may no longer exist; the closing contract lives in the run
+// system prompt, which rides every segment.
 export function requestChangesPrompt(comments: ReviewComment[]): string {
 	return [
-		"The review of your work returned change requests. This session",
-		"continues in the same worktree; the branch was rebased onto main at",
-		"the last close, so commit ids may differ from what you remember.",
-		"Address every item below, re-run the check command, and finish with",
-		"fresh run notes through update_card: the check outcome plus one",
-		'"verify:" bullet per behavior a human must check by hand.',
+		"The review of your work returned change requests. This session continues in the same worktree; the branch was rebased onto main at the last close, so commit ids may differ from what you remember. Address every item below, then self-test and close with fresh run notes as your system prompt specifies.",
 		"",
 		...comments.map((comment) =>
 			comment.criterion === undefined
@@ -240,8 +217,7 @@ export function requestChangesPrompt(comments: ReviewComment[]): string {
 // the message states the interruption.
 export function steeringPrompt(message: string): string {
 	return [
-		"Your previous turn was interrupted mid-run; a tool call in flight may",
-		"have partially applied its side effects. Verify before assuming.",
+		"Your previous turn was interrupted mid-run; a tool call in flight may have partially applied its side effects. Verify before assuming.",
 		"",
 		message,
 	].join("\n");

@@ -30,7 +30,7 @@ import {
 	MCP_SERVER_NAME,
 } from "../../sessions/kinds.ts";
 import {
-	questionAnswerPrompt,
+	resolvedPrompt,
 	runBriefSeed,
 	runPrompt,
 	steeringPrompt,
@@ -996,7 +996,7 @@ function answerSpec(answer: string): ResumeSpec {
 			}
 			return {
 				session: entry.session,
-				prompt: questionAnswerPrompt(question.text, answer),
+				prompt: resolvedPrompt("question", question.text, answer),
 			};
 		},
 		recheck: (fresh) => {

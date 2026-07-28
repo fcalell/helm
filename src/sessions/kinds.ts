@@ -92,7 +92,7 @@ const DECIDE_AND_STOP =
 const READ_ONLY = "Work read-only: never edit files, never run commands.";
 
 const BOARD_OUTPUT =
-	"Structured output goes through your board tools: each call records a proposal the user resolves, so call a tool instead of pasting structure into prose. To ask the user something, call ask_user and end your turn.";
+	"Structured output goes through your board tools: each call records a proposal the user resolves, so call a tool instead of pasting structure into prose. To ask the user something, call ask_user.";
 
 const GRILLING =
 	"Explore first, ask second: read the repository before your first question, and settle by reading whatever the code can answer. Ask through ask_user, one question per turn in dependency order (an early answer reshapes what follows; never send a bulk list), each with your own recommended answer so the user confirms or redirects. Hold off proposing until the shared understanding is confirmed.";
@@ -126,7 +126,7 @@ export function composePrompt(spec: KindPromptSpec): string {
 
 const SHAPE_BODY = `Read the current board (.helm/board/) so the shape fits what exists.
 
-The shaping thread file is the artifact; the chat is disposable. Its Decisions checklist is what you build first: raise every unsettled call with raise_decision, tagged by who can settle it (settledBy "human" for product and priority calls only the user can make, "research" for factual questions the code can answer). Surface each open human decision through ask_user, quoting the decision text verbatim in the question so the answer checks the item off and folds into the agreed notes. propose_epics is refused while any decision is open, so settle the list before proposing.
+The shaping thread file is the artifact; the chat is disposable. Its Decisions checklist is what you build first: raise every unsettled call with raise_decision, tagged by who can settle it (settledBy "human" for product and priority calls only the user can make, "research" for factual questions the code can answer). Surface each open human decision through ask_user, quoting the decision text verbatim in the question so the answer checks the item off and folds into the agreed notes. propose_epics is refused while any decision is open.
 
 Once no decision is open, call propose_epics with the breakdown. An epic may carry draft stories so one accept lands the epic with its first cards. A text reply to a proposal means revise and re-propose.`;
 
@@ -142,7 +142,7 @@ Anything genuinely the user's call is an open question: land it in the Open ques
 
 During a ready-gate round you receive the adversary's flags. Answer every flag the same turn: a fix is an update_brief proposal whose resolves field names the flag's title verbatim; a contest is a contest_flag call naming the title verbatim with your counter-argument.`;
 
-const RUN_BODY = `Commit your work on the current branch as Conventional Commits (feat/fix/chore/docs/refactor/test; header <= ~60 chars, body says the why). Never push, never switch branches, never edit files under .helm/ — note decisions and progress on your card through the update_card tool instead. Your prompt states the repo's check command when one is configured; run it to self-test before finishing, and when none is configured you cannot self-test — never guess a command. A denied tool call is final: the action is outside the run contract, or the user denied it from the board — either way, never retry it. When you hit a genuine mid-run decision only the user can settle, call ask_user with your recommended answer and end your turn; the user's answer resumes this session. Before finishing, record closing run notes through update_card: the check command's outcome, plus one "verify:" bullet per behavior a human must check by hand.`;
+const RUN_BODY = `Commit your work on the current branch as Conventional Commits (feat/fix/chore/docs/refactor/test; header <= ~60 chars, body says the why). Never push, never switch branches, never edit files under .helm/ — note decisions and progress on your card through the update_card tool instead. Your prompt states the repo's check command when one is configured; run it to self-test before finishing, and when none is configured you cannot self-test — never guess a command. A denied tool call is final: the action is outside the run contract, or the user denied it from the board — either way, never retry it. When you hit a genuine mid-run decision only the user can settle, call ask_user with your recommended answer; the user's answer resumes this session. Before finishing, record closing run notes through update_card: the check command's outcome, plus one "verify:" bullet per behavior a human must check by hand.`;
 
 export const KIND_REGISTRY: Record<SessionKind, KindRow> = {
 	init: {
