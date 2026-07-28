@@ -44,7 +44,20 @@ One `claude -p` process per chat turn or run segment:
 - `--permission-mode` + `--allowedTools`: implement the per-story permission presets
   ([runs](../product/features/runs.md)); define/refine chats get the read-only allowlist
   (Read/Grep/Glob + board tools).
-- `--append-system-prompt`: injects the brief template / run contract per session kind.
+- `--tools`: narrows which built-in tool schemas load into context, the largest fixed-overhead
+  lever (the full schema set is ~24k tokens, 77% of the fixed overhead; narrowing to a read-only
+  kind's set removes 79% of it). MCP tool schemas are unaffected. The list is derived from the
+  spawn's allowlist, never hand-written, and always keeps `Bash`: the CLI's read-only
+  classification gives every session read-only Bash (`git diff` is how a read-only kind sees a
+  diff at all), and a `--tools` list without `Bash` deletes that silently. Measured 2026-07-27 on
+  CLI 2.1.220.
+- `--system-prompt`: replaces the CLI's default system prompt with the kind's own
+  ([session-kinds](./session-kinds.md) §Prompts); a per-spawn seed (the brief, the refine seed)
+  appends after it. Replacement drops the default's stopping heuristics and tool-usage rules,
+  which the kind prompts restate, and the `gitStatus:` block, which a kind that wants git state
+  replaces by running `git status`. The repo's `CLAUDE.md` and its import chain survive: they ride
+  a `<system-reminder>` in the first user message, not the system prompt. What remains fixed is a
+  one-line SDK identity the CLI always sends. Measured 2026-07-27 on CLI 2.1.220.
 - `--model`: the per-kind model, so read-only chats stay cheap and implementation runs on the
   frontier model ([session-kinds](./session-kinds.md)).
 - `--effort <level>`: the per-kind reasoning effort (`low` · `medium` · `high` · `xhigh` ·
@@ -146,7 +159,7 @@ The orchestrator hardens the native mechanism instead of driving its own:
   message survives verbatim, so nothing else is guaranteed; and a single pass drops roughly a third
   of the decision record, since instructions steer which decisions survive rather than how many
   (`.helm/model-matrix.md` §Compaction instructions).
-- The brief rides every segment's system prompt through `--append-system-prompt`, built from the
+- The brief rides every segment's system prompt through `--system-prompt`, built from the
   spawn snapshot file, so the contract structurally survives summarization and a mid-run hand edit
   never rewrites it ([runs](../product/features/runs.md)). The
   flag rides resumes too, and a resumed session reads it (measured: a marker appended on resume was

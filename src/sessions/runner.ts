@@ -120,6 +120,15 @@ export function spawnSessionProcess(
 		...(options.tools ?? row.tools),
 		...(options.extraTools ?? []),
 	];
+	// `--tools` narrows which built-in tool schemas load into context; MCP
+	// tools are unaffected. Derived from the allowlist (`Bash(git diff:*)`
+	// narrows to `Bash`), plus `Bash` always: the CLI's read-only
+	// classification gives every allowlist read-only Bash, and narrowing
+	// without it would silently delete that.
+	const builtinTools = [
+		...new Set(allowedTools.map((tool) => tool.replace(/\(.*$/, ""))),
+	];
+	if (!builtinTools.includes("Bash")) builtinTools.push("Bash");
 	if (options.mcpUrl !== undefined) {
 		allowedTools.push(
 			...row.boardTools.map((t) => `mcp__${MCP_SERVER_NAME}__${t}`),
@@ -143,7 +152,12 @@ export function spawnSessionProcess(
 		"default",
 		"--allowedTools",
 		allowedTools.join(","),
-		"--append-system-prompt",
+		"--tools",
+		...builtinTools,
+		// Replaces the CLI's default system prompt; the kind's prompt restates
+		// what the default carried (`kinds.ts`). CLAUDE.md still loads (it
+		// rides the first user message), the `gitStatus:` block does not.
+		"--system-prompt",
 		options.seedSystemPrompt === undefined
 			? row.systemPrompt
 			: `${row.systemPrompt}\n\n${options.seedSystemPrompt}`,

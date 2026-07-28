@@ -33,6 +33,36 @@ Chat kinds (`init`, `shape`, `define`, `refine`) spawn on the user's message and
 queue; every other kind dispatches through it
 ([runs](../product/features/runs.md) §Queue & rate limits).
 
+## Prompts
+
+Each kind's prompt **replaces** the CLI's default system prompt (`--system-prompt`,
+[claude-integration](./claude-integration.md) §Invocation model); nothing of the default's text
+reaches a Helm session. Replacement was measured against append across four kinds
+(`.helm/experiment-system-prompts.md`): quality held or improved everywhere, and the standards
+review doubled its verified findings under the same tool narrowing. The registry row is the
+prompt's home; per-repo prompt overrides are a planned feature, and the open question there is
+whether an override replaces the whole prompt or only a body composed into a fixed frame.
+
+Three authoring rules are measured, not stylistic:
+
+- **Directive prose, never labelled sections.** A `Role`/`Method`/`Output` skeleton is read as a
+  procedure to execute: on the same brief it cost 15.6 extra tool calls per pass and returned
+  fewer flags than the identical content as prose. One paragraph naming the role and the work,
+  then the output contract.
+- **Restate what the default prompt carried.** Replacement drops the default's stopping
+  heuristics and tool-usage rules, and a session without a stopping clause keeps exploring past
+  its conclusion (+6 calls per pass measured). Every prompt ends on the shared stopping clause;
+  kinds with Edit/Bash also carry the shared tool-mechanics block (`kinds.ts`).
+- **The prompt is static per kind.** Shared blocks are byte-identical constants, and nothing
+  varying per pass (cwd, git state) enters the system prompt, so a cold kind's re-spawns share a
+  prompt-cache prefix. Per-spawn context (the brief, the refine seed) appends after the kind
+  prompt.
+
+A rule stated as an absolute does not buy compliance (the run arm broke its own "never grep
+through Bash" rule as often as the control broke a preference); shrinking the context is what
+reduced contract-edge events. Write the rule once and keep the prompt short rather than
+escalating the wording.
+
 ## Model per kind
 
 Each kind names a model, passed as `--model`; the rate-limit pool is shared with interactive use,
