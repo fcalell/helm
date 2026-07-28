@@ -6,14 +6,10 @@ in git worktrees, and reviewed against their own acceptance criteria. It wraps t
 authenticated `claude` CLI, so it runs on a Claude Max subscription with no API billing. **UI and
 code are English.**
 
-**Pre-product stage.** The spec lives in `.helm/knowledge/`; code so far is the board-storage module
-(`src/board/`), the session-runner module (`src/sessions/`), the orchestrator (API routes in
-`src/worker/`, services in `src/server/`), the web board UI (`src/app/`), and the stream-json
-spike (`spikes/stream-json/`, throwaway reference scripts). The next milestone is define/refine
-chats (`.helm/knowledge/product/roadmap.md`).
-
-Helm manages itself: this repo is a managed repo, and its `.helm/` is the reference instance of the
-layout Helm scaffolds ([board-storage](./.helm/knowledge/architecture/board-storage.md)).
+**Pre-product stage.** The spec lives in `.helm/knowledge/`; the code layout is the **Today**
+bullet below. The next milestone is define/refine chats (`.helm/knowledge/product/roadmap.md`).
+Helm manages itself: this repo is a managed repo, and its `.helm/` is the reference instance of
+the layout Helm scaffolds ([board-storage](./.helm/knowledge/architecture/board-storage.md)).
 
 @.helm/agents/index.md
 

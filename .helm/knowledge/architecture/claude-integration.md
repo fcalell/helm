@@ -64,7 +64,9 @@ One `claude -p` process per chat turn or run segment:
   `CLAUDE_CODE_OAUTH_TOKEN` are ignored ("Not logged in" with a live login present), so every
   suppression path forces API billing and violates the subscription constraint. The remaining
   levers on the injection's size are cwd placement (discovery walks up from cwd) and keeping the
-  import chain itself lean. Measured 2026-07-28 on CLI 2.1.220 via the capture probe.
+  import chain itself lean; a lean pass on this repo's chain cut the injection 14,140 → 13,385
+  chars, and what remains is rules, not restatement. Measured 2026-07-28 on CLI 2.1.220 via the
+  capture probe.
 - `--model`: the per-kind model, so read-only chats stay cheap and implementation runs on the
   frontier model ([session-kinds](./session-kinds.md)).
 - `--effort <level>`: the per-kind reasoning effort (`low` · `medium` · `high` · `xhigh` ·

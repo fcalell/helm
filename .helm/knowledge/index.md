@@ -1,10 +1,8 @@
 # Knowledge base index
 
-The always-loaded **navigation map** for `.helm/knowledge/`: update on any entry add/rename/remove.
-Domain docs are read on demand, so a session pulls only the leaf it needs. **Each entry's trailing
-text is a load trigger, the work that should make you open that leaf, not a summary of its
-contents.** Entries are durable present-tense *what/why* reference, what the code can't tell you
-(authoring rules: `.helm/agents/docs.md`).
+The always-loaded **navigation map** for `.helm/knowledge/`: update on any entry add/rename/remove
+(authoring rules: `.helm/agents/docs.md`). **Each entry's trailing text is a load trigger, the
+work that should make you open that leaf, not a summary of its contents.**
 
 ## Product
 

@@ -1,17 +1,15 @@
 # Helm agent rules
 
 The single entry point for Helm's rules, imported by the repo's root `CLAUDE.md`. It loads the
-glossary and the knowledge-base navigation map; every rule doc below is **pull-only**, read when
-your task matches it.
+glossary and the knowledge-base navigation map; nothing below the two imports auto-loads.
 
 @glossary.md
 @../knowledge/index.md
 
 `.helm/knowledge/` (mapped by the index above) is the source of truth for *what Helm is and why*:
 product and architecture. `.helm/agents/` holds the how-to-build rules. `.helm/research/` holds
-working evidence: experiment plans, ledgers, and findings that have not settled into knowledge yet.
-**Nothing below the two imports auto-loads.** Pull a doc the moment your task matches it; never
-pre-read the whole base.
+working evidence (experiments, ledgers, findings) not yet settled into knowledge. **Pull a doc the
+moment your task matches it; never pre-read the whole base.**
 
 ## Posture (non-negotiable)
 
