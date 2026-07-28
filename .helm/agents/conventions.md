@@ -17,6 +17,9 @@
 - Tab indent · double quotes · semicolons · trailing commas in multiline · 80-col wrap.
 - A root `.editorconfig` mirrors this for non-Biome editors; keep the two in sync. `biome.json`
   wins on conflict.
+- The 80-col wrap governs code only. Prose in string literals (prompts, user-facing messages) is
+  one literal per paragraph: never hand-wrap or `+`-concatenate it to the column limit, and let
+  the long line stand (Biome cannot break string contents; clamping is the editor's job).
 
 ## Naming
 
