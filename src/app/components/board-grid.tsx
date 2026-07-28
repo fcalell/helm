@@ -33,8 +33,9 @@ export function BoardGrid(props: BoardGridProps) {
 		const targetStatus = statusFromDropId(event.droppable.id);
 		if (!targetStatus) return;
 		const storyId = String(event.draggable.id);
-		const story = props.stories[storyId];
-		if (!story || story.frontmatter.status === targetStatus) return;
+		// Only the same-status drop is a no-op here; a story missing from the
+		// store falls through so `moveStory` can report it.
+		if (props.stories[storyId]?.frontmatter.status === targetStatus) return;
 		moveStory(storyId, targetStatus);
 	}
 

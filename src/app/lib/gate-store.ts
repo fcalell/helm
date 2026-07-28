@@ -4,10 +4,21 @@ import { gateChannel } from "../../shared/channels.ts";
 import type {
 	GateAttempt,
 	GateFlagResolution,
+	GatePhase,
 	GateSnapshot,
 } from "../../shared/gate.ts";
 import { api } from "./api.ts";
 import { wsClient } from "./ws.ts";
+
+// The single phase -> copy source: the gate panel renders it, and the move
+// toast reuses it when a drag into Ready comes back gating.
+export const PHASE_LINES: Record<GatePhase, string> = {
+	queued: "Adversary review queued",
+	adversary: "Adversary review running",
+	refine: "Refine chat is answering the adversary's flags",
+	review: "Contested flags await your call",
+	exhausted: "Two automatic rounds spent — the gate waits for you",
+};
 
 interface GateState {
 	// Active ready-gate attempts keyed by story id.

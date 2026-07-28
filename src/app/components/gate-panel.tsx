@@ -3,21 +3,8 @@ import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
-import type {
-	GateAttempt,
-	GateFlag,
-	GatePhase,
-	GateRound,
-} from "../../shared/gate.ts";
-import { gateFor, resolveGateFlag } from "../lib/gate-store.ts";
-
-const PHASE_LINES: Record<GatePhase, string> = {
-	queued: "Adversary review queued",
-	adversary: "Adversary review running",
-	refine: "Refine chat is answering the adversary's flags",
-	review: "Contested flags await your call",
-	exhausted: "Two automatic rounds spent — the gate waits for you",
-};
+import type { GateAttempt, GateFlag, GateRound } from "../../shared/gate.ts";
+import { gateFor, PHASE_LINES, resolveGateFlag } from "../lib/gate-store.ts";
 
 const FLAG_BADGES: Record<
 	GateFlag["status"],

@@ -135,7 +135,11 @@ function illegal(from: Status, reason: string) {
 	});
 }
 
-export async function requestReady(id: string): Promise<{ gating: boolean }> {
+export async function requestReady(
+	id: string,
+): Promise<
+	{ gating: false } | { gating: true; phase: Exclude<GatePhase, "exhausted"> }
+> {
 	return enqueueWrite(async () => {
 		const current = await readFresh(id);
 		const from = current.frontmatter.status;
@@ -162,8 +166,11 @@ export async function requestReady(id: string): Promise<{ gating: boolean }> {
 		const existing = attempts.get(id);
 		if (existing !== undefined) {
 			// A user retry: only an exhausted attempt gets a new (manual) round.
-			if (existing.phase === "exhausted") enqueueRound(existing);
-			return { gating: true };
+			if (existing.phase === "exhausted") {
+				enqueueRound(existing);
+				return { gating: true, phase: "queued" };
+			}
+			return { gating: true, phase: existing.phase };
 		}
 		const attempt: Attempt = {
 			storyId: id,
@@ -175,7 +182,7 @@ export async function requestReady(id: string): Promise<{ gating: boolean }> {
 		};
 		attempts.set(id, attempt);
 		enqueueRound(attempt);
-		return { gating: true };
+		return { gating: true, phase: "queued" };
 	});
 }
 

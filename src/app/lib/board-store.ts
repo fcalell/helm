@@ -14,7 +14,9 @@ import {
 	verdictValid,
 } from "../../board/transitions.ts";
 import { boardChannel } from "../../shared/channels.ts";
+import type { GatePhase } from "../../shared/gate.ts";
 import { api } from "./api.ts";
+import { PHASE_LINES } from "./gate-store.ts";
 import { wsClient } from "./ws.ts";
 
 export interface BoardState {
@@ -59,10 +61,8 @@ function byId<T extends { id: string }>(items: T[]): Record<string, T> {
 // the dragged card back. An entry clears when a snapshot confirms it reached
 // the target, or when its RPC rejects (the optimism is reverted).
 const pendingMoves = new Map<string, Status>();
-let lastBoard: Board | null = null;
 
 function applySnapshot(board: Board): void {
-	lastBoard = board;
 	const stories = byId(board.stories);
 	for (const [id, to] of pendingMoves) {
 		const story = stories[id];
@@ -106,9 +106,18 @@ export function connectBoard(): void {
 	});
 }
 
+// The move landed the story in the ready gate instead of Ready: the round is
+// the feedback, so name the phase it sits in.
+function gatingToast(id: string, phase: Exclude<GatePhase, "exhausted">): void {
+	toast.info(`${id}: ${PHASE_LINES[phase]}`);
+}
+
 export function moveStory(id: string, to: Status): void {
 	const story = store.stories[id];
-	if (!story) return;
+	if (!story) {
+		toast.error(`${id} is no longer on the board`);
+		return;
+	}
 
 	const from = story.frontmatter.status;
 	const transitionStory = {
@@ -127,23 +136,45 @@ export function moveStory(id: string, to: Status): void {
 			toast.error(check.reason);
 			return;
 		}
-		api.story.move({ id, to }).catch((error: unknown) => {
-			toast.error(
-				error instanceof Error ? error.message : "failed to move story",
-			);
-		});
+		api.story
+			.move({ id, to })
+			.then((result) => {
+				// The gate let the move through, so adopt the optimism now.
+				if (!result.gating) {
+					pendingMoves.set(id, to);
+					setStore("stories", id, "frontmatter", "status", to);
+					return;
+				}
+				gatingToast(id, result.phase);
+			})
+			.catch((error: unknown) => {
+				toast.error(
+					error instanceof Error ? error.message : "failed to move story",
+				);
+			});
 		return;
 	}
 
 	pendingMoves.set(id, to);
 	setStore("stories", id, "frontmatter", "status", to);
-	api.story.move({ id, to }).catch((error: unknown) => {
-		pendingMoves.delete(id);
-		if (lastBoard) applySnapshot(lastBoard);
-		toast.error(
-			error instanceof Error ? error.message : "failed to move story",
-		);
-	});
+	api.story
+		.move({ id, to })
+		.then((result) => {
+			// `gating: false` is already on screen; only a gating result has to
+			// undo the optimism (the server's fresh read beat the snapshot the
+			// client judged the transition on).
+			if (!result.gating) return;
+			pendingMoves.delete(id);
+			setStore("stories", id, "frontmatter", "status", from);
+			gatingToast(id, result.phase);
+		})
+		.catch((error: unknown) => {
+			pendingMoves.delete(id);
+			setStore("stories", id, "frontmatter", "status", from);
+			toast.error(
+				error instanceof Error ? error.message : "failed to move story",
+			);
+		});
 }
 
 export function sortedShaping(

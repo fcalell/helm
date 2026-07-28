@@ -16,6 +16,13 @@ import { canTransition } from "../../board/transitions.ts";
 import { boardSnapshot } from "../../server/services/board.ts";
 import { requestReady } from "../../server/services/gate.ts";
 import { enqueueWrite } from "../../server/write-queue.ts";
+import type { GatePhase } from "../../shared/gate.ts";
+
+// A move into Ready that the gate holds carries the attempt's phase, so the
+// client can say what the card is waiting on instead of looking inert.
+type MoveResult =
+	| { gating: false }
+	| { gating: true; phase: Exclude<GatePhase, "exhausted"> };
 
 export const story = {
 	// Every move but into Ready validates and writes; a move into Ready runs
@@ -24,7 +31,7 @@ export const story = {
 	// `refining`.
 	move: procedure()
 		.input(z.object({ id: storyIdSchema, to: statusSchema }))
-		.handler(async ({ input }): Promise<{ gating: boolean }> => {
+		.handler(async ({ input }): Promise<MoveResult> => {
 			if (input.to === "ready") return requestReady(input.id);
 			// A bare status write can never enter `running`: the run lifecycle
 			// (worktree, spawn, run entry) is `run.start`'s alone.

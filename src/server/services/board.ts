@@ -1,3 +1,4 @@
+import { ApiError } from "@fcalell/plugin-api/error";
 import { type ChannelHandle, defineService } from "@fcalell/plugin-node/server";
 import { createEpic, slugify } from "../../board/create.ts";
 import { nextEpicOrdinal } from "../../board/ordinals.ts";
@@ -16,14 +17,25 @@ let repo: ManagedRepo | null = null;
 let handle: ChannelHandle<(typeof boardChannel)["server"]> | undefined;
 
 // Module singleton: route handlers import these directly instead of
-// receiving a context.
+// receiving a context. The null window is the service's own stop (shutdown):
+// boot awaits `startServices()` before the port binds, so no RPC races start.
 export function boardSnapshot(): Board {
-	if (watcher === null) throw new Error("board service is not running");
+	if (watcher === null) {
+		throw new ApiError("SERVICE_UNAVAILABLE", {
+			status: 503,
+			message: "board service is not running",
+		});
+	}
 	return watcher.snapshot();
 }
 
 export function managedRepo(): ManagedRepo {
-	if (repo === null) throw new Error("board service is not running");
+	if (repo === null) {
+		throw new ApiError("SERVICE_UNAVAILABLE", {
+			status: 503,
+			message: "board service is not running",
+		});
+	}
 	return repo;
 }
 
