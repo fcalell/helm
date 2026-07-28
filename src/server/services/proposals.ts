@@ -137,6 +137,25 @@ export function recordProposal(
 	return proposal;
 }
 
+// Every pending brief proposal bound to a story, in creation order (the map's
+// insertion order). Story-scoped, not session-scoped: a reseeded chat is still
+// the same brief. Gate fixes (`resolves`) are left out — they batch one per
+// flag under the gate flow's own arbitration.
+export function pendingBriefProposalFor(
+	storyId: string,
+): Extract<Proposal, { tool: "update_brief" }>[] {
+	const pending: Extract<Proposal, { tool: "update_brief" }>[] = [];
+	for (const proposal of proposals.values()) {
+		if (proposal.tool !== "update_brief") continue;
+		const attach = contexts.get(proposal.id)?.attach;
+		if (attach?.type !== "story" || attach.id !== storyId) continue;
+		if (proposal.items.some((item) => item.payload.resolves !== undefined))
+			continue;
+		pending.push(proposal);
+	}
+	return pending;
+}
+
 export function pendingQuestionFor(sessionId: string): Question | undefined {
 	for (const question of questions.values()) {
 		if (question.sessionId === sessionId) return question;

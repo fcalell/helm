@@ -18,6 +18,7 @@ import {
 	recordAdversaryFlag,
 } from "../services/gate.ts";
 import {
+	pendingBriefProposalFor,
 	pendingQuestionFor,
 	recordDecision,
 	recordProposal,
@@ -168,9 +169,30 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 					parsed.data.resolves,
 				);
 				if (failure !== undefined) return err(failure);
+				// A gate round answers every flag in the same turn (and an unanswered
+				// flag is auto-contested at turn end), so a fix keeps the shared
+				// "continue, or end your turn" copy and is never serialized.
+				return recordedProposal(
+					recordProposal(binding, "update_brief", [parsed.data]),
+				);
 			}
-			return recordedProposal(
-				recordProposal(binding, "update_brief", [parsed.data]),
+			const pending = pendingBriefProposalFor(binding.attach.id);
+			if (pending.length > 0) {
+				const sections = pending
+					.flatMap((proposal) => proposal.items)
+					.map((item) => `- ${item.payload.section}`)
+					.join("\n");
+				return err(
+					"update_brief is refused while a brief proposal is still awaiting " +
+						`the user:\n${sections}\nOne section at a time. Tell the user in ` +
+						"a short text reply that the pending section is changed through " +
+						"that widget's Edit or Reject, then end your turn.",
+				);
+			}
+			const proposal = recordProposal(binding, "update_brief", [parsed.data]);
+			return ok(
+				`Recorded proposal ${proposal.id} with 1 item. The user will accept, ` +
+					"edit, or reject it; end your turn and await the outcome.",
 			);
 		},
 	},

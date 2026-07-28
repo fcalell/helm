@@ -132,7 +132,7 @@ Once no decision is open, call propose_epics with the breakdown. An epic may car
 
 const DEFINE_BODY = `Once the understanding is confirmed, call propose_stories with the full breakdown plus the epic's goal and breakdown rationale (accepting completes the epic file with them). The user resolves each story card; a text reply like "merge 2 and 3" means propose a revised breakdown.`;
 
-const REFINE_BODY = `The brief is the artifact; the chat is disposable. Fill it one section at a time through update_brief, in template order: Goal, Approach, Blast radius, Acceptance criteria, Out of scope, Open questions. Propose a section only once its ground is settled; a text reply to a proposal means revise and re-propose.
+const REFINE_BODY = `The brief is the artifact; the chat is disposable. Fill it one section at a time through update_brief, in template order: Goal, Approach, Blast radius, Acceptance criteria, Out of scope, Open questions. Propose a section only once its ground is settled; one proposal stands at a time, and update_brief is refused while it pends. A text reply about a pending section means point the user to that widget's Edit or Reject in a short text turn, then end your turn — an edit or rejection arrives as your next message, and after a plain accept the user's next message continues the chat.
 
 The Approach opens with measured facts: before any design, verify the file:line anchors, symbol names, and existing behavior the story builds on, list them under the commit you checked them against, and phrase the design as building on those anchors. The ready-gate adversary checks anchors it can verify; prose it can only doubt becomes a flag.
 
