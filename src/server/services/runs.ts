@@ -41,6 +41,7 @@ import type { AskUserPayload } from "../mcp/schemas.ts";
 import { groupAlive, killProcessGroup } from "../process-group.ts";
 import { type RepoConfig, readRepoConfig } from "../repo-config.ts";
 import {
+	branchCommits,
 	diffStat,
 	ensureWorktree,
 	helmDiffPaths,
@@ -159,10 +160,14 @@ export function checkFilePath(storyId: string): string {
 }
 
 // `exitCode: null` means the command timed out and its group was killed.
+// `commitLint` carries the Conventional Commit findings on the branch's
+// commits, empty when all pass; absent on captures without a lint pass (a
+// git failure, or a file written before the lint existed).
 export const checkResultSchema = z.object({
 	command: z.string(),
 	exitCode: z.number().int().nullable(),
 	output: z.string(),
+	commitLint: z.array(z.string()).optional(),
 	finishedAt: z.iso.datetime(),
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
@@ -212,15 +217,48 @@ function runCheckCommand(command: string, cwd: string): Promise<CheckResult> {
 	});
 }
 
+// The repo's commit contract (CLAUDE.md rules): a Conventional type prefix
+// and a header near 60 characters. Evidence for the reviewer, never a gate.
+const COMMIT_HEADER_RE =
+	/^(feat|fix|chore|docs|refactor|test)(\([^)]+\))?!?: .+/;
+const COMMIT_HEADER_LIMIT = 60;
+
+function lintCommits(commits: { sha: string; header: string }[]): string[] {
+	const findings: string[] = [];
+	for (const { sha, header } of commits) {
+		if (!COMMIT_HEADER_RE.test(header)) {
+			findings.push(
+				`${sha} "${header}": header is not Conventional (type: subject)`,
+			);
+		} else if (header.length > COMMIT_HEADER_LIMIT) {
+			findings.push(
+				`${sha} "${header}": header is ${header.length} chars (limit ~${COMMIT_HEADER_LIMIT})`,
+			);
+		}
+	}
+	return findings;
+}
+
 async function captureCheck(
 	storyId: string,
 	worktree: string,
 	command: string,
+	mainBranch: string,
 ): Promise<void> {
 	const result = await runCheckCommand(command, worktree);
+	let commitLint: string[] | undefined;
+	try {
+		commitLint = lintCommits(await branchCommits(worktree, mainBranch));
+	} catch (error) {
+		log?.error(`run ${storyId}: commit lint failed: ${errorText(error)}`);
+	}
 	await writeFile(
 		checkFilePath(storyId),
-		`${JSON.stringify(result, null, "\t")}\n`,
+		`${JSON.stringify(
+			{ ...result, ...(commitLint !== undefined && { commitLint }) },
+			null,
+			"\t",
+		)}\n`,
 	);
 }
 
@@ -766,7 +804,12 @@ async function finishRun(
 			if (rebaseError === undefined) {
 				if (state.checkCommand !== undefined) {
 					try {
-						await captureCheck(state.storyId, worktree, state.checkCommand);
+						await captureCheck(
+							state.storyId,
+							worktree,
+							state.checkCommand,
+							repo.mainBranch,
+						);
 					} catch (checkError) {
 						log?.error(
 							`run ${state.storyId}: check capture failed: ${errorText(checkError)}`,

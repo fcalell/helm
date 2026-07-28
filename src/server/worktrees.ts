@@ -52,6 +52,26 @@ export async function isDirty(worktree: string): Promise<boolean> {
 	return (await git(worktree, ["status", "--porcelain"])).trim() !== "";
 }
 
+// The branch's commits not on main, oldest first: short sha plus header.
+export async function branchCommits(
+	worktree: string,
+	mainBranch: string,
+): Promise<{ sha: string; header: string }[]> {
+	const out = await git(worktree, [
+		"log",
+		"--reverse",
+		"--format=%h%x00%s",
+		`${mainBranch}..HEAD`,
+	]);
+	return out
+		.split("\n")
+		.filter((line) => line !== "")
+		.map((line) => {
+			const [sha = "", header = ""] = line.split("\0");
+			return { sha, header };
+		});
+}
+
 export async function worktreeExists(path: string): Promise<boolean> {
 	try {
 		await git(path, ["rev-parse", "--is-inside-work-tree"]);
