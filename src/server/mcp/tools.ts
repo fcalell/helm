@@ -18,6 +18,7 @@ import {
 	recordAdversaryFlag,
 } from "../services/gate.ts";
 import {
+	pendingQuestionFor,
 	recordDecision,
 	recordProposal,
 	recordQuestion,
@@ -319,6 +320,12 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 				if (!landed) return err("this story has no open run entry");
 				return ok(
 					"Recorded. End your turn now; the user's answer resumes this session.",
+				);
+			}
+			const open = pendingQuestionFor(binding.sessionId);
+			if (open !== undefined) {
+				return err(
+					`your question "${open.question}" is still awaiting the user's answer. One question at a time: end your turn now, and ask this after that answer arrives.`,
 				);
 			}
 			const question = recordQuestion(binding, parsed.data);

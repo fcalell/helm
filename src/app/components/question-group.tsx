@@ -4,66 +4,63 @@ import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import {
 	activeQuestions,
-	answerQuestions,
+	answerQuestion,
 	type LoggedQuestion,
 } from "../lib/session-store.ts";
 import { AnswerChip } from "./answer-chip.tsx";
 
-// The session's pending questions gathered into one block above the composer.
-// Chips only select an answer into the local map; nothing sends until every
-// question is answered and "Send answers" fires one batched round-trip.
+// One question at a time: only the oldest pending question is actionable, and
+// sending its answer resumes the session immediately. Any later questions (a
+// pile predating the one-pending-question tool guard) wait behind a count and
+// surface one by one as the pile drains. Drafts are keyed by question id so an
+// unrelated snapshot broadcast never clears what the user typed.
 export function QuestionGroup(props: { sessionId: string }) {
 	const questions = () => activeQuestions(props.sessionId);
-	const [answers, setAnswers] = createStore<Record<string, string>>({});
+	const current = () => questions()[0];
+	const queued = () => questions().length - 1;
+	const [drafts, setDrafts] = createStore<Record<string, string>>({});
 	const [inFlight, setInFlight] = createSignal(false);
 
-	const answerFor = (id: string): string => answers[id] ?? "";
-	const setAnswer = (id: string, value: string): void => setAnswers(id, value);
-
-	const complete = () =>
-		questions().every((question) => answerFor(question.id).trim() !== "");
+	const draft = () => {
+		const question = current();
+		return question === undefined ? "" : (drafts[question.id] ?? "");
+	};
 
 	async function send(): Promise<void> {
-		if (!complete() || inFlight()) return;
-		const batch = questions().map((question) => ({
-			question,
-			answer: answerFor(question.id).trim(),
-		}));
+		const question = current();
+		const answer = draft().trim();
+		if (question === undefined || answer === "" || inFlight()) return;
 		setInFlight(true);
 		try {
-			await answerQuestions(batch);
-			for (const { question } of batch) setAnswers(question.id, "");
-		} catch {
-			// toasted by the store; keep the drafts for a retry
+			await answerQuestion(question, answer);
 		} finally {
 			setInFlight(false);
 		}
 	}
 
 	return (
-		<Show when={questions().length > 0}>
-			<div class="flex flex-col gap-4 rounded-lg border border-primary/40 bg-muted/40 p-3">
-				<span class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-					{questions().length > 1 ? "Questions" : "Question"}
-				</span>
-				<For each={questions()}>
-					{(question) => (
-						<QuestionRow
-							question={question}
-							value={answerFor(question.id)}
-							disabled={inFlight()}
-							onAnswer={(value) => setAnswer(question.id, value)}
-						/>
-					)}
-				</For>
-				<Button
-					size="sm"
-					disabled={!complete() || inFlight()}
-					onClick={() => void send()}
-				>
-					Send answers
-				</Button>
-			</div>
+		<Show when={current()}>
+			{(question) => (
+				<div class="flex flex-col gap-2 rounded-lg border border-primary/40 bg-muted/40 p-3">
+					<span class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+						Question
+						<Show when={queued() > 0}>{` · ${queued()} more waiting`}</Show>
+					</span>
+					<QuestionRow
+						question={question()}
+						value={draft()}
+						disabled={inFlight()}
+						onAnswer={(value) => setDrafts(question().id, value)}
+					/>
+					<Button
+						size="sm"
+						disabled={draft().trim() === "" || inFlight()}
+						onClick={() => void send()}
+					>
+						Send answer
+					</Button>
+				</div>
+			)}
 		</Show>
 	);
 }
@@ -83,7 +80,7 @@ function QuestionRow(props: {
 	};
 
 	return (
-		<div class="flex flex-col gap-2 border-t border-border pt-3 first:border-t-0 first:pt-0">
+		<div class="flex flex-col gap-2">
 			<p class="text-sm">{props.question.question}</p>
 			<div class="flex flex-wrap gap-2">
 				<For each={options()}>

@@ -580,6 +580,7 @@ export async function acceptAllProposalItems(
 	}
 }
 
+// On success the question keeps its answer for its inert record's badge.
 export async function answerQuestion(
 	question: LoggedQuestion,
 	answer: string,
@@ -591,34 +592,6 @@ export async function answerQuestion(
 		toast.error(
 			error instanceof Error ? error.message : "failed to answer question",
 		);
-	}
-}
-
-// Batch answering: one round-trip for every pending question in the group.
-// On success each question keeps its answer for its inert record's badge.
-export async function answerQuestions(
-	answers: { question: LoggedQuestion; answer: string }[],
-): Promise<void> {
-	try {
-		await api.proposal.answerAll({
-			answers: answers.map((each) => ({
-				questionId: each.question.id,
-				answer: each.answer,
-			})),
-		});
-		setStore(
-			produce((state) => {
-				for (const { question, answer } of answers) {
-					const logged = state.questions[question.id];
-					if (logged !== undefined) logged.answeredWith = answer;
-				}
-			}),
-		);
-	} catch (error) {
-		toast.error(
-			error instanceof Error ? error.message : "failed to answer questions",
-		);
-		throw error;
 	}
 }
 
