@@ -231,11 +231,13 @@ Needs-input resume.
 
 ## Hooks
 
-Run sessions carry hook config (via `--settings`) as a backstop: the Stop hook POSTs the run
-outcome to the orchestrator's HTTP API, and writes the main checkout's frontmatter directly only
-when the orchestrator is unreachable. That keeps the board truthful if the orchestrator missed the
-stream, while preserving its single-writer rule ([board-storage](./board-storage.md) §Mutation
-rules). The Stop hook fires on normal completion and does not fire on SIGTERM. On SIGTERM the CLI
+Run sessions carry hook config (via `--settings`). The Stop hook POSTs to the orchestrator, which
+answers with a decision: a stop whose closing contract is unmet (uncommitted edits, or no
+`update_card` note that segment) is blocked with feedback naming what is missing, bounded at
+three consecutive refusals like PreCompact so a wedged run can still end, and a stop that parked
+the run on `ask_user` is never blocked. A let-through POST doubles as completion evidence,
+keeping the close path truthful if the orchestrator missed the stream. The Stop hook fires on
+normal completion and does not fire on SIGTERM. On SIGTERM the CLI
 flushes one `result/error_during_execution` frame carrying the segment's usage before exiting
 (measured live on 2.1.215; earlier versions exited with no `result` event), so an observed error
 result never proves the run ended on its own: only a clean result or the hook POST does, which is

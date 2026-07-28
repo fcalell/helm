@@ -3,7 +3,7 @@ import { StreamableHTTPTransport } from "@hono/mcp";
 import { Hono } from "hono";
 import { lookupSpawn, setMcpPort } from "../mcp/registry.ts";
 import { buildMcpServer } from "../mcp/server.ts";
-import { runCompactHook, runHookPosted } from "./runs.ts";
+import { runCompactHook, runStopHook } from "./runs.ts";
 
 // Hosts the orchestrator's board-tools MCP server. Each spawn reaches its own
 // `/mcp/<token>` endpoint (per-spawn URL in `--mcp-config`), so a tool call
@@ -24,11 +24,12 @@ export default defineService({
 			// Response in practice, so the 204 is a defensive fallback.
 			return (await transport.handleRequest(c)) ?? c.body(null, 204);
 		});
-		app.post("/hooks/run/:token", (c) =>
-			runHookPosted(c.req.param("token"))
-				? c.body(null, 204)
-				: c.text("unknown run token", 404),
-		);
+		app.post("/hooks/run/:token", async (c) => {
+			const decision = await runStopHook(c.req.param("token"));
+			return decision === undefined
+				? c.text("unknown run token", 404)
+				: c.json(decision);
+		});
 		app.post("/hooks/compact/:token", async (c) => {
 			const decision = await runCompactHook(c.req.param("token"));
 			return decision === undefined

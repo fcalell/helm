@@ -73,10 +73,11 @@ const RESUME_MESSAGE = "Continue the run.";
 
 const PERMISSION_TOOL = `mcp__${MCP_SERVER_NAME}__approve`;
 
-// Consecutive PreCompact refusals before the hook lets a compaction through.
-// Blocking is a deferral, never a veto: past this the window matters more than
-// the boundary, and an unblocked compaction beats "Prompt is too long".
-const COMPACT_BLOCK_LIMIT = 3;
+// Consecutive refusals before a blocking hook (PreCompact, Stop) lets the
+// event through. Blocking is a deferral, never a veto: past this the window
+// matters more than the boundary (an unblocked compaction beats "Prompt is
+// too long", and a wedged run must still be able to end).
+const HOOK_BLOCK_LIMIT = 3;
 
 // Steers the summary a compaction writes. Delivered as `customInstructions`,
 // the one hook-output field the CLI reads for this (measured: `systemMessage`
@@ -105,6 +106,13 @@ interface RunState {
 	exited: boolean;
 	// Consecutive PreCompact refusals; reset once one is let through.
 	compactBlocks: number;
+	// Consecutive Stop refusals of an unmet closing contract.
+	stopBlocks: number;
+	// An update_card note landed this segment; the Stop hook checks it.
+	notePosted: boolean;
+	// An ask_user question landed this segment; its stop parks the run on
+	// needs-input, so the closing contract does not apply.
+	questionPosted: boolean;
 	pid?: number;
 	sessionId?: string;
 	branch?: string;
@@ -215,7 +223,8 @@ async function captureCheck(
 
 // The per-spawn settings: the `.helm/` deny rules (spike-verified `//`
 // absolute anchoring; the file itself lives outside the worktree), the
-// Stop-hook POST backstop, and auto-compact forced on (`--settings` outranks
+// answered Stop hook (closing-contract check, and the POST doubles as
+// completion evidence), and auto-compact forced on (`--settings` outranks
 // a user-global disable; the CLI owns the trigger).
 function runSettings(worktree: string, hookToken: string) {
 	const helmGlob = `//${worktree.replace(/^\/+/, "")}/.helm/**`;
@@ -447,6 +456,9 @@ async function freshStart(storyId: string): Promise<{ sessionId: string }> {
 		hookPosted: false,
 		exited: false,
 		compactBlocks: 0,
+		stopBlocks: 0,
+		notePosted: false,
+		questionPosted: false,
 	};
 	states.set(storyId, state);
 	hookTokens.set(state.hookToken, state);
@@ -858,7 +870,7 @@ export async function runNeedsInput(
 ): Promise<boolean> {
 	const story = boardSnapshot().stories.find((each) => each.id === storyId);
 	if (story === undefined) return false;
-	return enqueueWrite(async () => {
+	const landed = await enqueueWrite(async () => {
 		let current: Story;
 		try {
 			current = await readStoryFile(story.path, story.epicId);
@@ -888,6 +900,11 @@ export async function runNeedsInput(
 		});
 		return true;
 	});
+	if (landed) {
+		const state = states.get(storyId);
+		if (state !== undefined) state.questionPosted = true;
+	}
+	return landed;
 }
 
 // The caller-owned pieces of a resume: the up-front precondition (throws, or
@@ -940,6 +957,9 @@ async function resumeRun(
 		hookPosted: false,
 		exited: false,
 		compactBlocks: 0,
+		stopBlocks: 0,
+		notePosted: false,
+		questionPosted: false,
 	};
 	states.set(storyId, state);
 	hookTokens.set(state.hookToken, state);
@@ -1340,10 +1360,10 @@ export async function runCompactHook(
 		);
 		return {};
 	}
-	if (dirty && state.compactBlocks < COMPACT_BLOCK_LIMIT) {
+	if (dirty && state.compactBlocks < HOOK_BLOCK_LIMIT) {
 		state.compactBlocks += 1;
 		log?.info(
-			`run ${state.storyId}: compaction deferred (${state.compactBlocks}/${COMPACT_BLOCK_LIMIT}), worktree dirty`,
+			`run ${state.storyId}: compaction deferred (${state.compactBlocks}/${HOOK_BLOCK_LIMIT}), worktree dirty`,
 		);
 		return {
 			decision: "block",
@@ -1355,12 +1375,61 @@ export async function runCompactHook(
 	return { customInstructions: COMPACT_INSTRUCTIONS };
 }
 
-export function runHookPosted(token: string): boolean {
+export interface StopDecision {
+	decision?: "block";
+	reason?: string;
+}
+
+// Answers the run's Stop hook. A stop whose closing contract is unmet
+// (uncommitted edits, or no update_card note this segment) is blocked with
+// feedback naming what is missing, bounded like PreCompact so a wedged run
+// can still end. A stop that parked the run on ask_user is legitimate and
+// never blocked. Only a let-through stop marks `hookPosted`, so the
+// clean-completion evidence the close path reads stays truthful.
+export async function runStopHook(
+	token: string,
+): Promise<StopDecision | undefined> {
 	const state = hookTokens.get(token);
-	if (state === undefined) return false;
+	if (state === undefined) return undefined;
+	if (!state.questionPosted) {
+		const missing: string[] = [];
+		if (state.worktree !== undefined) {
+			try {
+				if (await isDirty(state.worktree)) {
+					missing.push("the worktree has uncommitted edits: commit your work");
+				}
+			} catch (error) {
+				log?.error(
+					`run ${state.storyId}: stop-hook status failed: ${errorText(error)}`,
+				);
+			}
+		}
+		if (!state.notePosted) {
+			missing.push(
+				'no closing run note landed this segment: record one through update_card (the check command\'s outcome, plus one "verify:" bullet per behavior a human must check by hand)',
+			);
+		}
+		if (missing.length > 0 && state.stopBlocks < HOOK_BLOCK_LIMIT) {
+			state.stopBlocks += 1;
+			log?.info(
+				`run ${state.storyId}: stop deferred (${state.stopBlocks}/${HOOK_BLOCK_LIMIT})`,
+			);
+			return {
+				decision: "block",
+				reason: `Your closing contract is unmet. ${missing.join("; ")}. Then end your turn.`,
+			};
+		}
+	}
 	state.hookPosted = true;
 	log?.info(`run ${state.storyId}: stop-hook POST received`);
-	return true;
+	return {};
+}
+
+// Tool entry: the run's update_card landed a note; the Stop hook checks that
+// one landed per segment.
+export function runNotePosted(storyId: string): void {
+	const state = states.get(storyId);
+	if (state !== undefined) state.notePosted = true;
 }
 
 async function isClaudeProcess(pid: number): Promise<boolean> {

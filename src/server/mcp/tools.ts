@@ -21,7 +21,7 @@ import {
 	recordProposal,
 	recordQuestion,
 } from "../services/proposals.ts";
-import { runNeedsInput } from "../services/runs.ts";
+import { runNeedsInput, runNotePosted } from "../services/runs.ts";
 import { enqueueWrite } from "../write-queue.ts";
 import type { ReadyBinding } from "./registry.ts";
 import type { Proposal } from "./schemas.ts";
@@ -271,6 +271,7 @@ export const TOOL_TABLE: Record<BoardToolName, ToolDefinition> = {
 					body: appendRunNote(current.body, parsed.data.note),
 				});
 			});
+			runNotePosted(attach.id);
 			return ok("Note recorded on your card.");
 		},
 	},
