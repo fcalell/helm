@@ -1,7 +1,8 @@
-# First-dogfood-loop findings (002-01)
+# Dogfood loop findings
 
-Defects and tunings surfaced while running Helm's own loop on story 002-01, the first loop whose
-refinement ran through Helm itself. To triage into stories once the cost analysis is complete.
+Defects and tunings surfaced while running Helm's own loop, to triage into stories. The 002-01
+sections record the first loop whose refinement ran through Helm itself; the 004 section records
+the first loop driven end to end through the orchestrator API.
 
 ## Gate
 
@@ -58,3 +59,70 @@ kind). What stays open below is story sizing and gate mechanics, which no model 
 - **The flags were legitimate.** The run verified all 10 criteria live first try and standards
   review found only cosmetic issues. The gate earned its cost; the waste is story size and the
   cold re-read price at Fable rates, not phantom findings.
+
+## 004 loop: gate non-convergence (2026-07-28)
+
+Stories 004-01 and 004-02, driven end to end through the orchestrator API. 004-01 was a normal
+loop: 6 gate rounds, one needs-input round trip, review approved. 004-02 did not converge: 21
+adversary rounds across repeatedly re-requested attempts, ended only by a human scope cut at
+round 17 (the brief hand-rewritten to drop the accreted wake/supersession machinery), after which
+rounds 18-21 settled it. No per-session ledger exists for this loop (the driver restarted
+mid-epic); the orchestrator meter read ~1.7M pool tokens in its final five-hour window, an
+undercount. Triaged into epic 005. Findings:
+
+- **The gate is blind across attempts.** Each attempt caps at two automatic rounds and waits
+  (correct), but a re-request starts fresh: attempts live in memory only
+  (`src/server/services/gate.ts:53`) and the `gate` frontmatter block records only a pass. Nothing
+  counts cumulative rounds, so nothing tells the user "attempt nine, same flag theme" and the
+  signal to stop re-requesting and re-shape arrives as human exhaustion. The scope cut that ended
+  004-02 at round 17 was available at round 5.
+- **The resumed refine transcript carries sunk-cost bias, and its replay cost compounds.** The
+  refine session kept reintroducing the supersession design its own transcript had argued for,
+  even after edit resolutions removed it; every fix round replays the whole growing transcript.
+  What broke the loop was a fresh brief read with no chat history, a reseed performed by hand.
+- **Every accepted fix re-buys a full cold pass.** By design (a fix that narrows scope faces the
+  next cold reader), and the design earns it: the cross-section incoherence that dominated 004-02
+  is invisible to a reviewer reading only a diff. 002-02's warm-middle measurement points the same
+  way: the warm fix-verify pass cost $1.12 against a ~$2 cold read and saved only one round. Any
+  delta-round design must keep a full cold pass as the sign-off.
+- **Model tiering for late rounds rejected.** Rounds 18-20 raised small genuine flaws that were
+  accepted; a weaker late-round adversary either misses those or pays for itself in spurious
+  flags, each of which costs a full refine round trip. The savings are linear, the failure mode
+  multiplicative. `model-matrix.md` keeps adversary at Opus/high.
+- **The root cause was shaping, not the gate.** 004-02 bundled a design-heavy interaction model
+  into one story; the gate refused to certify it, correctly, and the cost was the refusal being
+  silent about why. Same conclusion as the 002-01 story-sizing finding above, now with a second
+  data point.
+
+## 005 refinement (2026-07-29)
+
+Surfaced while refining epic 005's stories. The epic grew from three cards to five: the
+escalation split out of the round record (they kept colliding inside one brief), and a harness
+story split out of both, because the gate's own behavior turned out to be unverifiable without
+spending the pool the epic exists to protect.
+
+- **A malformed session event crashes the orchestrator.** `spawnTracked` broadcasts any event
+  carrying a session id (`src/server/services/sessions.ts:308-317`); the hub validates on
+  broadcast against `sessionWireEventSchema`, whose `sessionId` is `z.uuid()`
+  (`src/sessions/events.ts:156-161`); the ZodError throws inside the readline `"line"` listener
+  (`src/sessions/runner.ts:206-221`), and nothing in `src/` or `@fcalell/plugin-node` installs an
+  `uncaughtException` handler. A CLI event with a non-uuid `session_id` takes the server down
+  instead of failing the spawn (`SessionSpawnError` covers only a death *before* init). The
+  `closed` broadcast has the same constraint. Found while deciding what a verification stub may
+  emit; evidence in `spikes/harness-feasibility/README.md`.
+- **A stub `claude` that dies after init reads as a clean gate pass.** `runRound` awaits
+  `run.done` and, seeing no flags, calls `writePass` and moves the story to Ready
+  (`gate.ts:237-241`, `:319-341`) whatever the exit code. Any harness that stands in for the CLI
+  must have something watching exit codes, or a broken stub silently certifies a brief.
+- **The gate's expensive branches are its unverifiable ones.** A replay-only stub never calls the
+  board tools, so its round is always flagless and always passes: flagged rounds, contested
+  flags, the concession path, exhausted attempts and any accumulating record can only be produced
+  by spending real Opus tokens. Three stories' live criteria collapsed into "graded by reading"
+  before this was named. Story 005-05 exists to close it.
+- **Unmeasured assumptions cost rounds, exactly as the anchors rule predicts.** The harness brief
+  ran 12 → 11 → 14 flags across three cold passes while its three load-bearing assumptions (the
+  MCP client/server pairing, the scratch cwd, the shim's module semantics) sat in prose. A
+  one-sitting spike settled all three, and two came back the opposite of the assumption: a
+  rejected MCP tool call *resolves* with `isError: true` rather than throwing, and a symlinked
+  `dist/client` keeps the SPA served from a scratch cwd, so no config swap is needed. Same
+  conclusion as define-refine.md §Defining an epic's anchors rule, now with a cost attached.
