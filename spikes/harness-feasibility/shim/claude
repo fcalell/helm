@@ -1,0 +1,8 @@
+#!/usr/bin/env node
+// Unknown 3: `spawn("claude", args)` (src/sessions/runner.ts:183) needs an
+// executable file named exactly `claude` on PATH. Can that file be
+// extensionless ESM importing a `.ts` sibling, so node strips the types and
+// `tsc` still covers the implementation?
+import { hello } from "./impl.ts";
+
+hello(process.argv.slice(2));
