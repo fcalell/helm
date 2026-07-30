@@ -118,10 +118,14 @@ CLI shows (compaction, refusals, rate-limit events):
   stream-json frames built from `recorded-frames.json` — one live spawn captured verbatim, with
   only the per-spawn fields overridden and usage and cost zeroed, so drift from the real CLI is
   bounded by an artifact and re-recording on an upgrade is what shows the shape moved — and calls
-  the orchestrator's board tools over the MCP url on its own `--mcp-config`. `harness/episode/` is the driver: it writes a scratch repo and its
-  verdict-free board fixture, starts the real orchestrator against it, pre-writes every script
-  of the episode, subscribes to all five WS channels, then plays the user's beats through the
-  API alone. The board-tool half is what makes flagged rounds, a contested flag, an accepted fix
+  the orchestrator's board tools over the MCP url on its own `--mcp-config`. `harness/episode/`
+  is the driver: it writes a scratch repo and its verdict-free board fixture, starts the real
+  orchestrator against it, pre-writes the episode's scripts, subscribes to all five WS channels,
+  then plays the user's beats through the API alone. A beat writes files too: a script withheld
+  until its own beat, so the spawn before it finds none and dies pre-init, and the sentinel a
+  script's `wait` step polls for, which holds a turn open until the episode releases it and is
+  what puts a second spawn against a live one. The board-tool half is what makes flagged rounds, a
+  contested flag, an accepted fix
   and the two-round exhausted attempt reachable at zero cost; a replay-only stub never calls a
   board tool, so its round is always flagless and always passes.
 - **Headless Chromium via playwright-core** against a live orchestrator on a scratch target repo:
