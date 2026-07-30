@@ -1,17 +1,13 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import {
-	buildEpicBody,
-	buildShapingBody,
-	buildStoryBody,
-	serializeShaping,
-} from "./markdown.ts";
+import { buildEpicBody, buildShapingBody, buildStoryBody } from "./markdown.ts";
 import type { StoryFrontmatter } from "./schema.ts";
 import {
 	boardDir,
 	epicFilePath,
 	shapingDir,
 	writeEpic,
+	writeShaping,
 	writeStory,
 } from "./store.ts";
 
@@ -61,8 +57,8 @@ export async function createEpic(
 }
 
 // Writes `.helm/board/shaping/<slug>.md` seeded with the rough goal as the
-// first agreed note. The slug must be free (`wx` throws on an existing
-// thread); callers dedupe before minting one.
+// first agreed note. The slug must be free (the exclusive write throws EEXIST
+// on an existing thread); callers dedupe before minting one.
 export async function createShapingThread(
 	repoPath: string,
 	slug: string,
@@ -71,10 +67,13 @@ export async function createShapingThread(
 ): Promise<{ path: string }> {
 	await mkdir(shapingDir(repoPath), { recursive: true });
 	const path = join(shapingDir(repoPath), `${slug}.md`);
-	await writeFile(
-		path,
-		serializeShaping({ sessions: {} }, buildShapingBody(title, goal)),
-		{ encoding: "utf8", flag: "wx" },
+	await writeShaping(
+		{
+			path,
+			frontmatter: { sessions: {} },
+			body: buildShapingBody(title, goal),
+		},
+		{ exclusive: true },
 	);
 	return { path };
 }

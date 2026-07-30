@@ -1,5 +1,13 @@
 import type { Dirent } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+	link,
+	mkdir,
+	readdir,
+	readFile,
+	rename,
+	unlink,
+	writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join, relative, sep } from "node:path";
 import { z } from "@fcalell/plugin-api/schema";
 import { parse as parseYaml } from "yaml";
@@ -445,23 +453,45 @@ export async function loadBoard(repoPath: string): Promise<Board> {
 	};
 }
 
+// `rename` and `link` are atomic only within one filesystem, so the temp sits
+// in the target's directory; its name is dot-prefixed because `classify`
+// ignores dot entries at every depth. `link` fails with EEXIST on an existing
+// target where `rename` would clobber it, and leaves the temp behind.
+async function writeAtomic(
+	path: string,
+	contents: string,
+	exclusive: boolean,
+): Promise<void> {
+	const temp = join(dirname(path), `.${basename(path)}.tmp`);
+	await writeFile(temp, contents, "utf8");
+	if (!exclusive) {
+		await rename(temp, path);
+		return;
+	}
+	try {
+		await link(temp, path);
+	} finally {
+		await unlink(temp);
+	}
+}
+
 export async function writeStory(
 	story: Pick<Story, "path" | "frontmatter" | "body">,
 ): Promise<void> {
-	await writeFile(
+	await writeAtomic(
 		story.path,
 		serializeStory(story.frontmatter, story.body),
-		"utf8",
+		false,
 	);
 }
 
 export async function writeEpic(
 	epic: Pick<Epic, "path" | "frontmatter" | "body">,
 ): Promise<void> {
-	await writeFile(
+	await writeAtomic(
 		epic.path,
 		serializeEpic(epic.frontmatter, epic.body),
-		"utf8",
+		false,
 	);
 }
 
@@ -484,13 +514,16 @@ export async function attachEpicSession(
 	});
 }
 
+// `exclusive` makes the put-in-place throw EEXIST when the slug is taken,
+// which is what `createShapeThread`'s dedupe loop matches on.
 export async function writeShaping(
 	thread: Pick<ShapingThread, "path" | "frontmatter" | "body">,
+	options?: { exclusive?: boolean },
 ): Promise<void> {
-	await writeFile(
+	await writeAtomic(
 		thread.path,
 		serializeShaping(thread.frontmatter, thread.body),
-		"utf8",
+		options?.exclusive === true,
 	);
 }
 

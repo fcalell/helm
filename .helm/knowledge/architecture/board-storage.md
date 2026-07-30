@@ -192,6 +192,11 @@ than a card.
   writers and read-modify-write races are designed out rather than locked around. The run's Stop
   hook POSTs to the orchestrator and never writes board files
   ([claude-integration](./claude-integration.md) §Hooks).
+- **Every write is atomic.** A board file is written to a dot-prefixed temp in its own directory
+  and put in place with one atomic operation, so a reader outside the write queue sees either the
+  old file or the new one, never a partial one. Reads are deliberately not serialized behind the
+  write queue: they run from the watcher, the loader and every route, and queueing them would make
+  a read issued from inside a queued write wait on its own caller.
 - **Chat never writes board files.** Accepting a proposal widget is the single mutation path from
   conversation ([define-refine](../product/features/define-refine.md) §Proposal widgets).
 - The implementing agent notes decisions and progress on its **own** card's body through the
