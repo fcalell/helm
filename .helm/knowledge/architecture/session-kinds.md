@@ -157,7 +157,10 @@ Three policies cover every kind:
   loud and the kind starts a fresh session seeded from the card
   ([claude-integration](./claude-integration.md) §Invocation model). The user loses transcript
   scroll-back, never the artifact: the brief is the product
-  ([define-refine](../product/features/define-refine.md)).
+  ([define-refine](../product/features/define-refine.md)). The ready gate reseeds a refine chat on
+  purpose too: a retry of an exhausted attempt runs its round in a fresh session seeded from the
+  story file and the override register, because two rounds have proven that transcript stuck
+  ([define-refine](../product/features/define-refine.md) §Ready gate).
 - **always cold** (`adversary`, `research`, `review`, `conflict`). These kinds never resume. Each starts fresh
   and reads the finished artifact with no chat history, which is the point of the adversary pass: a
   cold reader catches what the author and the refine chat talked themselves past.

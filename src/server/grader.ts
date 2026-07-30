@@ -24,7 +24,7 @@ import {
 	reviewFilePath,
 	reviewGradesSchema,
 } from "./services/runs.ts";
-import { runColdSession } from "./services/sessions.ts";
+import { runFreshTurn } from "./services/sessions.ts";
 import { worktreePath } from "./worktrees.ts";
 import { enqueueWrite } from "./write-queue.ts";
 
@@ -273,7 +273,7 @@ async function grade(
 	slot.grades = undefined;
 	slot.sessionId = undefined;
 	const { checkCommand } = await readRepoConfig(managedRepo());
-	const spawn = await runColdSession({
+	const spawn = await runFreshTurn({
 		kind: "review",
 		prompt: gradingPrompt(criteria, check, briefBody, corrective),
 		attach: { type: "story", id: storyId },

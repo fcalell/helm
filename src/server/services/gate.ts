@@ -30,7 +30,7 @@ import type { ReadyBinding } from "../mcp/registry.ts";
 import type { ContestFlagPayload, FlagRiskPayload } from "../mcp/schemas.ts";
 import { enqueueWrite } from "../write-queue.ts";
 import { boardSnapshot, broadcastNotice } from "./board.ts";
-import { messageSession, onSessionClosed, runColdSession } from "./sessions.ts";
+import { messageSession, onSessionClosed, runFreshTurn } from "./sessions.ts";
 
 // One ready-gate attempt per story, in memory only (like pending proposals):
 // a restart drops it and the next move-to-ready starts fresh. The `gate`
@@ -53,6 +53,10 @@ interface Attempt {
 	// The flags prompt found the story busy and is waiting to be routed;
 	// `routeFlags` is the only writer.
 	pendingFlags?: boolean;
+	// The next round routes to a fresh refine session seeded from the story
+	// file instead of resuming `sessions.refine`. Set on a retry of an
+	// exhausted attempt, cleared once the fresh turn spawns.
+	reseedRefine?: boolean;
 	// Serial chain of park retries: every close appends one link while the
 	// round is parked, so a retry that re-parks is healed by the next close.
 	flagRetries?: Promise<void>;
@@ -234,6 +238,7 @@ export async function requestReady(
 		if (existing !== undefined) {
 			// A user retry: only an exhausted attempt gets a new (manual) round.
 			if (existing.phase === "exhausted") {
+				existing.reseedRefine = true;
 				enqueueRound(existing);
 				return { gating: true, phase: "queued" };
 			}
@@ -279,7 +284,7 @@ async function runRound(attempt: Attempt): Promise<void> {
 	attempt.briefHash = briefHash(story.body);
 	attempt.rounds.push({ n: attempt.rounds.length + 1, flags: [] });
 	setPhase(attempt, "adversary");
-	const run = await runColdSession({
+	const run = await runFreshTurn({
 		kind: "adversary",
 		prompt: adversaryPrompt(story.body, attempt.overrides),
 		attach: { type: "story", id: attempt.storyId },
@@ -316,9 +321,11 @@ async function routeFlags(attempt: Attempt): Promise<void> {
 	const story = await readFresh(attempt.storyId).catch(() => undefined);
 	const refineId = story?.frontmatter.sessions.refine;
 	if (refineId === undefined) {
-		attempt.pendingFlags = false;
-		concedeOpenFlags(attempt);
-		setPhase(attempt, "review");
+		concedeToReview(attempt);
+		return;
+	}
+	if (attempt.reseedRefine === true) {
+		await reseedFlags(attempt, round, refineId);
 		return;
 	}
 	attempt.refineSessionId = refineId;
@@ -326,7 +333,7 @@ async function routeFlags(attempt: Attempt): Promise<void> {
 	try {
 		const { sessionId } = await messageSession({
 			sessionId: refineId,
-			prompt: gateFlagsPrompt(round.flags),
+			prompt: gateFlagsPrompt(round.flags, []),
 		});
 		attempt.pendingFlags = false;
 		// A stale resume reseeds under a fresh id.
@@ -336,11 +343,57 @@ async function routeFlags(attempt: Attempt): Promise<void> {
 			attempt.pendingFlags = true;
 			return;
 		}
-		attempt.pendingFlags = false;
-		logError(error);
-		concedeOpenFlags(attempt);
-		setPhase(attempt, "review");
+		concedeToReview(attempt, error);
 	}
+}
+
+// The marked route: a retry of an exhausted attempt runs its round in a fresh
+// refine session seeded from the story file, carrying the flags and the
+// attempt's override register.
+async function reseedFlags(
+	attempt: Attempt,
+	round: GateRound,
+	refineId: string,
+): Promise<void> {
+	// Unset across the whole spawn, so no close reaches the id-matched settle
+	// while the reseeded turn's own continuation owns its end.
+	attempt.refineSessionId = undefined;
+	setPhase(attempt, "refine");
+	try {
+		const { sessionId, done } = await runFreshTurn({
+			kind: "refine",
+			prompt: gateFlagsPrompt(round.flags, attempt.overrides),
+			attach: { type: "story", id: attempt.storyId },
+		});
+		attempt.pendingFlags = false;
+		attempt.reseedRefine = false;
+		// The turn's end is its end whichever way `done` settles: a closed
+		// listener that threw rejects it, and the round still has to leave
+		// `refine`. The id lands after the settle, so `onClosed` cannot repeat it.
+		void done
+			.catch(logError)
+			.then(() => {
+				settleRefineTurn(attempt, round);
+				attempt.refineSessionId = sessionId;
+			})
+			.catch(logError);
+	} catch (error) {
+		if (error instanceof ApiError && error.code === "SESSION_BUSY") {
+			attempt.pendingFlags = true;
+			return;
+		}
+		attempt.refineSessionId = refineId;
+		concedeToReview(attempt, error);
+	}
+}
+
+// A flags route that reached no refine turn: the round concedes so it never
+// idles, and the attempt waits for the user in review.
+function concedeToReview(attempt: Attempt, error?: unknown): void {
+	attempt.pendingFlags = false;
+	if (error !== undefined) logError(error);
+	concedeOpenFlags(attempt);
+	setPhase(attempt, "review");
 }
 
 // One link of the park's retry chain. The park outlives any single session
@@ -604,6 +657,25 @@ export async function resolveGateFlag(input: {
 	void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 }
 
+// The end of the refine turn a round routed to. Every guard here is about the
+// attempt rather than about which close arrived, so both the id-matched close
+// and the reseed's continuation share them; the round is an argument, so a
+// turn that outlived the round it was spawned for settles nothing.
+function settleRefineTurn(
+	attempt: Attempt,
+	round: GateRound | undefined,
+): void {
+	if (attempts.get(attempt.storyId) !== attempt) return;
+	if (attempt.pendingFlags === true) return;
+	if (attempt.phase !== "refine" && attempt.phase !== "review") return;
+	if (currentRound(attempt) !== round) return;
+	concedeOpenFlags(attempt);
+	// direct assign: one broadcast for the phase flip and the flag change together
+	if (attempt.phase === "refine") attempt.phase = "review";
+	broadcast(attempt);
+	void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
+}
+
 function onClosed({ sessionId }: { sessionId?: string; stale: boolean }): void {
 	for (const attempt of attempts.values()) {
 		// A parked round is waiting on whichever turn holds the story, not on
@@ -616,12 +688,7 @@ function onClosed({ sessionId }: { sessionId?: string; stale: boolean }): void {
 		}
 		if (sessionId === undefined) continue;
 		if (attempt.refineSessionId !== sessionId) continue;
-		if (attempt.phase !== "refine" && attempt.phase !== "review") continue;
-		concedeOpenFlags(attempt);
-		// direct assign: one broadcast for the phase flip and the flag change together
-		if (attempt.phase === "refine") attempt.phase = "review";
-		broadcast(attempt);
-		void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
+		settleRefineTurn(attempt, currentRound(attempt));
 	}
 }
 

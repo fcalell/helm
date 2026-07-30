@@ -144,15 +144,26 @@ export function adversaryPrompt(
 
 // Routes a round's flags to the story's refine session. The fix/contest
 // mechanics live in the refine system prompt, which is always present under
-// reseed-on-stale; this message only points back at it.
+// reseed-on-stale; this message only points back at it. The override register
+// carries the same framing as `adversaryPrompt`, so a dismissed flag is never
+// read as one of the flags above it.
 export function gateFlagsPrompt(
 	flags: { title: string; detail: string }[],
+	overrides: string[],
 ): string {
-	return [
+	const parts = [
 		"The ready-gate adversary reviewed this brief cold and raised the flags below. Answer every flag this turn as your system prompt specifies; an unanswered flag is recorded as contested with no counter-argument.",
 		"",
 		...flags.map((flag) => `- ${flag.title}: ${flag.detail}`),
-	].join("\n");
+	];
+	if (overrides.length > 0) {
+		parts.push(
+			"",
+			"The user has already accepted these risks; do not re-raise them:",
+			...overrides.map((override) => `- ${override}`),
+		);
+	}
+	return parts.join("\n");
 }
 
 // The run's user message: the kickoff plus the check command. The brief

@@ -126,8 +126,8 @@ queue and takes minutes; the card stays in Refining behind a gating indicator un
 lands ([board](./board.md) §Status state machine).
 
 **A finding routes by who can settle it**, the split shaping already uses for decisions (§Human
-and research decisions). The flags land in the story's refine session first: the orchestrator
-resumes it with the findings, and the session answers each flag with a fix or a contest. A fix is
+and research decisions). The flags land in the story's refine session first: within an attempt the
+orchestrator resumes it with the findings, and the session answers each flag with a fix or a contest. A fix is
 an `update_brief` proposal naming the flag it resolves (a title matching no open flag is refused
 at call time, naming the open titles); accepting it resolves the flag and stales the verdict. A contest is a `contest_flag` call whose payload carries the session's
 counter-argument; the flag renders as a widget with the argument attached: accepting files it as
@@ -147,7 +147,12 @@ whole attempt: each later pass reads the override register (the dismissed flags 
 reasons) alongside the brief and does not re-raise an accepted risk, the `gate` block accumulates
 every round's dismissals, and a re-raise that slips through takes the normal fix-or-contest path.
 After the second round the gate waits, so a fix-attack loop never burns the shared pool
-unattended. The drawer's round history reads the story file rather than the live attempt, so a
+unattended. A re-request of a spent attempt runs its round in a **fresh refine session** seeded
+from the story file and the override register. Two rounds have proven that chat stuck, and its
+transcript replays into every later round: the price grows with the rounds already spent, and the
+session keeps arguing for what it argued for before. The user loses the scroll-back, never the
+brief. The trigger is the live attempt, so a re-request after a server restart finds no attempt
+and resumes the existing session. The drawer's round history reads the story file rather than the live attempt, so a
 user returning after a restart still sees what the story already cost before deciding to
 re-request.
 

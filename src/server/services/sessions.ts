@@ -134,11 +134,12 @@ export async function spawnSession(
 	}
 }
 
-// The dispatcher path for the always-cold kinds: spawns outside the chat
-// entrypoints and exposes the process's completion, which the caller awaits
-// to hold its dispatcher slot. `done` resolves with the CLI's final result
-// event (undefined on a kill or crash) — a research session's finding.
-export async function runColdSession(input: {
+// The dispatcher path for spawns that never resume: the cold kinds, and the
+// gate's reseed of a spent refine chat. It spawns outside the chat entrypoints
+// and exposes the process's completion, which the caller awaits to hold its
+// dispatcher slot. `done` resolves with the CLI's final result event
+// (undefined on a kill or crash), a research session's finding.
+export async function runFreshTurn(input: {
 	kind: SessionKind;
 	prompt: string;
 	attach?: Attach;

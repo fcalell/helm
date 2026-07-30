@@ -65,7 +65,7 @@ import {
 	isSessionLive,
 	messageSession,
 	onSessionClosed,
-	runColdSession,
+	runFreshTurn,
 } from "./sessions.ts";
 
 // In-memory only: a pending proposal or question dies with the process (the
@@ -446,7 +446,7 @@ async function runResearch(
 		clearResearch(slug, decision);
 		return;
 	}
-	const run = await runColdSession({
+	const run = await runFreshTurn({
 		kind: "research",
 		prompt: researchPrompt(decision, context, thread.body),
 		attach: { type: "shaping", id: slug },
