@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+import { main } from "./stub.ts";
+
+await main(process.argv.slice(2));
