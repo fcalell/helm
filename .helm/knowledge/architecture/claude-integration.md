@@ -115,8 +115,10 @@ CLI shows (compaction, refusals, rate-limit events):
   is an executable file named `claude`, extensionless ESM importing its `.ts` modules so node
   strips the types and `tsc` still covers the implementation. It parses the argv the runner
   writes, appends every spawn and its exit code to a log, claims a pre-written script, emits
-  stream-json frames, and calls the orchestrator's board tools over the MCP url on its own
-  `--mcp-config`. `harness/episode/` is the driver: it writes a scratch repo and its
+  stream-json frames built from `recorded-frames.json` — one live spawn captured verbatim, with
+  only the per-spawn fields overridden and usage and cost zeroed, so drift from the real CLI is
+  bounded by an artifact and re-recording on an upgrade is what shows the shape moved — and calls
+  the orchestrator's board tools over the MCP url on its own `--mcp-config`. `harness/episode/` is the driver: it writes a scratch repo and its
   verdict-free board fixture, starts the real orchestrator against it, pre-writes every script
   of the episode, subscribes to all five WS channels, then plays the user's beats through the
   API alone. The board-tool half is what makes flagged rounds, a contested flag, an accepted fix

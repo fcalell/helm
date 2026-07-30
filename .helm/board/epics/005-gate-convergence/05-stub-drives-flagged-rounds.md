@@ -460,10 +460,11 @@ was additionally proven past it with a piped continue.
 - verify: `node harness/episode/run.ts exhausted`, open the printed URL, confirm the gate panel
   shows the round history for both rounds and the card carries its gate badge, before pressing
   Enter.
-- verify: the stub's `system/init` and `result` frames match what the live CLI emits. They satisfy
-  `parseInitEvent`/`parseResultEvent`, but no recorded raw init/result frame exists in the repo to
-  copy from, so the Approach's "copied from recorded real output" holds at the schema level only.
-  Capturing one costs a real spawn.
+- ~~verify: the stub's `system/init` and `result` frames match what the live CLI emits.~~ Closed
+  after the review: one live spawn (CLI 2.1.220, haiku, $0.0122) was captured verbatim into
+  `harness/stub-claude/recorded-frames.json`, and `frames.ts` now builds both frames from it,
+  overriding only the per-spawn fields and zeroing usage and cost. The Approach's "copied from
+  recorded real output" holds literally; 6/6 episodes still pass.
 - verify: the claim-path role guard (a claimed script whose declared role differs from the spawn's
   tool list fails loudly) is graded by reading `harness/stub-claude/script.ts`; no episode drives
   it.
