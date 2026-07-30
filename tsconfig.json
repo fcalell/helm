@@ -6,5 +6,5 @@
 			"virtual:stack-procedure": ["./.stack/procedure.ts"]
 		}
 	},
-	"include": ["src", ".stack", "stack.config.ts"]
+	"include": ["src", ".stack", "stack.config.ts", "harness"]
 }
