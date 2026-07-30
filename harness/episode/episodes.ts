@@ -36,7 +36,26 @@ const FLAG_TWO = {
 	detail: "The brief never says which files outside the board the work writes.",
 };
 
+const FLAG_THREE = {
+	title: "The seed of a retried round is unproven",
+	detail:
+		"Nothing says which text a re-requested round reads: the brief on disk, or the chat that argued about it.",
+};
+const FLAG_FOUR = {
+	title: "No criterion covers the retried round",
+	detail: "The brief stops at exhaustion and never grades what comes after it.",
+};
+
 const DISMISS_REASON = "the failure path rides its own probe";
+const RESEED_REASON = "the retried round has an episode of its own";
+
+// The card fixture's title, in the seed a fresh spawn carries and absent from
+// a resume's argv (`scratch.ts` STORY_BODY).
+const FIXTURE_TITLE = "Gate harness fixture";
+// `prompts.ts` frames the override register with this exact sentence, so a
+// dismissed flag never reads as one of the flags above it.
+const OVERRIDE_FRAMING =
+	"The user has already accepted these risks; do not re-raise them:";
 
 const SILENT_REFINE: StubScript = { role: "refine", steps: [] };
 const SILENT_ADVERSARY: StubScript = { role: "adversary", steps: [] };
@@ -78,11 +97,10 @@ function contesting(flag: string, argument: string): StubScript {
 	};
 }
 
-const FIX_ONE = fixing(
-	"Out of scope",
-	"Everything the episode does not drive, and the spawn-failure path the probes own.",
-	FLAG_ONE.title,
-);
+const FIX_ONE_CONTENT =
+	"Everything the episode does not drive, and the spawn-failure path the probes own.";
+
+const FIX_ONE = fixing("Out of scope", FIX_ONE_CONTENT, FLAG_ONE.title);
 const FIX_TWO = fixing(
 	"Blast radius",
 	"The scratch repo only, plus the scratch helm.config.json beside it.",
@@ -982,6 +1000,290 @@ const refineTurnLive: Episode = {
 	},
 };
 
+async function waitForRefineSession(
+	ctx: EpisodeContext,
+	sessionId: string,
+): Promise<void> {
+	await ctx.obs.waitFor(`sessions.refine to read ${sessionId}`, () =>
+		findStory(ctx).frontmatter.sessions.refine === sessionId
+			? sessionId
+			: undefined,
+	);
+}
+
+// The two automatic rounds a retry needs spent: each flags and is fixed, so
+// the second one leaves the attempt with a moved brief hash.
+async function spendTwoRounds(ctx: EpisodeContext): Promise<void> {
+	await waitForFlag(ctx, FLAG_ONE.title);
+	await acceptFix(ctx, FLAG_ONE.title);
+	await waitForFlag(ctx, FLAG_TWO.title);
+	await acceptFix(ctx, FLAG_TWO.title);
+}
+
+const reseedRetry: Episode = {
+	name: "gate-reseed-retry",
+	summary: "a retried exhausted attempt routes its round to a fresh session",
+	scripts: {
+		"refine-1": SILENT_REFINE,
+		"adversary-1": flagging(FLAG_ONE),
+		"refine-2": FIX_ONE,
+		"adversary-2": flagging(FLAG_TWO, FLAG_THREE),
+		"refine-3": FIX_TWO,
+		"adversary-3": flagging(FLAG_FOUR),
+		"refine-4": SILENT_REFINE,
+	},
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "adversary", ordinal: 1, exit: 0 },
+		{ role: "refine", ordinal: 2, exit: 0 },
+		{ role: "adversary", ordinal: 2, exit: 0 },
+		{ role: "refine", ordinal: 3, exit: 0 },
+		{ role: "adversary", ordinal: 3, exit: 0 },
+		{ role: "refine", ordinal: 4, exit: 0 },
+	],
+	rounds: 3,
+	run: async (ctx) => {
+		const chat = await spawnRefineChat(ctx);
+		await moveToReady(ctx);
+		await spendTwoRounds(ctx);
+		await ctx.obs.waitFor(`the flag "${FLAG_THREE.title}" to concede`, () =>
+			flagStatus(ctx, FLAG_THREE.title)?.status === "contested"
+				? "contested"
+				: undefined,
+		);
+		await ctx.rpc("gate/resolveFlag", {
+			storyId: ctx.storyId,
+			flag: FLAG_THREE.title,
+			resolution: { type: "dismiss", reason: RESEED_REASON },
+		});
+		await waitForPhase(ctx, "exhausted");
+		const attempt = ctx.obs
+			.gate()
+			?.attempts.find((each) => each.storyId === ctx.storyId);
+		assert(
+			attempt?.rounds.length === 2,
+			`the exhausted attempt carries ${String(attempt?.rounds.length)} rounds`,
+		);
+		assert(
+			attempt.overrides.some((each) => each.includes(RESEED_REASON)),
+			"the dismissal left no override on the exhausted attempt",
+		);
+		await waitForRecord(
+			ctx,
+			"both spent rounds in the story file",
+			(rounds) => rounds.length === 2,
+		);
+
+		await moveToReady(ctx);
+		const fresh = await ctx.obs.waitFor("the reseeded refine spawn", () =>
+			stubStarts(ctx).find((entry) => entry.script === "refine-4.json"),
+		);
+		assert(
+			fresh.parsed.resume === undefined,
+			`the retried round resumed ${String(fresh.parsed.resume)} instead of spawning fresh`,
+		);
+		const seed = fresh.parsed.systemPrompt ?? "";
+		assert(
+			seed.includes(FIXTURE_TITLE),
+			"the fresh spawn carries no story card in its system prompt",
+		);
+		assert(
+			seed.includes(FIX_ONE_CONTENT),
+			"the fresh spawn's seed predates round 1's fix, so it is not the story file on disk",
+		);
+		const prompt = fresh.parsed.prompt ?? "";
+		assert(
+			prompt.includes(FLAG_FOUR.title),
+			`the fresh spawn's message carries no round 3 flag: ${prompt}`,
+		);
+		assert(
+			prompt.includes(OVERRIDE_FRAMING),
+			`the register rides the flag list unframed: ${prompt}`,
+		);
+		assert(
+			prompt.includes(FLAG_THREE.title) && prompt.includes(RESEED_REASON),
+			`the dismissed flag's title and reason are missing from the register: ${prompt}`,
+		);
+		ctx.say(
+			"the retried round spawned fresh with the card seed and the register",
+		);
+		for (const name of ["refine-2.json", "refine-3.json"]) {
+			const resumed = stubStarts(ctx).find((entry) => entry.script === name);
+			assert(
+				resumed?.parsed.resume === chat,
+				`${name} carried ${String(resumed?.parsed.resume)}, not the chat ${chat}`,
+			);
+		}
+		const rebound = await ctx.obs.waitFor(
+			"sessions.refine to move off the spent chat",
+			() => {
+				const found = findStory(ctx).frontmatter.sessions.refine;
+				return found !== undefined && found !== chat ? found : undefined;
+			},
+		);
+		await ctx.obs.waitFor(
+			`a closed frame for the reseeded session ${rebound}`,
+			() => ctx.obs.closed().find((each) => each.sessionId === rebound),
+		);
+		ctx.say(`the story's refine session moved from ${chat} to ${rebound}`);
+		await waitForPhase(ctx, "review");
+		await waitForRecord(
+			ctx,
+			"round 3 recorded with its flag contested",
+			(rounds) =>
+				rounds.length === 3 &&
+				rounds[2]?.flags.some(
+					(flag) =>
+						flag.title === FLAG_FOUR.title && flag.status === "contested",
+				) === true,
+		);
+	},
+};
+
+const reseedNotOnRecord: Episode = {
+	name: "gate-reseed-not-on-record",
+	summary: "a spent record with no attempt in memory resumes the refine chat",
+	fixture: { gate: { rounds: FIXTURE_ROUNDS } },
+	scripts: {
+		"refine-1": SILENT_REFINE,
+		"adversary-1": flagging(FLAG_ONE),
+		"refine-2": SILENT_REFINE,
+	},
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "adversary", ordinal: 1, exit: 0 },
+		{ role: "refine", ordinal: 2, exit: 0 },
+	],
+	rounds: 1,
+	run: async (ctx) => {
+		const chat = await spawnRefineChat(ctx);
+		await waitForRefineSession(ctx, chat);
+		assert(
+			recordedRounds(ctx).length === 2,
+			`the fixture story records ${recordedRounds(ctx).length} rounds, not the two a spent attempt leaves`,
+		);
+		await moveToReady(ctx);
+		await waitForFlag(ctx, FLAG_ONE.title);
+		const routed = await ctx.obs.waitFor("the round's refine spawn", () =>
+			stubStarts(ctx).find((entry) => entry.script === "refine-2.json"),
+		);
+		assert(
+			routed.parsed.resume === chat,
+			`the round spawned fresh (resume ${String(routed.parsed.resume)}) on a story whose only exhaustion evidence is its record`,
+		);
+		assert(
+			routed.parsed.systemPrompt?.includes(FIXTURE_TITLE) !== true,
+			"the round's spawn carries the card seed, so it reseeded instead of resuming",
+		);
+		assert(
+			findStory(ctx).frontmatter.sessions.refine === chat,
+			"sessions.refine moved off the chat the round resumed",
+		);
+		ctx.say(`the round resumed ${chat}: two recorded rounds trigger nothing`);
+		await waitForSettledRound(ctx, FLAG_ONE.title, 3);
+	},
+};
+
+const RESEED_ADVERSARY_HOLD = "reseed-adversary-hold";
+const RESEED_REFINE_HOLD = "reseed-refine-hold";
+
+const reseedPark: Episode = {
+	name: "gate-reseed-park",
+	summary: "a reseed parked on a busy story spawns fresh on the next close",
+	scripts: {
+		"refine-1": SILENT_REFINE,
+		"adversary-1": flagging(FLAG_ONE),
+		"refine-2": FIX_ONE,
+		"adversary-2": flagging(FLAG_TWO),
+		"refine-3": FIX_TWO,
+		"adversary-3": {
+			role: "adversary",
+			steps: [
+				{
+					t: "call",
+					tool: "flag_risk",
+					payload: { title: FLAG_FOUR.title, detail: FLAG_FOUR.detail },
+				},
+				{ t: "wait", sentinel: RESEED_ADVERSARY_HOLD },
+			],
+		},
+		"refine-4": holding(RESEED_REFINE_HOLD),
+	},
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "adversary", ordinal: 1, exit: 0 },
+		{ role: "refine", ordinal: 2, exit: 0 },
+		{ role: "adversary", ordinal: 2, exit: 0 },
+		{ role: "refine", ordinal: 3, exit: 0 },
+		{ role: "adversary", ordinal: 3, exit: 0 },
+		{ role: "refine", ordinal: 4, exit: 0 },
+		{ role: "refine", ordinal: 5, exit: NO_SCRIPT_EXIT, claims: false },
+	],
+	rounds: 3,
+	run: async (ctx) => {
+		const chat = await spawnRefineChat(ctx);
+		await waitForRefineSession(ctx, chat);
+		await moveToReady(ctx);
+		await spendTwoRounds(ctx);
+		await waitForPhase(ctx, "exhausted");
+		await moveToReady(ctx);
+		await waitForFlag(ctx, FLAG_FOUR.title);
+		await ctx.rpc("session/message", {
+			sessionId: chat,
+			prompt: "Hold this chat open while the adversary finishes.",
+		});
+		const spawned = stubStarts(ctx).length;
+		ctx.say(`refine turn ${chat} is live with the adversary still holding`);
+		releaseSentinel(ctx.scratch, RESEED_ADVERSARY_HOLD);
+		await waitForPhase(ctx, "refine");
+		assert(
+			stubStarts(ctx).length === spawned,
+			"the reseed reached a spawn instead of parking",
+		);
+		assert(
+			flagStatus(ctx, FLAG_FOUR.title)?.status === "open",
+			"the parked round conceded its flag",
+		);
+		ctx.say("the reseed parked: phase refine, flag open, no spawn");
+		releaseSentinel(ctx.scratch, RESEED_REFINE_HOLD);
+		const retried = await ctx.obs.waitFor(
+			"the chained retry to spawn its own turn",
+			() =>
+				stubStarts(ctx)
+					.slice(spawned)
+					.find((entry) => entry.role === "refine"),
+		);
+		assert(
+			retried.parsed.resume === undefined,
+			`the healed park resumed ${String(retried.parsed.resume)} instead of spawning fresh`,
+		);
+		ctx.say(
+			"the close healed the park with a fresh spawn, and it found no script",
+		);
+		await waitForPhase(ctx, "review");
+		const flag = flagStatus(ctx, FLAG_FOUR.title);
+		assert(
+			flag?.status === "contested" && flag.argument === undefined,
+			`the failed reseed left the flag ${String(flag?.status)}`,
+		);
+		assert(
+			findStory(ctx).frontmatter.sessions.refine === chat,
+			"the failed reseed moved sessions.refine off the pre-retry chat",
+		);
+		await waitForRecord(
+			ctx,
+			"round 3 recorded with its flag contested",
+			(rounds) =>
+				rounds.length === 3 &&
+				rounds[2]?.flags.some(
+					(flag) =>
+						flag.title === FLAG_FOUR.title && flag.status === "contested",
+				) === true,
+		);
+		assertRefining(ctx, "after the failed reseed settled");
+	},
+};
+
 export const EPISODES: readonly Episode[] = [
 	flagless,
 	oneFlag,
@@ -999,4 +1301,7 @@ export const EPISODES: readonly Episode[] = [
 	refineTurnPark,
 	refineTurnFailureRelease,
 	refineTurnLive,
+	reseedRetry,
+	reseedNotOnRecord,
+	reseedPark,
 ];
