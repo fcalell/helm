@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { splitFrontmatter } from "../../src/board/markdown.ts";
-import type { Story } from "../../src/board/schema.ts";
+import type { GateRecordRound, Story } from "../../src/board/schema.ts";
 import { verdictValid } from "../../src/board/transitions.ts";
 import type { GateFlag } from "../../src/shared/gate.ts";
 import type { StubRole } from "../stub-claude/argv.ts";
@@ -9,7 +9,7 @@ import { readStubLog } from "../stub-claude/log.ts";
 import { type StubScript, scriptName } from "../stub-claude/script.ts";
 import { type Observer, observe } from "./observer.ts";
 import { type RpcCall, rpcClient } from "./rpc.ts";
-import { type Scratch, setupScratch } from "./scratch.ts";
+import { type Scratch, type ScratchOptions, setupScratch } from "./scratch.ts";
 import {
 	BUILD_INSTRUCTION,
 	missingBuildOutputs,
@@ -36,6 +36,9 @@ export interface EpisodeContext {
 	body(): string;
 	story(): Story;
 	say(message: string): void;
+	// Stops the orchestrator and starts a fresh one against the same scratch
+	// repo and spawn log, then re-attaches the observer and the RPC client.
+	restart(): Promise<void>;
 	// Holds the server up for an operator; false means stdin closed with
 	// nobody there, so the beats after the halt never ran.
 	halt(message: string): Promise<boolean>;
@@ -47,6 +50,8 @@ export interface Episode {
 	scripts: Record<string, StubScript>;
 	spawns: SpawnDeclaration[];
 	rounds: number;
+	// Board fixtures beyond the default single refining story.
+	fixture?: ScratchOptions;
 	// Stops with the server up and waits for an operator, so a panel that
 	// dies with its attempt can be seen.
 	halts?: boolean;
@@ -64,18 +69,49 @@ export function assert(ok: boolean, message: string): asserts ok {
 	if (!ok) throw new EpisodeFailure(message);
 }
 
-export function findStory(ctx: EpisodeContext): Story {
-	const story = ctx.obs
-		.board()
-		?.stories.find((each) => each.id === ctx.storyId);
-	assert(story !== undefined, `no story ${ctx.storyId} on the board channel`);
+export function findStory(ctx: EpisodeContext, storyId = ctx.storyId): Story {
+	const story = ctx.obs.board()?.stories.find((each) => each.id === storyId);
+	assert(story !== undefined, `no story ${storyId} on the board channel`);
 	return story;
 }
 
-export async function spawnRefineChat(ctx: EpisodeContext): Promise<string> {
+// The gate record on disk, read through the board channel's story payload.
+export function recordedRounds(
+	ctx: EpisodeContext,
+	storyId = ctx.storyId,
+): GateRecordRound[] {
+	const story = ctx.obs.board()?.stories.find((each) => each.id === storyId);
+	return story?.frontmatter.gate?.rounds ?? [];
+}
+
+export async function waitForRecord(
+	ctx: EpisodeContext,
+	what: string,
+	holds: (rounds: GateRecordRound[]) => boolean,
+	storyId = ctx.storyId,
+): Promise<GateRecordRound[]> {
+	const rounds = await ctx.obs.waitFor(what, () => {
+		const found = recordedRounds(ctx, storyId);
+		return holds(found) ? found : undefined;
+	});
+	ctx.say(
+		`story ${storyId} records ${rounds.length} round(s): ${rounds
+			.map(
+				(round) =>
+					`${round.n} [${round.flags.map((flag) => flag.status).join(",")}]`,
+			)
+			.join(" ")}`,
+	);
+	return rounds;
+}
+
+export async function spawnRefineChat(
+	ctx: EpisodeContext,
+	storyId = ctx.storyId,
+): Promise<string> {
 	const { sessionId } = await ctx.rpc<{ sessionId: string }>("session/spawn", {
 		kind: "refine",
-		storyId: ctx.storyId,
+		storyId,
 		prompt: "Open the refine chat for this story.",
 	});
 	// `routeFlags` concedes every flag unless the story carries a refine
@@ -88,16 +124,31 @@ export async function spawnRefineChat(ctx: EpisodeContext): Promise<string> {
 	return sessionId;
 }
 
-export async function moveToReady(ctx: EpisodeContext): Promise<void> {
+export async function moveToReady(
+	ctx: EpisodeContext,
+	storyId = ctx.storyId,
+): Promise<void> {
 	const result = await ctx.rpc<{ gating: boolean; phase?: string }>(
 		"story/move",
-		{ id: ctx.storyId, to: "ready" },
+		{ id: storyId, to: "ready" },
 	);
 	assert(
 		result.gating,
 		`the move into Ready did not start a gate attempt: ${JSON.stringify(result)}`,
 	);
 	ctx.say(`move into Ready gating, phase ${String(result.phase)}`);
+}
+
+export async function moveStory(
+	ctx: EpisodeContext,
+	storyId: string,
+	to: string,
+): Promise<void> {
+	await ctx.rpc("story/move", { id: storyId, to });
+	await ctx.obs.waitFor(`story ${storyId} to read ${to} on the board`, () =>
+		findStory(ctx, storyId).frontmatter.status === to ? to : undefined,
+	);
+	ctx.say(`story ${storyId} moved to ${to}`);
 }
 
 export async function waitForFlag(
@@ -168,22 +219,20 @@ export async function acceptFix(
 	ctx.say(`accepted the fix for "${resolves}"; the brief body changed`);
 }
 
-export async function waitForReady(ctx: EpisodeContext): Promise<Story> {
-	const story = await ctx.obs.waitFor(
-		`story ${ctx.storyId} to reach Ready`,
-		() => {
-			const found = ctx.obs
-				.board()
-				?.stories.find((each) => each.id === ctx.storyId);
-			return found?.frontmatter.status === "ready" ? found : undefined;
-		},
-	);
+export async function waitForReady(
+	ctx: EpisodeContext,
+	storyId = ctx.storyId,
+): Promise<Story> {
+	const story = await ctx.obs.waitFor(`story ${storyId} to reach Ready`, () => {
+		const found = ctx.obs.board()?.stories.find((each) => each.id === storyId);
+		return found?.frontmatter.status === "ready" ? found : undefined;
+	});
 	assert(
 		verdictValid(story.frontmatter.gate, story.body),
 		"the story reached Ready without a gate verdict for this brief",
 	);
 	ctx.say(
-		`story ${ctx.storyId} is Ready with verdict ${story.frontmatter.gate?.brief ?? "?"}`,
+		`story ${storyId} is Ready with verdict ${story.frontmatter.gate?.brief ?? "?"}`,
 	);
 	return story;
 }
@@ -275,10 +324,13 @@ export async function runEpisode(episode: Episode): Promise<boolean> {
 		return false;
 	}
 	console.log(`\n=== ${episode.name}: ${episode.summary}`);
-	const scratch = setupScratch(episode.name);
+	const scratch = setupScratch(episode.name, episode.fixture);
 	writeScripts(scratch, episode.scripts);
-	const orchestrator = await startOrchestrator(scratch, PORT);
-	const obs = await observe(orchestrator.base);
+	// The pair is mutable because `restart()` swaps it: teardown and the
+	// post-run checks must act on the live orchestrator, never the dead one,
+	// or the replacement leaks onto the fixed port.
+	let orchestrator = await startOrchestrator(scratch, PORT);
+	let obs = await observe(orchestrator.base);
 	const ctx: EpisodeContext = {
 		base: orchestrator.base,
 		scratch,
@@ -289,7 +341,20 @@ export async function runEpisode(episode: Episode): Promise<boolean> {
 			splitFrontmatter(readFileSync(scratch.storyPath, "utf8"))?.body ?? "",
 		story: () => findStory(ctx),
 		say: (message) => console.log(`  ${message}`),
-		halt: (message) => halt(orchestrator.base, scratch.storyId, message),
+		restart: async () => {
+			obs.close();
+			await orchestrator.stop();
+			orchestrator = await startOrchestrator(scratch, PORT);
+			obs = await observe(orchestrator.base);
+			ctx.base = orchestrator.base;
+			ctx.obs = obs;
+			ctx.rpc = rpcClient(orchestrator.base);
+			await obs.waitFor("the board snapshot after the restart", () =>
+				obs.board(),
+			);
+			console.log("  orchestrator restarted against the same scratch repo");
+		},
+		halt: (message) => halt(ctx.base, scratch.storyId, message),
 	};
 
 	let failure: unknown;

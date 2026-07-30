@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { splitFrontmatter } from "../../src/board/markdown.ts";
 import { readStubLog } from "../stub-claude/log.ts";
 import type { StubScript } from "../stub-claude/script.ts";
 import { NO_SCRIPT_EXIT, TOOL_FAILURE_EXIT } from "../stub-claude/stub.ts";
@@ -8,10 +10,13 @@ import {
 	type EpisodeContext,
 	findStory,
 	flagStatus,
+	moveStory,
 	moveToReady,
+	recordedRounds,
 	spawnRefineChat,
 	waitForFlag,
 	waitForReady,
+	waitForRecord,
 } from "./driver.ts";
 
 const FLAG_ONE = {
@@ -178,8 +183,13 @@ const contested: Episode = {
 		await waitForPhase(ctx, "review");
 		assertRefining(ctx, "before the operator resolved the flag");
 		ctx.say(`counter-argument: ${flag.argument ?? ""}`);
+		await waitForRecord(
+			ctx,
+			"round 1 in the story file",
+			(rounds) => rounds.length === 1,
+		);
 		const answered = await ctx.halt(
-			"the drawer shows the contested flag with its counter-argument and the card is still in Refining",
+			"the drawer shows the review phase line, the contested flag's widget with its counter-argument and the file-driven history box for round 1; the card is still in Refining",
 		);
 		if (!answered) {
 			ctx.say("stdin closed: stopped at the halt, the dismissal never ran");
@@ -242,8 +252,13 @@ const exhausted: Episode = {
 			`the exhausted attempt carries ${attempt.rounds.length} rounds`,
 		);
 		assertRefining(ctx, "before the attempt was dropped");
+		await waitForRecord(
+			ctx,
+			"both rounds in the story file",
+			(rounds) => rounds.length === 2,
+		);
 		await ctx.halt(
-			"the gate panel shows both rounds in its history and the card carries the gate badge",
+			'the gate panel shows the exhausted phase line with no round count, both rounds in the file-driven history box, the "Move the card to Ready…" line and no flag widget; the card carries the gate badge',
 		);
 	},
 };
@@ -296,6 +311,12 @@ const missingScript: Episode = {
 			(ctx.obs.gate()?.attempts.length ?? 0) === 0,
 			"the aborted attempt is still on the gate channel",
 		);
+		await waitForRecord(
+			ctx,
+			"the interrupted round in the story file",
+			(rounds) => rounds.length === 1 && rounds[0]?.n === 1,
+		);
+		assertRefining(ctx, "after the interrupted round was recorded");
 	},
 };
 
@@ -370,6 +391,273 @@ const concession: Episode = {
 	},
 };
 
+const SECOND_ID = "001-02";
+
+const FIXTURE_OVERRIDES = [
+	`${FLAG_ONE.title}: the failure path rides its own probe, so the criterion belongs there`,
+	`${FLAG_TWO.title}: the scratch config is named in the approach, so the blast radius stands`,
+];
+
+const FIXTURE_ROUNDS = [
+	{ n: 1, flags: [{ title: FLAG_ONE.title, status: "dismissed" as const }] },
+	{ n: 2, flags: [{ title: FLAG_TWO.title, status: "fixed" as const }] },
+];
+
+function frontmatterLines(path: string): string[] {
+	return (splitFrontmatter(readFileSync(path, "utf8"))?.head ?? "").split("\n");
+}
+
+// A conceded round has settled: its refine turn spawned and closed, and the
+// record carries the flag at its final status.
+async function waitForSettledRound(
+	ctx: EpisodeContext,
+	title: string,
+	rounds: number,
+): Promise<void> {
+	await waitForPhase(ctx, "review");
+	await waitForRecord(
+		ctx,
+		`round ${rounds} recorded with "${title}" contested`,
+		(recorded) =>
+			recorded.length === rounds &&
+			recorded[rounds - 1]?.flags.some(
+				(flag) => flag.title === title && flag.status === "contested",
+			) === true,
+	);
+}
+
+const historyRestart: Episode = {
+	name: "gate-history-restart",
+	summary: "a recorded round survives a restart and the next one appends to it",
+	scripts: {
+		"refine-1": SILENT_REFINE,
+		"adversary-1": flagging(FLAG_ONE),
+		"refine-2": SILENT_REFINE,
+		"adversary-2": flagging(FLAG_TWO),
+		"refine-3": SILENT_REFINE,
+	},
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "adversary", ordinal: 1, exit: 0 },
+		{ role: "refine", ordinal: 2, exit: 0 },
+		{ role: "adversary", ordinal: 2, exit: 0 },
+		{ role: "refine", ordinal: 3, exit: 0 },
+	],
+	rounds: 1,
+	run: async (ctx) => {
+		await spawnRefineChat(ctx);
+		await moveToReady(ctx);
+		await waitForFlag(ctx, FLAG_ONE.title);
+		await waitForSettledRound(ctx, FLAG_ONE.title, 1);
+		await ctx.restart();
+		assertRefining(ctx, "across the restart");
+		assert(
+			(ctx.obs.gate()?.attempts.length ?? 0) === 0,
+			"the restarted orchestrator still holds a gate attempt",
+		);
+		await moveToReady(ctx);
+		await waitForFlag(ctx, FLAG_TWO.title);
+		await waitForSettledRound(ctx, FLAG_TWO.title, 2);
+		const both = recordedRounds(ctx);
+		assert(
+			both[0]?.n === 1 && both[1]?.n === 2,
+			`the rounds are numbered ${both.map((round) => round.n).join(",")}`,
+		);
+		assert(
+			both[0]?.flags[0]?.title === FLAG_ONE.title &&
+				both[1]?.flags[0]?.title === FLAG_TWO.title,
+			"the second attempt overwrote the first attempt's round",
+		);
+	},
+};
+
+const historyCleared: Episode = {
+	name: "gate-history-cleared",
+	summary: "every exit out of Refining clears the record and its attempt",
+	fixture: {
+		stories: [{ id: SECOND_ID, gate: { rounds: FIXTURE_ROUNDS } }],
+	},
+	scripts: {
+		"refine-1": SILENT_REFINE,
+		"adversary-1": flagging(FLAG_ONE),
+		"refine-2": SILENT_REFINE,
+		"adversary-2": flagging(FLAG_TWO),
+		"refine-3": SILENT_REFINE,
+		"adversary-3": SILENT_ADVERSARY,
+	},
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "adversary", ordinal: 1, exit: 0 },
+		{ role: "refine", ordinal: 2, exit: 0 },
+		{ role: "adversary", ordinal: 2, exit: 0 },
+		{ role: "refine", ordinal: 3, exit: 0 },
+		{ role: "adversary", ordinal: 3, exit: 0 },
+	],
+	rounds: 1,
+	run: async (ctx) => {
+		await spawnRefineChat(ctx);
+		await moveToReady(ctx);
+		await waitForFlag(ctx, FLAG_ONE.title);
+		await waitForSettledRound(ctx, FLAG_ONE.title, 1);
+		await moveStory(ctx, ctx.storyId, "backlog");
+		await waitForRecord(
+			ctx,
+			"the record cleared by the drag to Backlog",
+			(rounds) => rounds.length === 0,
+		);
+		assert(
+			(ctx.obs.gate()?.attempts.length ?? 0) === 0,
+			"the drag left the gate attempt alive, so it can restore the record",
+		);
+		await moveStory(ctx, ctx.storyId, "refining");
+		await moveToReady(ctx);
+		await waitForFlag(ctx, FLAG_TWO.title);
+		await waitForSettledRound(ctx, FLAG_TWO.title, 1);
+		const restarted = recordedRounds(ctx);
+		assert(
+			restarted[0]?.n === 1 && restarted[0]?.flags[0]?.title === FLAG_TWO.title,
+			"the cleared record came back instead of starting over",
+		);
+		await moveToReady(ctx, SECOND_ID);
+		await waitForReady(ctx, SECOND_ID);
+		assert(
+			recordedRounds(ctx, SECOND_ID).length === 0,
+			"the pass left the round record on a story now in Ready",
+		);
+		assert(
+			!frontmatterLines(ctx.scratch.storyPaths[SECOND_ID] ?? "").some((line) =>
+				line.includes("rounds"),
+			),
+			"the passed story's gate block still carries a rounds key",
+		);
+	},
+};
+
+const historyBlockStyle: Episode = {
+	name: "gate-history-block-style",
+	summary: "a record with lists serializes as a block map, one entry per line",
+	fixture: {
+		gate: { overrides: FIXTURE_OVERRIDES, rounds: FIXTURE_ROUNDS },
+	},
+	scripts: {
+		"refine-1": SILENT_REFINE,
+		"adversary-1": flagging(FLAG_ONE),
+		"refine-2": SILENT_REFINE,
+	},
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "adversary", ordinal: 1, exit: 0 },
+		{ role: "refine", ordinal: 2, exit: 0 },
+	],
+	rounds: 1,
+	run: async (ctx) => {
+		await spawnRefineChat(ctx);
+		await moveToReady(ctx);
+		await waitForFlag(ctx, FLAG_ONE.title);
+		await waitForSettledRound(ctx, FLAG_ONE.title, 3);
+		const rounds = recordedRounds(ctx);
+		assert(
+			rounds.map((round) => round.n).join(",") === "1,2,3",
+			`the rounds are numbered ${rounds.map((round) => round.n).join(",")}`,
+		);
+		assert(
+			rounds[0]?.flags[0]?.status === "dismissed" &&
+				rounds[1]?.flags[0]?.status === "fixed",
+			"the live round rewrote the fixture's rounds",
+		);
+		const lines = frontmatterLines(ctx.scratch.storyPath);
+		assert(
+			lines.includes("gate:"),
+			`the gate block stayed flow-styled:\n${lines.join("\n")}`,
+		);
+		for (const override of FIXTURE_OVERRIDES) {
+			assert(
+				lines.filter((line) => line.includes(override)).length === 1,
+				`override "${override.slice(0, 30)}…" is not on a line of its own`,
+			);
+		}
+		assert(
+			!lines.some((line) =>
+				FIXTURE_OVERRIDES.every((override) => line.includes(override)),
+			),
+			"both overrides share one line, so the line grows with the list",
+		);
+		assert(
+			lines.filter((line) => /^\s+- n: \d+$/.test(line)).length === 3,
+			"the rounds are not a block sequence of block maps",
+		);
+		assert(
+			!lines.some(
+				(line) =>
+					line.includes(FLAG_ONE.title) && line.includes(FLAG_TWO.title),
+			),
+			"two flags share one line, so the line grows with the list",
+		);
+		ctx.say("every list under `gate` renders one entry per line");
+	},
+};
+
+const historyCold: Episode = {
+	name: "gate-history-cold",
+	summary: "a cold orchestrator renders the record from the file alone",
+	halts: true,
+	fixture: {
+		gate: {
+			rounds: [
+				...FIXTURE_ROUNDS,
+				{
+					n: 3,
+					flags: [
+						{ title: FLAG_ONE.title, status: "contested" },
+						{ title: FLAG_TWO.title, status: "accepted" },
+					],
+				},
+			],
+		},
+		stories: [
+			{
+				id: SECOND_ID,
+				status: "ready",
+				gate: {
+					rounds: [
+						...FIXTURE_ROUNDS,
+						{
+							n: 3,
+							flags: [
+								{ title: FLAG_ONE.title, status: "contested" },
+								{ title: FLAG_TWO.title, status: "accepted" },
+							],
+						},
+					],
+				},
+			},
+		],
+	},
+	scripts: {},
+	spawns: [],
+	rounds: 0,
+	run: async (ctx) => {
+		assert(
+			(ctx.obs.gate()?.attempts.length ?? 0) === 0,
+			"a freshly started orchestrator already holds a gate attempt",
+		);
+		await waitForRecord(
+			ctx,
+			"the refining story's three fixture rounds",
+			(rounds) => rounds.length === 3,
+		);
+		await waitForRecord(
+			ctx,
+			"the Ready story's identical three rounds",
+			(rounds) => rounds.length === 3,
+			SECOND_ID,
+		);
+		await ctx.halt(
+			`the drawer for ${ctx.storyId} shows all three rounds with their resolutions and its card carries the "gate spent" badge, while ${SECOND_ID} in Ready shows neither`,
+		);
+	},
+};
+
 export const EPISODES: readonly Episode[] = [
 	flagless,
 	oneFlag,
@@ -379,4 +667,8 @@ export const EPISODES: readonly Episode[] = [
 	missingScript,
 	invalidPayload,
 	concession,
+	historyRestart,
+	historyCleared,
+	historyBlockStyle,
+	historyCold,
 ];
