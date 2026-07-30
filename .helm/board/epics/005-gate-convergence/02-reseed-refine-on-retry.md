@@ -23,7 +23,7 @@ exhausted, where two rounds have proven the current context stuck.
 
 ## Approach
 
-Measured at `ad17280`, re-checked at `1559b4f` (board-only, no code anchor moved):
+Measured at `ad17280`, re-checked at `1731199` (board-only commits since, no code anchor moved):
 
 - **The retry path never touches the session, and the exhausted attempt is the only exact record of
   exhaustion.** `requestReady` (`gate.ts:200-255`) handles a user retry by calling `enqueueRound` on
@@ -123,6 +123,20 @@ Measured at `ad17280`, re-checked at `1559b4f` (board-only, no code anchor moved
   (`episodes.ts:267-270`) and `gate-history-restart` re-requests only after a restart (`:459-465`),
   which mints a fresh attempt. The marker never fires in today's suite, so no existing episode
   shifts.
+- **The suite these criteria grade against is noisy, and this story states its grading rule rather
+  than repairing or dodging it.** 005-07 measured `one-flag` failing 3 of 6 isolated runs and
+  `exhausted` 2 of 4, at `5f1461c` and at `7501327` alike, with the evidence pointing at
+  `waitForFlag` (`driver.ts:154-169`) and `waitForPhase` (`episodes.ts:92-99`) sampling the
+  observer's last-write-wins snapshot on a 50 ms poll (`observer.ts:81-114`, `:133-143`).
+  `exhausted` is shielded by `halts: true` (`episodes.ts:225`) and `run.ts all` filters halting
+  episodes out (`run.ts:19`), so two of this story's episodes replay the exhaustion beats inside the
+  unattended suite for the first time. Three ways out, and the judgement is stated here rather than
+  left to the run: a dependency on 005-07 blocks a refined story behind a backlog one
+  (`07-deterministic-episodes.md:1-6`); routing the new episodes onto the observer's accumulated
+  probes (`observer.ts:51-56`) is the masking 005-07 explicitly warns against, and the ordering bug
+  it could hide is one of this story's own new branches; so criterion 10 carries the isolation rule
+  instead, the one 005-06's review already used (`06-one-refine-turn.md:326-328` and its run notes),
+  with the counts recorded.
 - **The pane's rebind is a consequence of the server's write, not of anything this story builds in
   the UI.** `ChatTab` derives its session from `props.story.frontmatter.sessions.refine` first
   (`card-drawer.tsx:117-120`), and the pane hydrates whatever id it is handed (`chat-pane.tsx:142`
@@ -165,10 +179,11 @@ Changes:
    and, when it is non-empty, appends a blank line, the sentence `adversaryPrompt` uses, and one
    `- title: reason` bullet each. The resumed round passes an empty register, so its message stays
    byte-identical.
-6. **Three unattended episodes and two doc corrections.** `gate-reseed-retry` proves the success
-   path: the fresh spawn's argv, the rebound `sessions.refine`, and the durable record.
-   `gate-reseed-not-on-record` proves the trigger's negative case. `gate-reseed-park` proves the
-   park and the spawn-failure fallback. No halting episode is added. define-refine.md §Ready gate's
+6. **Three unattended episodes, a stated grading rule, and two doc corrections.** `gate-reseed-retry`
+   proves the success path: the fresh spawn's argv, the rebound `sessions.refine`, and the durable
+   record. `gate-reseed-not-on-record` proves the trigger's negative case. `gate-reseed-park` proves
+   the park and the spawn-failure fallback. No halting episode is added, and criterion 10 says how a
+   green is told from the suite's inherited noise. define-refine.md §Ready gate's
    routing sentence (`:129-130`) and its wait paragraph (`:149-152`) gain the retry reseed and its
    restart limit; session-kinds.md §Context policies' reseed-on-stale bullet (`:155-160`) gains the
    gate's deliberate reseed alongside the stale-transcript one.
@@ -198,7 +213,8 @@ Changes:
 - `harness/episode/episodes.ts`: three episodes plus their flag and fix constants, built from the
   file's existing `holding()`, `releaseSentinel`, `acceptFix` and `NO_SCRIPT_EXIT`. `EPISODES` grows
   16 to 19, halting stays 4. No existing episode changes, because none retries an exhausted attempt.
-  `run.ts`, `driver.ts`, `observer.ts`, `scratch.ts` and the stub untouched.
+  `run.ts`, `driver.ts`, `observer.ts`, `scratch.ts` and the stub untouched, the flaky probes
+  included: this story neither repairs nor routes around them.
 - `.helm/knowledge/product/features/define-refine.md` §Ready gate (`:129-130`, `:149-152`),
   `.helm/knowledge/architecture/session-kinds.md` §Context policies (`:155-160`).
 - Behavioral reach: on a reseed, `sessions.refine` is overwritten and the drawer's pane follows it,
@@ -278,10 +294,16 @@ Changes:
       `sessions.refine` still holds the pre-retry chat id. Declared spawns exactly: `refine-1` 0,
       `adversary-1` 0, `refine-2` 0, `adversary-2` 0, `refine-3` 0, `adversary-3` 0, `refine-4` 0,
       refine ordinal 5 `claims: false` `NO_SCRIPT_EXIT`; rounds 3. (live)
-- [ ] `node harness/episode/run.ts all` passes 15/15, the twelve existing unattended episodes plus
+- [ ] `node harness/episode/run.ts all` reports 15/15: the twelve existing unattended episodes plus
       `gate-reseed-retry`, `gate-reseed-not-on-record` and `gate-reseed-park`, with every existing
-      episode's declarations unchanged; the halting four (`contested`, `exhausted`,
-      `gate-history-cold`, `refine-turn-live`) stay by-name and this story adds no fifth. (live)
+      episode's declarations unchanged and the halting four (`contested`, `exhausted`,
+      `gate-history-cold`, `refine-turn-live`) still by-name. **The grading rule, because the suite
+      is knowingly flaky (005-07):** a suite run short of 15/15 grades this criterion only when every
+      failing episode then passes **3 consecutive runs by name**, and each failure's message is
+      recorded in the run notes against the episode that produced it. Independently, each of the
+      three new episodes passes 3 consecutive runs by name, the check 005-06's review used. A new
+      episode that fails in isolation is a real failure and leaves this criterion unchecked; a
+      `one-flag` wait-timeout is 005-07's, named in the notes and not repaired here. (live)
 - [ ] `pnpm check` passes. (command)
 - [ ] `.helm/knowledge/product/features/define-refine.md` §Ready gate states that flags resume the
       refine session within an attempt and that a re-request of an exhausted attempt runs its round
@@ -315,9 +337,9 @@ Changes:
   than the pre-retry one, with no scroll-back in the pane.`
 - The one-refine-turn guard, the park's retry chain and the stub's `wait` step: 005-06 landed all
   three and this story inherits them.
-- The roughly 50% isolation flakiness of `one-flag` and `exhausted` (005-07). All three new episodes
-  reuse `acceptFix` and the exhaustion beats, so they can inherit it; neither fixing it nor
-  designing around it belongs here.
+- Repairing the harness's sampling flakiness, or writing the new episodes around it. `waitForFlag`,
+  `waitForPhase`, `waitForReady` and the observer stay as they are, 005-07 owns the diagnosis and
+  the fix, and criterion 10 states how this story's green is told from that noise.
 
 ## Open questions
 
