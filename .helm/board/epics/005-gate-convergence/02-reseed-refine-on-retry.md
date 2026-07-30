@@ -1,9 +1,11 @@
 ---
 id: 005-02
-status: ready
+status: review
 depends: [005-01, 005-06]
 gate: { passed: 2026-07-30T14:55:56.479Z, brief: 8f2d0ba2ed68f9f0, overrides: [] }
 sessions: {}
+runs:
+  - { n: 1, session: 4a8a5d57-b892-4ce8-bbb5-15a5e4607fcc, brief: 8f2d0ba2ed68f9f0, started: 2026-07-30T15:00:00Z, outcome: review, grades: 10/14, stat: "8 files +428 -36", tokens: 183786, minutes: 37 }
 ---
 # Reseed refine on retry
 
@@ -402,3 +404,42 @@ Changes:
 - [x] The halting `gate-reseed-live` episode is dropped. This story changes no app code, so the
       pane's rebind is graded by reading `card-drawer.tsx` and the transcript path, and a human
       drives it once by hand as a `verify:` note in the run's closing report.
+
+## Run notes
+
+`pnpm check` passes (tsc + Biome, 106 files, no fixes). The review graded 10/14: every `(file)` and
+`(command)` criterion proved on disk, the three episode criteria unclear by the `(live)` rule, and
+the suite criterion **failed** on its own grading rule.
+
+The suite never reached 15/15 across three runs (13, 14, 14). Failures, by episode:
+`gate-reseed-retry` and `gate-reseed-park` on `waiting for the flag "Blast radius omits the scratch
+config" on the gate channel`, `gate-reseed-not-on-record` once on `waiting for the flag "No
+failure-path criterion"`, and `one-flag` once on `waiting for story 001-01 to reach Ready`. Each
+failing episode then passed 3 consecutive by-name runs, but two of the three new episodes do fail in
+isolation, which the criterion names as a real failure regardless of the streak. Orchestrator
+measurement, 5 isolated runs each: `gate-reseed-retry` 4/5, `gate-reseed-park` 4/5,
+`gate-reseed-not-on-record` 5/5.
+
+The cause is a defect in the product, not in this story or in the harness, and it is measured rather
+than inferred. `writeStory` (`src/board/store.ts:448-456`) is a bare `writeFile` with no
+temp-and-rename, and `readFresh` (`gate.ts:129-137`) reads through `readStoryFile` outside
+`enqueueWrite`, the only thing serializing board writes (`write-queue.ts:4-12`). `runRound` reads
+there (`:273`) while `persistGate`'s queued write is in flight; a torn read throws, the
+`.catch(() => undefined)` turns it into "story left refining; attempt aborted", and the round's flag
+never reaches the gate channel. A probe writing and reading a story-sized file concurrently saw
+1073 torn reads (no frontmatter fence) in 37725. The flakiness scales with a story's round count,
+which is why the one-round episode is clean at 5/5 and the two three-round episodes are not, and why
+`one-flag` and `exhausted` were already flaky at this rate before any of this story existed. This
+corrects 005-07's recorded diagnosis: the fix is an atomic write in `src/board/store.ts`, not
+anything in the observer's sampling.
+
+- verify: with the harness app up (`node harness/episode/run.ts exhausted` halts with the server
+  live), re-request Ready on the exhausted story, then reload the drawer's chat tab: it must request
+  the new `sessions.refine` id and show an empty pane, the superseded transcript reachable only on
+  disk. No episode drives this.
+- verify: one real `claude` reseed on a live story. The fresh refine session's opening turn must read
+  the current brief rather than the old chat, and must not re-raise a dismissed flag. The stub proves
+  the argv and the register's bytes, never the model's behavior on them.
+- verify: after a server restart, a re-request of a story whose gate was exhausted before the restart
+  resumes the existing refine chat with its scroll-back intact. The trigger is in memory by design,
+  and no episode covers the restart path.
