@@ -14,7 +14,7 @@ analysis and the 002-02 warm-middle measurement as the earlier evidence.
 
 ## Breakdown rationale
 
-Five stories. The enabling one lands first, then the small spec-aligned pieces, then the
+Six stories. The enabling ones land first, then the small spec-aligned pieces, then the
 design-heavy ones whose value they may erase:
 
 0. **Harness drives flagged gate rounds** commits the verification harness in two halves — a stub
@@ -28,17 +28,22 @@ design-heavy ones whose value they may erase:
    the count from the file rather than from memory. The record is the unit that is actually
    bought, and it clears at all three exits, including the move out of refining that is what a
    human re-shape looks like from the outside.
-2. **Reseed refine on retry** starts a fresh refine session when the user re-requests an
+2. **One refine turn per story** enforces, where every refine spawn already passes, the invariant
+   that today holds only because a story carries a single refine session id — and adds the stub
+   step that lets an episode hold a turn open, without which the guard ships graded by reading.
+   Split out of story 3 at its third gate round, when three of seven flags landed on the guard
+   rather than on the reseed.
+3. **Reseed refine on retry** starts a fresh refine session when the user re-requests an
    exhausted gate, seeded from the brief, the open questions, and the override register instead
    of the resumed transcript. Files as truth: a decision that survives only in chat history was
-   never durable.
-3. **Delta rounds** is the conditional one: intermediate fix-verify passes that read the prior
+   never durable. It needs a second refine id on one story, which is why the guard lands first.
+4. **Delta rounds** is the conditional one: intermediate fix-verify passes that read the prior
    flags plus the brief diff, with the sign-off always a full cold pass. Its value concentrates
-   in exactly the non-converging gates stories 1 and 2 aim to prevent, and 002-02 measured the
+   in exactly the non-converging gates stories 1 and 3 aim to prevent, and 002-02 measured the
    warm variant saving almost nothing on a healthy gate, so it waits for post-005 round counts
    before it builds.
 
-4. **Gate escalation** acts on that record: past a five-round budget the drawer names the count,
+5. **Gate escalation** acts on that record: past a five-round budget the drawer names the count,
    shows what the rounds keep flagging (a cheap `digest` session's read of them) and recommends
    splitting or shrinking the story. It never offers a force-through, because dismissal already
    exists and an exhaustion-driven override register defeats the gate. Split out of story 1 at
