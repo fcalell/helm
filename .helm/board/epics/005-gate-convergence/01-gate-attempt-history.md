@@ -1,7 +1,8 @@
 ---
 id: 005-01
-status: refining
+status: running
 depends: [005-05]
+gate: { passed: 2026-07-30T08:37:43.168Z, brief: 8127a6c186618642, overrides: [] }
 sessions: {}
 ---
 # Gate round history
@@ -22,13 +23,18 @@ story is the record it reads.
 
 ## Approach
 
-Measured at `cbd6844`:
+Measured at `cbd6844`; board counts and harness facts re-measured at `3429df5` (HEAD):
 
 - `src/server/services/gate.ts:34-53`: `attempts` is a `Map<string, Attempt>` in memory.
   `gateSchema` (`src/board/schema.ts:63-68`) is a `strictObject` of `passed` · `brief` ·
   `overrides`, and `writePass` (`:319-341`) is its only writer, so nothing about a round reaches
-  disk until the gate passes. 15 stories carry a `gate` block at this commit (seven in 001, eight
-  in 002); the working tree adds two in 004.
+  disk until the gate passes. At `3429df5`, 18 stories carry a `gate` block (seven in 001, eight
+  in 002, two in 004, one in 005 — `005-gate-convergence/05-stub-drives-flagged-rounds.md:5`),
+  all committed, all `status: done`. Three carry non-empty `overrides`:
+  `002-runs-review/01-run-worktrees.md:6` (two),
+  `004-chat-surface-redesign/01-drag-move-hardening.md:7` (three),
+  `004-chat-surface-redesign/02-pending-interaction.md:6` (seven); the other 15 carry
+  `overrides: []`.
 - **A round is the unit that is spent**; an attempt is a memory-lifetime artifact. A retry of an
   exhausted attempt calls `enqueueRound` on the *same* object (`requestReady:169-172`), a fresh
   `Attempt` is minted whenever the map holds none (`:166`, `:175-183`) — after every restart and
@@ -99,6 +105,18 @@ Measured at `cbd6844`:
   passes at `:238-241`, and the pass clears the record and moves the story out of `refining` —
   so the accumulating record, the exhausted phase and the file-driven surface have no zero-cost
   live path at all. This story's live criteria are written against that capability.
+- What 005-05 landed is the stub and the one-shot episode driver, not the fixtures this story's
+  live criteria need: `setupScratch` writes exactly one epic and one story (`STORY_ID =
+  "001-01"`, `harness/episode/scratch.ts:14`) from fixed literals — frontmatter with no `gate`
+  block, body `STORY_BODY` (`:26-52`, `:61-125`) — its only parameter the episode name;
+  `runEpisode` is scratch → `startOrchestrator` once → `episode.run(ctx)` → stop
+  (`harness/episode/driver.ts:270-324`); and `EpisodeContext` (`driver.ts:29-42`) exposes
+  rpc/obs/body/story/halt, no restart. So the restart, second-story, hand-authored-history and
+  non-refining-status live criteria name harness additions this story carries (change 7). Two
+  criteria need nothing new: `probe-missing-script` (`harness/episode/episodes.ts:273-300`)
+  already kills the adversary spawn before `system/init` (the `enqueueRound` catch at
+  `gate.ts:194-200`), and the `exhausted` episode (`:205-249`) already drives a two-round attempt
+  to `exhausted` and halts for the operator.
 - `src/shared/gate.ts:2` imports `storyIdSchema` from `../board/schema.ts` and uses it at
   module-eval time (`:43`), so the flag-status enum cannot be imported the other way without a
   cycle between two files of top-level zod consts: the enum's home has to be `board/schema.ts`,
@@ -118,7 +136,17 @@ Measured at `cbd6844`:
   `stringifyFrontmatter` (`:107-123`) flow-styles the whole `gate` map (`:111-112`) and each
   `runs` item (`:115-120`) at `lineWidth: 0`, which disables wrapping — so a flow container
   holding a list renders as one unbounded line, the defect
-  `004-chat-surface-redesign/02-pending-interaction.md:6` shows at seven overrides.
+  `004-chat-surface-redesign/02-pending-interaction.md:6` shows at seven overrides and
+  `002-runs-review/01-run-worktrees.md:6` at two (one ~900-character line, committed since
+  before this epic). **Order matters**: `serializeStory` builds `ordered` and only then hands it
+  to `stringifyFrontmatter` (`:129-137`), so any omission rule in `serializeStory` runs before
+  any styling decision in `stringifyFrontmatter` sees the map.
+- Every story carrying a `gate` block is `done`, and `LEGAL_TRANSITIONS.done` is `[]`
+  (`transitions.ts:16`): `canTransition` rejects every move at `story.ts:80-91`, so no
+  `story.move` ever rewrites one of the 18. The one orchestrator write that touches a `done`
+  story's frontmatter is `story.setPreset` (`src/worker/routes/story.ts:102-140`, "Legal at any
+  status"), which round-trips the whole frontmatter through `writeStory` — the real path on
+  which the existing blocks' byte-identity is proved or broken.
 - `gate-panel.tsx:172-215` wraps its entire body in `<Show when={attempt()}>` — the branch a
   restarted orchestrator always hits — and renders `RoundHistory` (`:132-170`) only at
   `exhausted` (`:203`). `RoundHistory` takes `GateRound[]` (wire objects with
@@ -160,20 +188,28 @@ Changes:
    property shorthand) carries it explicitly. `verdictValid` and every caller are untouched: a
    history-only block has no `brief` and reads as no verdict.
 2. **Serialization bounds every long line under `gate`** (`src/board/markdown.ts:107-138`): the
-   container is flow-styled only while **both** `rounds` and `overrides` are empty, and otherwise
-   becomes a block map — `rounds` a block sequence of block maps, each round's `flags` a block
-   sequence of flow maps one per line, and `overrides` a block sequence of one string per line.
-   Keying on `rounds` alone would fix nothing where the defect actually lives: `writePass` drops
-   `rounds` on the pass, so a block carrying `overrides` never carries history, would stay
-   flow-styled, and would keep rendering seven long strings on one unbounded line
-   (`004-chat-surface-redesign/02-pending-interaction.md:6`; `lineWidth: 0` disables wrapping).
-   The cost is named rather than avoided: the two working-tree blocks that carry overrides
-   re-serialize once as a cosmetic diff the next time anything writes them, while the 15
-   committed blocks have empty `overrides` and stay byte-identical. Two omission rules make that
-   true: `serializeStory` omits an empty `rounds` (a zod `.default([])` is materialized on parse
-   and would otherwise be written into all 15 blocks on their next rewrite, exactly as
-   `overrides: []` is today) and drops the `gate` key entirely when it holds no verdict, no
-   rounds and no overrides, so a cleared record leaves no vestigial block behind.
+   container is flow-styled only while `rounds` is **absent or empty** and `overrides` is empty,
+   and otherwise becomes a block map — `rounds` a block sequence of block maps, each round's
+   `flags` a block sequence of flow maps one per line, and `overrides` a block sequence of one
+   string per line. "Absent" is load-bearing: `serializeStory`'s omission rule (below) runs
+   before `stringifyFrontmatter`'s styling decision (`:129-137` builds `ordered`, then `:111-112`
+   styles it), so on every existing block the styling test meets a *missing* `rounds` key, not an
+   empty one — a literal both-empty test would read `undefined`, fail, and block-style all 18
+   blocks on their next write, destroying the byte-identity promised below. Keying on `rounds`
+   alone would fix nothing where the defect actually lives: `writePass` drops `rounds` on the
+   pass, so a block carrying `overrides` never carries history, would stay flow-styled, and would
+   keep rendering its overrides on one unbounded line — the defect is already committed at
+   `002-runs-review/01-run-worktrees.md:6` (two overrides, ~900 characters) and
+   `004-chat-surface-redesign/02-pending-interaction.md:6` (seven; `lineWidth: 0` disables
+   wrapping). The cost is named rather than avoided: the three committed blocks that carry
+   overrides (002-01, 004-01, 004-02) re-serialize once as a cosmetic diff the next time anything
+   rewrites their frontmatter — with every gate-carrying story `done`, that next write is a
+   `story.setPreset` (legal at any status, `story.ts:102-140`), never a move — while the 15
+   blocks with empty `overrides` stay byte-identical. Two omission rules make that true:
+   `serializeStory` omits an empty `rounds` (a zod `.default([])` is materialized on parse and
+   would otherwise be written into all 15 on their next rewrite, exactly as `overrides: []` is
+   today) and drops the `gate` key entirely when it holds no verdict, no rounds and no
+   overrides, so a cleared record leaves no vestigial block behind.
 3. **The record is append-only, and a round joins it when it is pushed.** The first time one of
    the attempt's rounds is written it takes `n = disk.rounds.length + 1` and the attempt
    remembers that number; every later write upserts that entry by `n`. There is no captured
@@ -250,6 +286,21 @@ Changes:
    `PHASE_LINES.exhausted` (`gate-store.ts:20`) drops its hardcoded "Two automatic rounds spent",
    false as soon as retries accumulate, for a count-free line; the exact count lives in the
    history box, which has the record.
+7. **The harness gains the fixtures the live criteria drive** (`harness/`). `setupScratch`
+   (`harness/episode/scratch.ts:61-125`) keeps its defaults — the eight existing episodes run
+   unchanged — and accepts fixture options: extra stories, a chosen status, and a hand-authored
+   `gate` block, in place of today's single fixed `001-01` literal. `EpisodeContext`
+   (`harness/episode/driver.ts:29-42`) gains `restart()`: stop the orchestrator, start a fresh
+   one against the same scratch, re-attach the observer and RPC client — the same scratch and
+   `spawns.log`, so `verifySpawnLog`'s declaration list keeps covering spawns on both sides of
+   the restart in order. `runEpisode` therefore holds its orchestrator and observer as mutable
+   current-pair state rather than the `const`s it uses today (`:280-281`), and `restart()` swaps
+   both together with the context's `base`/`obs`/`rpc` value properties, so teardown and the
+   post-run checks act on the live pair and never leak the post-restart process onto the fixed
+   port. New episodes in `harness/episode/episodes.ts` drive the restart
+   accumulation, the drag-clear, the serialization round-trip and the cold-start surface; the
+   spawn-failure and exhausted criteria ride the existing `probe-missing-script` (`:273-300`)
+   and `exhausted` (`:205-249`) shapes.
 
 ## Blast radius
 
@@ -262,11 +313,12 @@ Changes:
   `../board/schema.ts` (which this file already imports from); the wire shape is unchanged, and
   the edge direction is what keeps the two files acyclic.
 - `src/board/markdown.ts` — `serializeStory` drops the `gate` key when it holds no verdict, no
-  rounds and no overrides; `stringifyFrontmatter` flow-styles `gate` only while both `rounds` and
-  `overrides` are empty, and block-styles every container under it otherwise (flag entries stay
-  flow maps, one per line). Key order, parsing, and every other serializer untouched. One-time
-  on-disk effect: the two working-tree blocks carrying overrides re-serialize as block maps on
-  their next write.
+  rounds and no overrides; `stringifyFrontmatter` flow-styles `gate` only while `rounds` is
+  absent or empty and `overrides` is empty, and block-styles every container under it otherwise
+  (flag entries stay flow maps, one per line). Key order, parsing, and every other serializer
+  untouched. One-time on-disk effect: the three committed blocks carrying overrides (002-01,
+  004-01, 004-02) re-serialize as block maps on their next frontmatter write — every
+  gate-carrying story is `done`, so that write is a `story.setPreset`, never a move.
 - `src/server/services/gate.ts` — `broadcast` takes the changed attempt and its ten call sites
   pass it; `Attempt` gains the durable round numbers it has already written; new `persistGate`
   (synchronous, fire-and-forget,
@@ -277,6 +329,26 @@ Changes:
 - `src/worker/routes/story.ts` — the `story.move` handler drops `gate.rounds` in the same write
   and drops the gate's held attempt when the transition leaves `refining`. Validation and every
   other transition untouched.
+- `harness/episode/scratch.ts` — `setupScratch` accepts fixture options (extra stories, a chosen
+  status, a hand-authored `gate` block) in place of today's single fixed `001-01` literal;
+  defaults unchanged, so the eight existing episodes run as today.
+- `harness/episode/driver.ts` — `EpisodeContext` gains `restart()`, and `runEpisode` stops holding
+  its server in `const`s: the orchestrator and observer (`:280-281`) become mutable
+  current-pair state that `restart()` swaps, rebinding `ctx.base`, `ctx.obs` and `ctx.rpc` — plain
+  value properties on the context literal (`:282-293`) that every exported helper reads
+  (`findStory:68`, `waitForFlag:110`, `flagStatus:124`, `acceptFix:138`, `waitForReady:172`), so
+  no helper is left talking to the dead server. Teardown, `report` and the post-run checks
+  (`obs.maxRounds:305`, `report:315`, `obs.close():316`, `orchestrator.stop():317`) read the
+  current pair, not the pre-restart one: `stop()` returns immediately once its own child has
+  exited (`server.ts:84`), so stopping the pre-restart pair would leak the post-restart node
+  process, which keeps the single fixed port (`:19`, `HELM_HARNESS_PORT ?? 8797`) and makes the
+  next episode either fail to bind or silently run against this episode's scratch repo and
+  `spawns.log` (`server.ts:63-77`). `verifySpawnLog` reads `scratch.logPath` off disk and both
+  children write the same `HELM_STUB_LOG`, so the declared spawn list keeps covering both sides of
+  the restart in order.
+- `harness/episode/episodes.ts` — new episodes drive this story's live criteria; the existing
+  eight untouched. The spawn-failure criterion rides `probe-missing-script`'s existing shape and
+  the exhausted-drawer criterion rides `exhausted`'s.
 - `src/app/components/gate-panel.tsx` — `GatePanel`'s prop becomes the story; its outer guard
   splits into the live-attempt half (phase line, `data-gate-phase`, flag widgets) and the
   file-driven history box; `RoundHistory` renders persisted rounds (title + status) and loses its
@@ -316,16 +388,21 @@ Changes:
 - [ ] `writePass` in `src/server/services/gate.ts` type-checks against the widened `Gate` output
       type: its `Gate` literal carries `rounds` explicitly. (file)
 - [ ] In `src/board/markdown.ts`, `stringifyFrontmatter` flow-styles the `gate` map only while
-      both `rounds` and `overrides` are empty, block-styles `rounds`, each round's `flags` and
+      `rounds` is absent or empty and `overrides` is empty — absent included, because
+      `serializeStory`'s omission rule runs before the styling decision sees the map, so an
+      empty `rounds` arrives as a missing key — block-styles `rounds`, each round's `flags` and
       `overrides` as sequences otherwise (each flag a flow map on its own line), and
       `serializeStory` drops the `gate` key when it holds no verdict, no rounds and no
       overrides — so no line's length grows with the number of flags or overrides, and a cleared
       record leaves no `gate: { overrides: [] }` residue. (file)
 - [ ] Every `gate` block already on disk still parses with no migration and still reads as a valid
-      verdict: the board loads with no new `invalid` entry and all 15 committed blocks' cards
-      render. A story move that rewrites one of those 15 (empty `overrides`) leaves its `gate:`
-      line unchanged in `git diff`; a rewrite of a block carrying overrides converts it to a block
-      map once, with the same values. (live)
+      verdict: the board loads with no new `invalid` entry and all 18 committed blocks' cards
+      render. Every gate-carrying story is `done` and `done` has no legal move
+      (`transitions.ts:16`), so the rewrite path is `story.setPreset` (legal at any status,
+      `src/worker/routes/story.ts:102-140`): a preset change on a story whose block carries empty
+      `overrides` (15 of the 18) leaves its `gate:` line unchanged in `git diff`; a preset change
+      on one carrying overrides (002-01, 004-01, 004-02) converts it to a block map once, with
+      the same values. (live)
 - [ ] A story hand-edited to carry `passed` without `brief` (or the reverse) surfaces in the
       invalid banner with the parse message, rather than rendering as a passed gate. (live)
 - [ ] `verdictValid` in `src/board/transitions.ts` is unchanged and returns false for a `gate`
@@ -381,32 +458,51 @@ Changes:
       it returns exactly today's labels ("gating" / "flags" / "gate blocked"), and only with no
       attempt and a non-empty record does it return "gate spent". (file)
 - [ ] `PHASE_LINES.exhausted` in `src/app/lib/gate-store.ts` states no round count. (file)
+- [ ] `setupScratch` in `harness/episode/scratch.ts` accepts fixture options — extra stories, a
+      chosen status, a hand-authored `gate` block — with its defaults unchanged, and
+      `EpisodeContext` in `harness/episode/driver.ts` exposes `restart()`, which stops the
+      orchestrator and starts a fresh one against the same scratch and `spawns.log`. (file)
 - [ ] With 005-05's stub on `PATH` against a scratch target repo (claude-integration.md
       §Verifying without burning the pool), a flagged round on a refining story writes round 1 to
       the story file with its flag titles and their statuses as they resolve; restarting the
-      orchestrator and running another leaves the file carrying **two** rounds numbered 1 and 2 —
-      the accumulation across a restart, at zero pool cost. (live)
+      orchestrator through the episode context's `restart()` and running another leaves the file
+      carrying **two** rounds numbered 1 and 2 — the accumulation across a restart, at zero pool
+      cost. (live)
 - [ ] On the same setup, a round whose adversary spawn fails (the `enqueueRound` catch at
-      `gate.ts:194-200`) leaves its round recorded in the story file with the story still in
-      `refining` — the interrupted round that vanishes today. (live)
+      `gate.ts:194-200`, the path `probe-missing-script` already drives,
+      `harness/episode/episodes.ts:273-300`) leaves its round recorded in the story file with the
+      story still in `refining` — the interrupted round that vanishes today. (live)
 - [ ] On the same setup, dragging a refining story with a recorded round to `backlog` clears
       `gate.rounds` from its file; dragging it back and running another round writes a record
       starting at round 1 (the dropped attempt did not restore the old one); and a passing round
-      on another story clears the record as the card lands in Ready. (live)
-- [ ] On the same setup, a story whose file already carries two rounds and a non-empty `overrides`
-      list, then written again by a live round, serializes `gate` as a block map — `rounds`, its
-      `flags` and `overrides` each a block sequence, no line growing with the list length — with
-      the existing rounds preserved and the new one appended as round 3. (live)
-- [ ] On the same setup, a two-round attempt driven to `exhausted` shows, in the drawer, the phase
-      line and `data-gate-phase` from the live attempt, its contested flag's widget, the
-      file-driven history box, and the "Move the card to Ready to run another adversary pass."
-      line — both halves of the split guard, and the exhausted copy carrying no round count. (live)
+      on a second fixture story clears the record as the card lands in Ready. (live)
+- [ ] On the same setup, a story whose fixture-authored file already carries two rounds and a
+      non-empty `overrides` list, then written again by a live round, serializes `gate` as a
+      block map — `rounds`, its `flags` and `overrides` each a block sequence, no line growing
+      with the list length — with the existing rounds preserved and the new one appended as
+      round 3. (live)
+- [ ] On the same setup, a two-round attempt driven to `exhausted` (the existing `exhausted`
+      episode's shape, `harness/episode/episodes.ts:205-249`) shows, in the drawer, the phase
+      line and `data-gate-phase` from the live attempt, the file-driven history box carrying both
+      rounds, and the "Move the card to Ready to run another adversary pass." line — both halves
+      of the split guard, and the exhausted copy carrying no round count. No flag widget renders
+      there, and none can: `evaluate` reaches `exhausted` (`gate.ts:316`) only past its
+      contested-flag early return (`:292-295`), and no path contests a flag afterwards
+      (`contestGateFlag:391`, `gateFixRejected:473`, `onClosed:535` all require `refine`/`review`),
+      so the last round's flags — the only ones the panel's `contested()` reads
+      (`gate-panel.tsx:174-177`) — have all settled. (live)
+- [ ] On the same setup, a round parked at phase `review` on a contested flag (the existing
+      `contested` episode's shape, `harness/episode/episodes.ts:148-203`, which halts at `review`
+      with the story still refining, `:178-183`) shows, in the drawer, the phase line,
+      `data-gate-phase="review"`, that flag's `FlagWidget` with its counter-argument, and the
+      file-driven history box for round 1 — the live half of the split guard rendering a flag
+      widget, the one combination phase `exhausted` cannot produce. (live)
 - [ ] On a scratch target repo with the orchestrator freshly started (so no attempt is in memory),
-      a refining story hand-written with three rounds of flags shows, in the drawer, the cumulative
-      count and each round's flags with their resolutions, and its board card shows the "gate
-      spent" badge. (live)
-- [ ] On the same scratch repo, the identical history on a story that is *not* refining (e.g.
-      `ready`) renders no history box and no badge. (live)
+      a refining story fixture-authored with three rounds of flags shows, in the drawer, the
+      cumulative count and each round's flags with their resolutions, and its board card shows the
+      "gate spent" badge. (live)
+- [ ] On the same scratch repo, the identical history on a fixture story that is *not* refining
+      (e.g. `ready`) renders no history box and no badge. (live)
 - [ ] `pnpm check` passes. (command)
 - [ ] `.helm/knowledge/architecture/board-storage.md` §Story file documents the `gate` block as the
       persistent record — the example shows `rounds`, the prose states that rounds accumulate as
