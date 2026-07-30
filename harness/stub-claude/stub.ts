@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { mcpUrlOf, type ParsedArgv, parseArgv, roleOf } from "./argv.ts";
 import { connectToolClient, type ToolClient } from "./client.ts";
 import { initFrame, resultFrame } from "./frames.ts";
@@ -12,9 +15,29 @@ export const NO_SCRIPT_EXIT = 2;
 // A refusal the stub must not swallow: the scenario is wrong, and only the
 // declared exit code makes that visible.
 export const TOOL_FAILURE_EXIT = 4;
+// A `wait` step whose sentinel never arrived: the episode's release beat never
+// ran, and the turn must end loudly rather than hang past the observer.
+export const WAIT_TIMEOUT_EXIT = 5;
+
+// Under the observer's 45s deadline, so an unreleased turn fails the episode
+// on the assertion that named it, not on a wait.
+const WAIT_TIMEOUT_MS = 30_000;
+const WAIT_POLL_MS = 50;
 
 const SCRIPTS_ENV = "HELM_STUB_SCRIPTS";
 const LOG_ENV = "HELM_STUB_LOG";
+
+async function waitForSentinel(
+	path: string,
+	timeoutMs: number,
+): Promise<boolean> {
+	const deadline = Date.now() + timeoutMs;
+	for (;;) {
+		if (existsSync(path)) return true;
+		if (Date.now() >= deadline) return false;
+		await delay(WAIT_POLL_MS);
+	}
+}
 
 function emit(frame: Record<string, unknown>): void {
 	process.stdout.write(`${JSON.stringify(frame)}\n`);
@@ -118,6 +141,22 @@ export async function main(argv: readonly string[]): Promise<void> {
 		if (step.t === "exit") {
 			await client?.close();
 			finish(step.code, `script ${claim.name} exit step`);
+			return;
+		}
+		if (step.t === "wait") {
+			const sentinel = isAbsolute(step.sentinel)
+				? step.sentinel
+				: join(scriptsDir ?? ".", step.sentinel);
+			const released = await waitForSentinel(
+				sentinel,
+				step.timeoutMs ?? WAIT_TIMEOUT_MS,
+			);
+			if (released) continue;
+			await client?.close();
+			finish(
+				WAIT_TIMEOUT_EXIT,
+				`script ${claim.name} waited for ${sentinel} and it never appeared`,
+			);
 			return;
 		}
 		const tools = await openClient();

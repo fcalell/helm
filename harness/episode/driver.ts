@@ -237,15 +237,30 @@ export async function waitForReady(
 	return story;
 }
 
+// Episodes author files mid-run too: a script withheld until its beat, and
+// the sentinel a `wait` step polls for. Both live in the script directory the
+// stub already reads.
+export function writeScript(
+	scratch: Scratch,
+	name: string,
+	script: StubScript,
+): void {
+	writeFileSync(
+		join(scratch.scriptsDir, `${name}.json`),
+		`${JSON.stringify(script, null, "\t")}\n`,
+	);
+}
+
+export function releaseSentinel(scratch: Scratch, sentinel: string): void {
+	writeFileSync(join(scratch.scriptsDir, sentinel), "");
+}
+
 function writeScripts(
 	scratch: Scratch,
 	scripts: Record<string, StubScript>,
 ): void {
 	for (const [name, script] of Object.entries(scripts)) {
-		writeFileSync(
-			join(scratch.scriptsDir, `${name}.json`),
-			`${JSON.stringify(script, null, "\t")}\n`,
-		);
+		writeScript(scratch, name, script);
 	}
 }
 

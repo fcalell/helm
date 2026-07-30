@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { z } from "@fcalell/plugin-api/schema";
 import { type StubRole, stubRoleSchema } from "./argv.ts";
 
+// A halting episode holds a turn open for an operator; nothing legitimate
+// waits longer than this.
+const WAIT_TIMEOUT_CAP_MS = 600_000;
+
 export const stubStepSchema = z.discriminatedUnion("t", [
 	z.object({ t: z.literal("emit"), event: z.record(z.string(), z.unknown()) }),
 	z.object({
@@ -11,6 +15,14 @@ export const stubStepSchema = z.discriminatedUnion("t", [
 		payload: z.record(z.string(), z.unknown()),
 	}),
 	z.object({ t: z.literal("exit"), code: z.number().int() }),
+	// Holds the turn open until the episode writes the sentinel file: the one
+	// step that makes a second spawn arrive while this one is live. A relative
+	// path resolves against the script directory.
+	z.object({
+		t: z.literal("wait"),
+		sentinel: z.string().min(1),
+		timeoutMs: z.number().int().positive().max(WAIT_TIMEOUT_CAP_MS).optional(),
+	}),
 ]);
 export type StubStep = z.infer<typeof stubStepSchema>;
 

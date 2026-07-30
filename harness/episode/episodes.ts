@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { splitFrontmatter } from "../../src/board/markdown.ts";
 import { readStubLog } from "../stub-claude/log.ts";
 import type { StubScript } from "../stub-claude/script.ts";
-import { NO_SCRIPT_EXIT, TOOL_FAILURE_EXIT } from "../stub-claude/stub.ts";
+import {
+	NO_SCRIPT_EXIT,
+	TOOL_FAILURE_EXIT,
+	WAIT_TIMEOUT_EXIT,
+} from "../stub-claude/stub.ts";
 import {
 	acceptFix,
 	assert,
@@ -13,11 +17,14 @@ import {
 	moveStory,
 	moveToReady,
 	recordedRounds,
+	releaseSentinel,
 	spawnRefineChat,
 	waitForFlag,
 	waitForReady,
 	waitForRecord,
+	writeScript,
 } from "./driver.ts";
+import { RpcError } from "./rpc.ts";
 
 const FLAG_ONE = {
 	title: "No failure-path criterion",
@@ -658,6 +665,323 @@ const historyCold: Episode = {
 	},
 };
 
+// A refine turn that holds itself open until the episode writes the sentinel:
+// the only way a second spawn arrives while the first is still live.
+function holding(sentinel: string, timeoutMs?: number): StubScript {
+	return {
+		role: "refine",
+		steps: [
+			{
+				t: "wait",
+				sentinel,
+				...(timeoutMs === undefined ? {} : { timeoutMs }),
+			},
+		],
+	};
+}
+
+function stubStarts(ctx: EpisodeContext) {
+	return readStubLog(ctx.scratch.logPath).filter(
+		(entry) => entry.t === "start",
+	);
+}
+
+async function waitForExits(ctx: EpisodeContext, count: number): Promise<void> {
+	await ctx.obs.waitFor(`${count} spawns to log their exit`, () =>
+		readStubLog(ctx.scratch.logPath).filter((entry) => entry.t === "exit")
+			.length >= count
+			? count
+			: undefined,
+	);
+}
+
+async function spawnRefine(
+	ctx: EpisodeContext,
+	prompt: string,
+): Promise<string> {
+	const { sessionId } = await ctx.rpc<{ sessionId: string }>("session/spawn", {
+		kind: "refine",
+		storyId: ctx.storyId,
+		prompt,
+	});
+	return sessionId;
+}
+
+async function refusal(
+	what: string,
+	call: Promise<unknown>,
+): Promise<RpcError> {
+	let caught: unknown;
+	try {
+		await call;
+	} catch (error) {
+		caught = error;
+	}
+	assert(
+		caught instanceof RpcError,
+		`${what} did not fail with an RPC error: ${String(caught)}`,
+	);
+	assert(caught.status === 409, `${what} returned ${caught.status}, not 409`);
+	assert(
+		caught.body.includes("SESSION_BUSY"),
+		`${what} carries no SESSION_BUSY: ${caught.body}`,
+	);
+	return caught;
+}
+
+const GUARD_HOLD = "guard-refine-hold";
+
+const PROPOSING_REFINE: StubScript = {
+	role: "refine",
+	steps: [
+		{
+			t: "call",
+			tool: "update_brief",
+			payload: {
+				section: "Out of scope",
+				content: "Everything the guard episode does not drive.",
+			},
+		},
+	],
+};
+
+const refineTurnGuard: Episode = {
+	name: "refine-turn-guard",
+	summary: "a live refine turn refuses a second spawn and holds a resolution",
+	scripts: {
+		"refine-1": PROPOSING_REFINE,
+		"refine-2": holding(GUARD_HOLD),
+		"refine-3": SILENT_REFINE,
+	},
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "refine", ordinal: 2, exit: 0 },
+		{ role: "refine", ordinal: 3, exit: 0 },
+	],
+	rounds: 0,
+	run: async (ctx) => {
+		const proposing = await spawnRefineChat(ctx);
+		const proposal = await ctx.obs.waitFor("the brief proposal", () =>
+			ctx.obs
+				.proposals()
+				?.proposals.find((each) => each.tool === "update_brief"),
+		);
+		const live = await spawnRefine(ctx, "Open a second refine chat.");
+		assert(
+			live !== proposing,
+			"the fresh spawn kept the proposal turn's id, so nothing diverged",
+		);
+		await ctx.obs.waitFor(
+			`sessions.refine to read the live turn ${live}`,
+			() =>
+				findStory(ctx).frontmatter.sessions.refine === live ? live : undefined,
+		);
+		const spawned = stubStarts(ctx).length;
+		await refusal(
+			"the second refine spawn",
+			ctx.rpc("session/spawn", {
+				kind: "refine",
+				storyId: ctx.storyId,
+				prompt: "Open a third refine chat while the second holds.",
+			}),
+		);
+		assert(
+			stubStarts(ctx).length === spawned,
+			"the refused spawn still started a process",
+		);
+		assert(
+			findStory(ctx).frontmatter.sessions.refine === live,
+			"the refused spawn overwrote sessions.refine",
+		);
+		ctx.say(`the second spawn was refused 409 while ${live} holds the story`);
+		await ctx.rpc("proposal/resolve", {
+			proposalId: proposal.id,
+			item: 0,
+			resolution: {
+				type: "reject",
+				reason: "the guard episode rejects it to force an outcome resume",
+			},
+		});
+		assert(
+			stubStarts(ctx).length === spawned,
+			"the resolution's resume spawned a turn while the story was busy",
+		);
+		ctx.say("the rejection resolved during the live turn and was held");
+		releaseSentinel(ctx.scratch, GUARD_HOLD);
+		const drained = await ctx.obs.waitFor(
+			"the drained resume to spawn refine-3",
+			() => stubStarts(ctx).find((entry) => entry.script === "refine-3.json"),
+		);
+		assert(
+			drained.parsed.resume === proposing,
+			`the drained resume carried ${String(drained.parsed.resume)}, not the proposal turn ${proposing}`,
+		);
+		ctx.say(`the held rejection resumed ${proposing} on the live turn's close`);
+		await waitForExits(ctx, 3);
+	},
+};
+
+const PARK_ADVERSARY_HOLD = "park-adversary-hold";
+const PARK_REFINE_HOLD = "park-refine-hold";
+
+const refineTurnPark: Episode = {
+	name: "refine-turn-park",
+	summary: "flags parked on a busy story route on the next close",
+	scripts: {
+		"refine-1": SILENT_REFINE,
+		"adversary-1": {
+			role: "adversary",
+			steps: [
+				{
+					t: "call",
+					tool: "flag_risk",
+					payload: { title: FLAG_ONE.title, detail: FLAG_ONE.detail },
+				},
+				{ t: "wait", sentinel: PARK_ADVERSARY_HOLD },
+			],
+		},
+		"refine-2": holding(PARK_REFINE_HOLD),
+		"refine-3": SILENT_REFINE,
+	},
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "adversary", ordinal: 1, exit: 0 },
+		{ role: "refine", ordinal: 2, exit: 0 },
+		{ role: "refine", ordinal: 3, exit: 0 },
+	],
+	rounds: 1,
+	run: async (ctx) => {
+		const chat = await spawnRefineChat(ctx);
+		await moveToReady(ctx);
+		await waitForFlag(ctx, FLAG_ONE.title);
+		await ctx.rpc("session/message", {
+			sessionId: chat,
+			prompt: "Hold this chat open while the adversary finishes.",
+		});
+		const spawned = stubStarts(ctx).length;
+		ctx.say(`refine turn ${chat} is live with the adversary still holding`);
+		releaseSentinel(ctx.scratch, PARK_ADVERSARY_HOLD);
+		await waitForPhase(ctx, "refine");
+		assert(
+			stubStarts(ctx).length === spawned,
+			"the flags route reached a spawn instead of parking",
+		);
+		assert(
+			flagStatus(ctx, FLAG_ONE.title)?.status === "open",
+			"the parked round conceded its flag",
+		);
+		ctx.say("the flags parked: phase refine, flag open, no spawn");
+		releaseSentinel(ctx.scratch, PARK_REFINE_HOLD);
+		const retried = await ctx.obs.waitFor(
+			"the chained retry to resume the refine session",
+			() => stubStarts(ctx).find((entry) => entry.script === "refine-3.json"),
+		);
+		assert(
+			retried.parsed.resume === chat,
+			`the retry resumed ${String(retried.parsed.resume)}, not ${chat}`,
+		);
+		assert(
+			retried.parsed.prompt?.includes("ready-gate adversary") === true,
+			`the retry carried something other than the flags prompt: ${String(retried.parsed.prompt)}`,
+		);
+		ctx.say("the close healed the park: the retry carried the flags prompt");
+		await waitForPhase(ctx, "review");
+		assert(
+			flagStatus(ctx, FLAG_ONE.title)?.status === "contested",
+			"the unanswered retry left the flag unsettled",
+		);
+		await waitForRecord(
+			ctx,
+			"round 1 recorded with the flag contested",
+			(rounds) =>
+				rounds.length === 1 &&
+				rounds[0]?.flags.some(
+					(flag) =>
+						flag.title === FLAG_ONE.title && flag.status === "contested",
+				) === true,
+		);
+		assertRefining(ctx, "after the parked round settled");
+	},
+};
+
+const NEVER_RELEASED = "failure-release-never-written";
+const TIMEOUT_WAIT_MS = 500;
+
+const refineTurnFailureRelease: Episode = {
+	name: "refine-turn-failure-release",
+	summary: "a pre-init death and a timed-out turn both free the story",
+	scripts: { "refine-2": SILENT_REFINE },
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: NO_SCRIPT_EXIT, claims: false },
+		{ role: "refine", ordinal: 1, exit: WAIT_TIMEOUT_EXIT },
+		{ role: "refine", ordinal: 2, exit: 0 },
+	],
+	rounds: 0,
+	run: async (ctx) => {
+		let caught: unknown;
+		try {
+			await spawnRefine(ctx, "Open the refine chat with no script to claim.");
+		} catch (error) {
+			caught = error;
+		}
+		assert(
+			caught instanceof RpcError,
+			`the scriptless spawn did not fail: ${String(caught)}`,
+		);
+		ctx.say(
+			`the scriptless spawn died before init: ${caught.body.slice(0, 90)}`,
+		);
+		writeScript(ctx.scratch, "refine-1", {
+			role: "refine",
+			steps: [
+				{ t: "wait", sentinel: NEVER_RELEASED, timeoutMs: TIMEOUT_WAIT_MS },
+			],
+		});
+		const timing = await spawnRefine(
+			ctx,
+			"Open the refine chat that waits for a sentinel nobody writes.",
+		);
+		ctx.say(`the story took ${timing} straight after the failed spawn`);
+		const closed = await ctx.obs.waitFor("the waiting turn to time out", () =>
+			ctx.obs.closed().find((each) => each.sessionId === timing),
+		);
+		assert(
+			closed.exitCode === WAIT_TIMEOUT_EXIT,
+			`the waiting turn exited ${String(closed.exitCode)}, not ${WAIT_TIMEOUT_EXIT}`,
+		);
+		const after = await spawnRefine(
+			ctx,
+			"Open the refine chat after the timed-out one.",
+		);
+		ctx.say(`the story took ${after} after the timeout close`);
+		await waitForExits(ctx, 3);
+	},
+};
+
+const LIVE_HOLD = "live-refine-hold";
+const OPERATOR_WAIT_MS = 600_000;
+
+const refineTurnLive: Episode = {
+	name: "refine-turn-live",
+	summary: "a live refine turn refuses the drawer's next message",
+	halts: true,
+	scripts: { "refine-1": holding(LIVE_HOLD, OPERATOR_WAIT_MS) },
+	spawns: [{ role: "refine", ordinal: 1, exit: 0 }],
+	rounds: 0,
+	run: async (ctx) => {
+		const live = await spawnRefine(ctx, "Open the refine chat and hold it.");
+		ctx.say(`refine turn ${live} is live and holding`);
+		await ctx.halt(
+			"the drawer's chat for this story is mid-turn: reload it, send a message and the send is refused with a SESSION_BUSY toast, the echoed line disappears from the transcript, and the composer still takes input",
+		);
+		releaseSentinel(ctx.scratch, LIVE_HOLD);
+		await ctx.obs.waitFor("the held turn to close", () =>
+			ctx.obs.closed().find((each) => each.sessionId === live),
+		);
+		ctx.say("the sentinel closed the held turn cleanly");
+	},
+};
+
 export const EPISODES: readonly Episode[] = [
 	flagless,
 	oneFlag,
@@ -671,4 +995,8 @@ export const EPISODES: readonly Episode[] = [
 	historyCleared,
 	historyBlockStyle,
 	historyCold,
+	refineTurnGuard,
+	refineTurnPark,
+	refineTurnFailureRelease,
+	refineTurnLive,
 ];

@@ -1,7 +1,12 @@
 export class RpcError extends Error {
+	readonly status: number;
+	readonly body: string;
+
 	constructor(path: string, status: number, body: string) {
 		super(`POST /rpc/${path} -> ${status} ${body}`);
 		this.name = "RpcError";
+		this.status = status;
+		this.body = body;
 	}
 }
 
