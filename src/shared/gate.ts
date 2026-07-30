@@ -1,5 +1,5 @@
 import { z } from "@fcalell/plugin-api/schema";
-import { storyIdSchema } from "../board/schema.ts";
+import { gateFlagStatusSchema, storyIdSchema } from "../board/schema.ts";
 
 // Wire shape of the in-memory ready-gate state (pure zod: the SPA bundle
 // reaches this through `channels.ts`). One attempt per story; it dies with
@@ -11,7 +11,7 @@ export const gateFlagSchema = z.object({
 	// `open` while the refine session's turn may still answer; `contested`
 	// awaits the user (accept files an open question, dismiss records an
 	// override); `accepted`/`dismissed`/`fixed` are settled.
-	status: z.enum(["open", "fixed", "contested", "accepted", "dismissed"]),
+	status: gateFlagStatusSchema,
 	// The refine session's counter-argument; absent on a flag it left
 	// unanswered at turn end.
 	argument: z.string().optional(),

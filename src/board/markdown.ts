@@ -9,6 +9,7 @@ import {
 	type DecisionItem,
 	type DecisionSettler,
 	type EpicFrontmatter,
+	type Gate,
 	RUN_NOTES_SECTION,
 	type ShapingFrontmatter,
 	type StoryFrontmatter,
@@ -104,12 +105,55 @@ export function parseBrief(body: string): Brief {
 	};
 }
 
+// `lineWidth: 0` disables wrapping, so a flow container holding a list renders
+// as one unbounded line: any list under `gate` forces the whole container to
+// block style, and only each round's flags stay flow maps, one per line.
+function styleGate(node: unknown): void {
+	if (!isMap(node)) return;
+	const rounds = node.get("rounds", true);
+	const overrides = node.get("overrides", true);
+	const listed =
+		(isSeq(rounds) && rounds.items.length > 0) ||
+		(isSeq(overrides) && overrides.items.length > 0);
+	if (!listed) {
+		node.flow = true;
+		return;
+	}
+	if (!isSeq(rounds)) return;
+	for (const round of rounds.items) {
+		if (!isMap(round)) continue;
+		const flags = round.get("flags", true);
+		if (!isSeq(flags)) continue;
+		for (const flag of flags.items) {
+			if (isMap(flag)) flag.flow = true;
+		}
+	}
+}
+
+// The `gate` block as it is written: an empty `rounds` key is omitted, and a
+// block holding no verdict, no rounds and no overrides is dropped entirely so
+// a cleared record leaves no residue.
+function gateBlock(gate: Gate): Record<string, unknown> | undefined {
+	if (
+		gate.passed === undefined &&
+		gate.rounds.length === 0 &&
+		gate.overrides.length === 0
+	) {
+		return undefined;
+	}
+	return {
+		...(gate.passed !== undefined && { passed: gate.passed }),
+		...(gate.brief !== undefined && { brief: gate.brief }),
+		overrides: gate.overrides,
+		...(gate.rounds.length > 0 && { rounds: gate.rounds }),
+	};
+}
+
 function stringifyFrontmatter(ordered: Record<string, unknown>): string {
 	const doc = new Document(ordered);
 	const sessions = doc.get("sessions", true);
 	if (isMap(sessions)) sessions.flow = true;
-	const gate = doc.get("gate", true);
-	if (isMap(gate)) gate.flow = true;
+	styleGate(doc.get("gate", true));
 	const depends = doc.get("depends", true);
 	if (isSeq(depends)) depends.flow = true;
 	const runs = doc.get("runs", true);
@@ -131,7 +175,8 @@ export function serializeStory(
 	const ordered: Record<string, unknown> = { id, status, depends };
 	if (branch !== undefined) ordered.branch = branch;
 	if (preset !== undefined) ordered.preset = preset;
-	if (gate !== undefined) ordered.gate = gate;
+	const block = gate === undefined ? undefined : gateBlock(gate);
+	if (block !== undefined) ordered.gate = block;
 	ordered.sessions = sessions;
 	ordered.runs = runs;
 	return `---\n${stringifyFrontmatter(ordered)}---\n${body}`;

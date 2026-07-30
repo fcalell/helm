@@ -60,11 +60,48 @@ export const runSchema = z.strictObject({
 });
 export type Run = z.infer<typeof runSchema>;
 
-export const gateSchema = z.strictObject({
-	passed: z.iso.datetime(),
-	brief: z.string(),
-	overrides: z.array(z.string()).default([]),
+// A gate flag's lifecycle status, shared by the in-memory wire shape
+// (`src/shared/gate.ts`) and the persisted record below. Defined here because
+// `src/shared/gate.ts` already imports this file.
+export const GATE_FLAG_STATUSES = [
+	"open",
+	"fixed",
+	"contested",
+	"accepted",
+	"dismissed",
+] as const;
+export const gateFlagStatusSchema = z.enum(GATE_FLAG_STATUSES);
+export type GateFlagStatus = z.infer<typeof gateFlagStatusSchema>;
+
+// A recorded flag: title and status stay separate fields, since a title
+// containing ": " makes a joined string unparseable.
+export const gateRecordFlagSchema = z.strictObject({
+	title: z.string(),
+	status: gateFlagStatusSchema,
 });
+export type GateRecordFlag = z.infer<typeof gateRecordFlagSchema>;
+
+export const gateRecordRoundSchema = z.strictObject({
+	n: z.number().int().positive(),
+	flags: z.array(gateRecordFlagSchema).default([]),
+});
+export type GateRecordRound = z.infer<typeof gateRecordRoundSchema>;
+
+// The persistent gate record. `passed` and `brief` are the verdict and parse
+// only as a pair, so a half-written pair is an invalid file rather than a
+// passed-but-unverified gate; `overrides` is the passing attempt's dismissals;
+// `rounds` accumulates while the story is refining.
+export const gateSchema = z
+	.strictObject({
+		passed: z.iso.datetime().optional(),
+		brief: z.string().optional(),
+		overrides: z.array(z.string()).default([]),
+		rounds: z.array(gateRecordRoundSchema).default([]),
+	})
+	.refine(
+		(gate) => (gate.passed === undefined) === (gate.brief === undefined),
+		{ message: "gate `passed` and `brief` are recorded together" },
+	);
 export type Gate = z.infer<typeof gateSchema>;
 
 export const storyFrontmatterSchema = z.strictObject({
