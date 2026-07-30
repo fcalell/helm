@@ -87,6 +87,7 @@ const research = new Map<string, ResearchState>();
 const permissions = new Map<string, PermissionRequest>();
 const permissionResolvers = new Map<string, (approved: boolean) => void>();
 let handle: ChannelHandle<(typeof proposalChannel)["server"]> | undefined;
+let log: { error(message: string): void } | undefined;
 
 const ITEM_SCHEMA: Record<Proposal["tool"], z.ZodType> = {
 	propose_epics: epicDraftSchema,
@@ -745,40 +746,95 @@ function composeOutcome(proposal: Proposal): string {
 	return proposalOutcomePrompt(proposal.tool, items);
 }
 
+// A resolution the user already made must never bounce: whichever turn holds
+// the session or its story, the outcome waits for the next close instead of
+// failing an RPC whose pending record is already consumed.
 async function dispatchResume(
 	sessionId: string,
 	message: string,
 ): Promise<void> {
 	if (isSessionLive(sessionId)) {
-		heldResumes.set(sessionId, [
-			...(heldResumes.get(sessionId) ?? []),
-			message,
-		]);
+		hold(sessionId, [message]);
 		return;
 	}
-	await messageSession({ sessionId, prompt: message });
+	try {
+		await messageSession({ sessionId, prompt: message });
+	} catch (error) {
+		if (!(error instanceof ApiError) || error.code !== "SESSION_BUSY")
+			throw error;
+		hold(sessionId, [message]);
+	}
+}
+
+function hold(sessionId: string, messages: string[]): void {
+	heldResumes.set(sessionId, [
+		...(heldResumes.get(sessionId) ?? []),
+		...messages,
+	]);
+}
+
+let draining = false;
+let drainAgain = false;
+
+// Called from the closed listener on every close, id or not: a resume held
+// because another session's turn owned the story is woken by that turn's
+// close. Synchronous until the first send, so that send reaches the spawn
+// guard inside the listener loop, while the closing turn's key is already
+// released and no other spawn can take it.
+function drainHeldResumes(): void {
+	if (draining) {
+		drainAgain = true;
+		return;
+	}
+	draining = true;
+	void (async () => {
+		try {
+			do {
+				drainAgain = false;
+				for (const [sessionId, messages] of [...heldResumes]) {
+					heldResumes.delete(sessionId);
+					if (messages.length === 0) continue;
+					try {
+						await messageSession({
+							sessionId,
+							prompt: messages.join("\n\n"),
+						});
+					} catch (error) {
+						if (error instanceof ApiError && error.code === "SESSION_BUSY") {
+							// Back to the front: anything appended while the send was in
+							// flight is newer than what this pass took.
+							heldResumes.set(sessionId, [
+								...messages,
+								...(heldResumes.get(sessionId) ?? []),
+							]);
+							continue;
+						}
+						log?.error(`proposals: held resume failed: ${String(error)}`);
+					}
+				}
+			} while (drainAgain);
+		} finally {
+			draining = false;
+		}
+	})();
 }
 
 export default defineService({
 	name: "proposals",
 	start: (ctx) => {
+		log = ctx.log;
 		handle = ctx.ws.channel(proposalChannel, {
 			onSubscribe: (conn) => {
 				conn.send("snapshot", snapshot());
 			},
 		});
-		onSessionClosed(({ sessionId }) => {
-			if (handle === undefined || sessionId === undefined) return;
-			const held = heldResumes.get(sessionId);
-			if (held === undefined || held.length === 0) return;
-			heldResumes.delete(sessionId);
-			void messageSession({ sessionId, prompt: held.join("\n\n") }).catch(
-				(error) =>
-					ctx.log.error(`proposals: held resume failed: ${String(error)}`),
-			);
+		onSessionClosed(() => {
+			if (handle === undefined) return;
+			drainHeldResumes();
 		});
 		return () => {
 			handle = undefined;
+			log = undefined;
 			proposals.clear();
 			questions.clear();
 			decisions.clear();
