@@ -1,9 +1,11 @@
 ---
 id: 005-06
-status: ready
+status: done
 depends: []
 gate: { passed: 2026-07-30T12:07:12.267Z, brief: 611954233a619bbc, overrides: [] }
 sessions: {}
+runs:
+  - { n: 1, session: 67f9c00e-21c2-49a5-aaff-760b3b6f6514, brief: 611954233a619bbc, started: 2026-07-30T12:10:00Z, outcome: review, grades: 10/15, stat: "11 files +575 -38", tokens: 178452, minutes: 14 }
 ---
 # One refine turn per story
 
@@ -353,3 +355,33 @@ Changes:
 - [x] A busy resolution's outcome prompt is held and drained on the next close, rather than
       `proposal/resolve` refusing up front: a resolution the user already made never bounces, and
       the hold reuses the machinery that already exists for the same-id case.
+
+## Run notes
+
+`pnpm check` passes (tsc + Biome, 106 files, no fixes). The episode suite reports 12/12, and the
+three new unattended episodes pass 3/3 each in isolation.
+
+The review graded 10/15: every `(file)` and `(command)` criterion proved on disk, no failures, and
+the five `(live)` criteria unclear by its own rule. Four of those five were then verified by hand:
+`refine-turn-guard`, `refine-turn-park` and `refine-turn-failure-release` each run clean in
+isolation, and the halting `refine-turn-live` was driven in a browser — a reloaded drawer's send
+returns `POST /rpc/session/message 409` in 2ms, the composer clears with no echoed line left in the
+transcript and takes input again, and the toast reads "session is mid-turn; kill it before
+steering". That is the pre-existing same-id refusal, which is what this story's own limit predicts:
+the story-scoped message becomes UI-reachable only once 005-02 mints a second refine id.
+
+- verify: the 60s init bound. The stub inits instantly, so no episode exercises it; a refine spawn
+  wedged before `system/init` gets `child.kill()`, never `killProcessGroup`.
+- verify: a real spawn failure against the live CLI (`claude` off `PATH`) surfaces `SPAWN_FAILED`
+  with the true exit code instead of hanging, now that only `close` settles the turn.
+- verify: the stale-resume double-`runTurn` path against a genuinely pruned transcript — the
+  recovery still matches on `SessionSpawnError` and the reseed spawn is not refused by the guard.
+- verify: the gate's divergent-id park retry. The stub keeps a resumed id, so no episode can park
+  under an id different from the one that closes.
+
+Out of scope, found while verifying: two committed episodes are flaky at roughly 50% in isolation —
+`one-flag` ("timed out waiting for story 001-01 to reach Ready", and once "waiting for the proposing
+session to close") and `exhausted` ("timed out waiting for the flag ... on the gate channel"). Both
+fail at the same rate at `5f1461c`, the commit before this run, so neither is caused by this story.
+A suite that reports 11/12 about a third of the time undercuts the harness's purpose and wants its
+own card.
