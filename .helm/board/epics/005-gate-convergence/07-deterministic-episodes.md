@@ -1,9 +1,11 @@
 ---
 id: 005-07
-status: ready
+status: review
 depends: [005-05]
 gate: { passed: 2026-07-30T17:32:24.434Z, brief: 89193042aa29059d, overrides: [] }
 sessions: {}
+runs:
+  - { n: 1, session: 9e817c1d-9eff-4691-9011-bcdfaf331d22, brief: 89193042aa29059d, started: 2026-07-30T17:40:00Z, outcome: review, grades: 6/11, stat: "7 files +225 -26", tokens: 122111, minutes: 27 }
 ---
 # Deterministic episodes
 
@@ -286,3 +288,46 @@ Changes:
       name. Ten samples `one-flag` against its measured 3-in-6 rate, under 1 in 1000 by chance, and
       both reseed episodes against their 1-in-5; five would leave a 1-in-5 episode a third of a
       chance at a false clean sweep.
+
+## Run notes
+
+`pnpm check` **fails**, on drift this story did not cause: 67 TypeScript errors across 17 files in
+`src/app/components/`, all `Property 'variant'` (58) or `Property 'size'` (8) on
+`@fcalell/plugin-solid-ui` components, after the sibling `../stack` rebuilt seven component families
+mid-session. The failure reproduces at `b3d05fc` with every one of this run's changes stashed, no
+file this run touched produces an error, and `biome check` is clean on all of them. Carded as
+004-09. The check criterion is unchecked because it says the command passes and it does not.
+
+The review graded 6/11: every `(file)` criterion proved on disk, four `(live)` criteria unclear by
+the review's own rule, and `pnpm check` failed as above.
+
+The race is closed, and the probe is what shows it rather than a lower failure rate. Orchestrator's
+own run at HEAD: control arm (bare `writeFile`) 11442 torn in 20000 reads, 57.21%; product arm
+(`writeStory`) **0 torn in 20000**. Three runs by the run agent agree: control 11055 / 11038 /
+11382, product 0 / 0 / 0. A control arm that tears at 57% in the same loop is what makes the
+product's zero mean the window is gone rather than narrow.
+
+The atomic write alone did not make the suite deterministic. A second race, independent of the torn
+read, kept `one-flag`, `gate-reseed-retry` and `gate-reseed-park` failing 4 of 5 suite runs on
+"timed out waiting for the proposing session to close": `acceptFix` took its `closed()` mark after
+waiting for the proposal, so a closure arriving inside the same 50 ms poll sat below the mark and
+the wait could never finish. It reproduces on the unpatched tree. The fix moves the mark ahead of
+the proposal wait and is committed alone (`ede2c6b`) because `harness/episode/driver.ts` is in this
+story's blast radius for the invalid map and one post-run check, not for `acceptFix`; it is
+reviewable and revertible on its own.
+
+Episode evidence, node v24.11.1: `run.ts all` 15/15 on 10 consecutive runs plus an 11th after the
+commit split, and `run.ts exhausted < /dev/null` passing on 10 consecutive runs plus an 11th.
+Orchestrator's own three independent runs at HEAD: 15/15, 15/15, 15/15. Before the `acceptFix` fix,
+five suite runs went 15/15, 12/15, 14/15, 15/15, 14/15.
+
+- verify: with `node harness/episode/run.ts exhausted` held at its halt (stdin attached, not
+  `/dev/null`), the drawer shows both rounds in the file-driven history box and the board shows no
+  invalid-files banner. This is the one criterion nothing checked: it needs a browser against the
+  halted scratch app, and it is what proves the watcher still re-reads a file whose inode changed.
+- verify: a real `claude` shape session through the UI still dedupes to `<slug>-2` when a slug is
+  taken. The check drove the real `createShapeThread` path through the orchestrator, but the stub
+  plays only the adversary and refine roles, so the shape process died once the file was on disk.
+- verify: `pnpm dev` and a live board still write and reload cleanly. Every board write now replaces
+  the target's inode, so anything holding a board fd open across a write would serve stale content.
+  Nothing in the repo does, but the running app is where that would show.
