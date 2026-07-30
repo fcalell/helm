@@ -50,8 +50,12 @@ interface Attempt {
 	refineSessionId?: string;
 	// Flags answered by a pending fix proposal; never concede these at turn end.
 	pendingFixes: Set<string>;
-	// The flags prompt hit a mid-turn refine session; retried on its close.
+	// The flags prompt found the story busy and is waiting to be routed;
+	// `routeFlags` is the only writer.
 	pendingFlags?: boolean;
+	// Serial chain of park retries: every close appends one link while the
+	// round is parked, so a retry that re-parks is healed by the next close.
+	flagRetries?: Promise<void>;
 }
 
 const attempts = new Map<string, Attempt>();
@@ -312,6 +316,7 @@ async function routeFlags(attempt: Attempt): Promise<void> {
 	const story = await readFresh(attempt.storyId).catch(() => undefined);
 	const refineId = story?.frontmatter.sessions.refine;
 	if (refineId === undefined) {
+		attempt.pendingFlags = false;
 		concedeOpenFlags(attempt);
 		setPhase(attempt, "review");
 		return;
@@ -323,6 +328,7 @@ async function routeFlags(attempt: Attempt): Promise<void> {
 			sessionId: refineId,
 			prompt: gateFlagsPrompt(round.flags),
 		});
+		attempt.pendingFlags = false;
 		// A stale resume reseeds under a fresh id.
 		attempt.refineSessionId = sessionId;
 	} catch (error) {
@@ -330,10 +336,20 @@ async function routeFlags(attempt: Attempt): Promise<void> {
 			attempt.pendingFlags = true;
 			return;
 		}
+		attempt.pendingFlags = false;
 		logError(error);
 		concedeOpenFlags(attempt);
 		setPhase(attempt, "review");
 	}
+}
+
+// One link of the park's retry chain. The park outlives any single session
+// id, so the link re-reads the story rather than trusting the close that
+// scheduled it.
+function retryFlags(attempt: Attempt): Promise<void> {
+	if (attempts.get(attempt.storyId) !== attempt) return Promise.resolve();
+	if (attempt.pendingFlags !== true) return Promise.resolve();
+	return routeFlags(attempt);
 }
 
 // A flag left unanswered when the refine turn ends renders contested with no
@@ -589,14 +605,17 @@ export async function resolveGateFlag(input: {
 }
 
 function onClosed({ sessionId }: { sessionId?: string; stale: boolean }): void {
-	if (sessionId === undefined) return;
 	for (const attempt of attempts.values()) {
-		if (attempt.refineSessionId !== sessionId) continue;
-		if (attempt.pendingFlags) {
-			attempt.pendingFlags = false;
-			void routeFlags(attempt).catch(logError);
+		// A parked round is waiting on whichever turn holds the story, not on
+		// the id it was parked under, so every close feeds the chain.
+		if (attempt.pendingFlags === true) {
+			attempt.flagRetries = (attempt.flagRetries ?? Promise.resolve())
+				.then(() => retryFlags(attempt))
+				.catch(logError);
 			continue;
 		}
+		if (sessionId === undefined) continue;
+		if (attempt.refineSessionId !== sessionId) continue;
 		if (attempt.phase !== "refine" && attempt.phase !== "review") continue;
 		concedeOpenFlags(attempt);
 		// direct assign: one broadcast for the phase flip and the flag change together
