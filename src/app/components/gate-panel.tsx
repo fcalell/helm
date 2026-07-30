@@ -3,11 +3,16 @@ import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
-import type { GateAttempt, GateFlag, GateRound } from "../../shared/gate.ts";
+import type {
+	GateFlagStatus,
+	GateRecordRound,
+	Story,
+} from "../../board/schema.ts";
+import type { GateAttempt, GateFlag } from "../../shared/gate.ts";
 import { gateFor, PHASE_LINES, resolveGateFlag } from "../lib/gate-store.ts";
 
 const FLAG_BADGES: Record<
-	GateFlag["status"],
+	GateFlagStatus,
 	{ label: string; variant: "success" | "warning" | "destructive" | "outline" }
 > = {
 	open: { label: "Open", variant: "outline" },
@@ -129,7 +134,9 @@ function FlagWidget(props: { storyId: string; flag: GateFlag }) {
 	);
 }
 
-function RoundHistory(props: { rounds: GateRound[]; overrides: string[] }) {
+// The story file's round record: every round the gate has spent on this brief,
+// with each flag at its last known status.
+function RoundHistory(props: { rounds: GateRecordRound[] }) {
 	return (
 		<div class="flex flex-col gap-2 text-sm">
 			<For each={props.rounds}>
@@ -153,69 +160,77 @@ function RoundHistory(props: { rounds: GateRound[]; overrides: string[] }) {
 					</div>
 				)}
 			</For>
-			<Show when={props.overrides.length > 0}>
-				<div>
-					<p class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-						Overrides
-					</p>
-					<ul class="mt-1 list-disc pl-4 text-muted-foreground">
-						<For each={props.overrides}>
-							{(override) => <li>{override}</li>}
-						</For>
-					</ul>
-				</div>
-			</Show>
 		</div>
 	);
 }
 
-export function GatePanel(props: { storyId: string }) {
-	const attempt = () => gateFor(props.storyId);
+// The rounds a refining story has already spent, whether or not an attempt is
+// still in memory.
+export function gateHistory(story: Story): GateRecordRound[] {
+	if (story.frontmatter.status !== "refining") return [];
+	return story.frontmatter.gate?.rounds ?? [];
+}
+
+export function GatePanel(props: { story: Story }) {
+	const attempt = () => gateFor(props.story.id);
 	const contested = () =>
 		(attempt()?.rounds.at(-1)?.flags ?? []).filter(
 			(flag) => flag.status === "contested",
 		);
+	const history = () => gateHistory(props.story);
 	return (
-		<Show when={attempt()}>
-			{(active) => (
-				<div
-					class="flex shrink-0 flex-col gap-2 rounded-lg border p-3"
-					data-gate-phase={active().phase}
-				>
-					<Switch
-						fallback={
-							<p class="text-sm text-muted-foreground">
-								{PHASE_LINES[active().phase]}
-							</p>
-						}
-					>
-						<Match
-							when={
-								active().phase === "queued" || active().phase === "adversary"
-							}
-						>
-							<Loader text={PHASE_LINES[active().phase]} class="text-xs" />
-						</Match>
-					</Switch>
-					<For each={contested()}>
-						{(flag) => <FlagWidget storyId={props.storyId} flag={flag} />}
-					</For>
-					<Show when={active().phase === "exhausted"}>
-						<RoundHistory
-							rounds={active().rounds}
-							overrides={active().overrides}
-						/>
-						<p class="text-xs text-muted-foreground">
-							Move the card to Ready to run another adversary pass.
-						</p>
-					</Show>
-				</div>
-			)}
+		<Show when={attempt() !== undefined || history().length > 0}>
+			<div
+				class="flex shrink-0 flex-col gap-2 rounded-lg border p-3"
+				data-gate-phase={attempt()?.phase}
+			>
+				<Show when={attempt()}>
+					{(active) => (
+						<>
+							<Switch
+								fallback={
+									<p class="text-sm text-muted-foreground">
+										{PHASE_LINES[active().phase]}
+									</p>
+								}
+							>
+								<Match
+									when={
+										active().phase === "queued" ||
+										active().phase === "adversary"
+									}
+								>
+									<Loader text={PHASE_LINES[active().phase]} class="text-xs" />
+								</Match>
+							</Switch>
+							<For each={contested()}>
+								{(flag) => <FlagWidget storyId={props.story.id} flag={flag} />}
+							</For>
+						</>
+					)}
+				</Show>
+				<Show when={history().length > 0}>
+					<RoundHistory rounds={history()} />
+				</Show>
+				<Show when={attempt()?.phase === "exhausted"}>
+					<p class="text-xs text-muted-foreground">
+						Move the card to Ready to run another adversary pass.
+					</p>
+				</Show>
+			</div>
 		</Show>
 	);
 }
 
-export function gateBadgeLabel(attempt: GateAttempt): string {
+// The card-face badge. A live attempt decides the label; with none, a
+// non-empty record is all the card has left to say.
+export function gateBadgeLabel(
+	rounds: GateRecordRound[],
+	attempt: GateAttempt | undefined,
+): string | undefined {
+	if (attempt === undefined) {
+		return rounds.length > 0 ? "gate spent" : undefined;
+	}
 	if (attempt.phase === "queued" || attempt.phase === "adversary") {
 		return "gating";
 	}

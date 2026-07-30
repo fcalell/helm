@@ -120,7 +120,7 @@ function ChatTab(props: { story: Story }) {
 		epic()?.frontmatter.sessions.define;
 	return (
 		<div class="flex h-full min-h-0 flex-col gap-3">
-			<GatePanel storyId={props.story.id} />
+			<GatePanel story={props.story} />
 			<div class="min-h-0 flex-1">
 				<Show
 					when={sessionId()}

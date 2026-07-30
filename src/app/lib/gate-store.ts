@@ -17,7 +17,7 @@ export const PHASE_LINES: Record<GatePhase, string> = {
 	adversary: "Adversary review running",
 	refine: "Refine chat is answering the adversary's flags",
 	review: "Contested flags await your call",
-	exhausted: "Two automatic rounds spent — the gate waits for you",
+	exhausted: "The automatic rounds are spent; the gate waits for you",
 };
 
 interface GateState {

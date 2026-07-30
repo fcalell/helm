@@ -14,7 +14,7 @@ import {
 	resolveRunPermission,
 	startStoryRun,
 } from "../lib/session-store.ts";
-import { gateBadgeLabel } from "./gate-panel.tsx";
+import { gateBadgeLabel, gateHistory } from "./gate-panel.tsx";
 
 interface StoryCardProps {
 	story: Story;
@@ -32,7 +32,10 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 		props.story.brief.openQuestions.filter((item) => !item.checked).length;
 	const depends = () => props.story.frontmatter.depends;
 	const isRefining = () => props.story.frontmatter.status === "refining";
-	const gate = () => (isRefining() ? gateFor(props.story.id) : undefined);
+	const gateBadge = () =>
+		isRefining()
+			? gateBadgeLabel(gateHistory(props.story), gateFor(props.story.id))
+			: undefined;
 	// The review close's diff stat, shown while the story sits in Review.
 	const reviewStat = () =>
 		props.story.frontmatter.status === "review"
@@ -47,10 +50,10 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 			</p>
 			<div class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
 				<Badge variant="outline">{epicLabel()}</Badge>
-				<Show when={gate()}>
-					{(attempt) => (
+				<Show when={gateBadge()}>
+					{(label) => (
 						<Badge variant="warning" data-gate-badge>
-							{gateBadgeLabel(attempt())}
+							{label()}
 						</Badge>
 					)}
 				</Show>
