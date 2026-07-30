@@ -1,6 +1,6 @@
 ---
 id: 005-02
-status: review
+status: done
 depends: [005-01, 005-06]
 gate: { passed: 2026-07-30T14:55:56.479Z, brief: 8f2d0ba2ed68f9f0, overrides: [] }
 sessions: {}
@@ -443,3 +443,15 @@ anything in the observer's sampling.
 - verify: after a server restart, a re-request of a story whose gate was exhausted before the restart
   resumes the existing refine chat with its scroll-back intact. The trigger is in memory by design,
   and no episode covers the restart path.
+
+Re-verified at `515fe28`, after 005-07 closed the torn-read race and the second race in `acceptFix`.
+The suite criterion's grading rule is now met on its own terms: `node harness/episode/run.ts all`
+reports 15/15 on three consecutive runs, and each of the three new episodes passes 3 consecutive
+runs by name (`gate-reseed-retry` 3/3, `gate-reseed-park` 3/3, `gate-reseed-not-on-record` 3/3),
+with `exhausted` 3/3 alongside. No episode failed in isolation, which is what left the criterion
+unchecked before.
+
+`pnpm check` passed at this run's own grading and fails now, on 67 errors from the sibling stack's
+solid-ui rebuild that landed later the same day. None of them is in a file this story touched, and
+the migration is carded as 004-09. The criterion was proven against the code this run produced;
+the repo broke around it afterwards.
