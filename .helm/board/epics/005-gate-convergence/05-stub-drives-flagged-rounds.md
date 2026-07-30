@@ -309,14 +309,14 @@ Changes:
 
 ## Acceptance criteria
 
-- [x] `harness/stub-claude/` ships an executable file named exactly `claude` with a shebang and
+- [ ] `harness/stub-claude/` ships an executable file named exactly `claude` with a shebang and
       the executable bit, extensionless ESM importing the `.ts` implementation beside it, and that
       implementation uses erasable syntax only (node strips types at runtime; the repo's tsconfig
       does not set `erasableSyntaxOnly`, so `pnpm check` would not catch a violation). (file)
 - [ ] Spawned through `PATH` the way the orchestrator spawns it (`spawn("claude", args)`,
       `src/sessions/runner.ts:183`) with a script directory configured, the stub emits the
       scripted frames on stdout and exits 0. (live)
-- [x] The stub's argv parser handles every flag `runner.ts:120-186` writes, including the
+- [ ] The stub's argv parser handles every flag `runner.ts:120-186` writes, including the
       bare-value spread after `--tools` and the `--settings` and `--permission-prompt-tool` pair no
       gate spawn carries (`runTurn` passes neither, `sessions.ts:360-389` against `:400-433`) —
       those two are read off the parser source, everything a gate spawn does carry is read off
@@ -327,11 +327,11 @@ Changes:
       uuid `session_id`, echoing `--resume`'s id when one is given; its result frame satisfies
       `parseResultEvent` (`:68-88`). No frame ever carries a non-uuid session id, which would
       crash the orchestrator rather than fail the spawn (Approach). (live)
-- [x] The stub reaches its script directory and log file through two absolute-path environment
+- [ ] The stub reaches its script directory and log file through two absolute-path environment
       variables, and is reached at all through a third, `PATH` — the only channel a spawn inherits
       (`runner.ts:106-113`, `:185`), since its cwd is the managed repo (`sessions.ts:296`);
       `/tmp/helm-harness/<episode>/spawns.log` records the three values it ran with. (file)
-- [x] A script is claimed by the role on `--allowedTools` (`runner.ts:132-136`,
+- [ ] A script is claimed by the role on `--allowedTools` (`runner.ts:132-136`,
       `kinds.ts:207-211`, `:224`), not by prose in the role line:
       `/tmp/helm-harness/<episode>/spawns.log` records the role
       each spawn resolved and the script it claimed, and the stub's claim path fails the spawn
@@ -343,7 +343,7 @@ Changes:
       `runColdSession` rethrows as `ApiError("SPAWN_FAILED")` (`sessions.ts:157-159`, `:454-457`),
       reaching the harness as a `gate-aborted` notice on the board channel with the dispatcher slot
       vacated on the meter channel (`gate.ts:194-200`, `:94-99`). (live)
-- [x] The stub's tool client tests `result.isError === true` rather than catching (no branch
+- [ ] The stub's tool client tests `result.isError === true` rather than catching (no branch
       throws, and a success carries `isError: undefined` — Approach), logs every refusal, retries
       only the two not-ready refusals — "session is not initialized yet"
       (`src/server/mcp/server.ts:100-107`) and "no adversary round is running for this story"
@@ -367,15 +367,15 @@ Changes:
       orchestrator from that cwd on its own port — every service up, the board watching the scratch
       repo, the SPA and `/rpc` both answering — without reading or writing the developer's
       `helm.config.json`. (live)
-- [x] The board fixture's story carries a brief that passes `checkReadyGate`
+- [ ] The board fixture's story carries a brief that passes `checkReadyGate`
       (`src/board/transitions.ts:22-47`) and **no valid `gate` verdict**, so `requestReady` starts
       an attempt instead of short-circuiting to Ready (`gate.ts:152-159`). (file)
-- [x] After setup, every state change the driver makes goes through the orchestrator's API —
+- [ ] After setup, every state change the driver makes goes through the orchestrator's API —
       `session.spawn`, `story.move`, proposal resolution, `gate.resolveFlag`, over
       `POST /rpc/<route>/<procedure>` — with no direct write to the scratch board's files, and
       every assertion reads a WS channel snapshot or an on-disk file. Read off `harness/episode/`:
       no filesystem write to the scratch board outside setup. (file)
-- [x] The driver waits for a `closed` frame on the `session` channel twice: after spawning the
+- [ ] The driver waits for a `closed` frame on the `session` channel twice: after spawning the
       refine chat, before starting the gate, so `routeFlags` (`gate.ts:245-254`) routes instead of
       conceding; and after each fix proposal arrives, before resolving it, so the round it
       enqueues never finds the refine session still live. Both waits are read off
@@ -386,19 +386,19 @@ Changes:
 - [ ] The observable half holds across every episode: each fix proposal's `closed` frame precedes
       its resolution on the `session` channel, and the gate snapshot's `rounds.length` never
       exceeds the episode's declared round count. (live)
-- [x] Every episode declares its expected spawn sequence and the driver fails it when the log's
+- [ ] Every episode declares its expected spawn sequence and the driver fails it when the log's
       sequence differs — counting the driver's own refine chat as `refine-1`, so a flagged round's
       fix resume is `refine-2`, and including the second adversary round an accepted fix always
       buys while `rounds.length < 2` (`gate.ts:308-315`). Read off
       `/tmp/helm-harness/<episode>/spawns.log`,
       which shows exactly the declared spawns and no others, every one of them the stub. (file)
-- [x] Every stub spawn writes a start entry and a completion entry carrying its exit code, every
+- [ ] Every stub spawn writes a start entry and a completion entry carrying its exit code, every
       episode declares the code it expects per spawn (zero everywhere but a failure probe's one
       declared spawn), and the driver fails the episode on any mismatch **or a missing completion**
       (a killed or crashed stub logs none), rather than letting the flagless `writePass` path
       (`gate.ts:237-241`) read as a clean gate pass. Read off
       `/tmp/helm-harness/<episode>/spawns.log`. (file)
-- [x] `tsconfig.json`'s `include` covers `harness`, and `pnpm check` passes. (command)
+- [ ] `tsconfig.json`'s `include` covers `harness`, and `pnpm check` passes. (command)
 - [ ] The flagless episode drives a refining story into Ready with a recorded `gate` verdict —
       today's behavior, unbroken. (live)
 - [ ] The one-flag episode drives a round whose flag appears on the `gate` channel with its title
@@ -418,7 +418,7 @@ Changes:
 - [ ] Every episode prints the meter's reading from the `meter` channel alongside its result, and
       says in the same breath that the reading is not the evidence — the stub authors its own
       `usage` (`src/sessions/events.ts:44-88`), so the log is what proves zero spend. (live)
-- [x] `.helm/knowledge/architecture/claude-integration.md` §Verifying without burning the pool
+- [ ] `.helm/knowledge/architecture/claude-integration.md` §Verifying without burning the pool
       describes the harness's two halves, where they live, the three environment variables, the
       scratch-cwd recipe and why the entry cannot live in the scratch directory, and that
       board-tool calls make flagged rounds and exhausted attempts

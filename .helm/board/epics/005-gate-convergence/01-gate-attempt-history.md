@@ -1,9 +1,11 @@
 ---
 id: 005-01
-status: running
+status: done
 depends: [005-05]
 gate: { passed: 2026-07-30T08:37:43.168Z, brief: 8127a6c186618642, overrides: [] }
 sessions: {}
+runs:
+  - { n: 1, session: 1a487802-7bc7-4c6a-a498-c03ab600a916, brief: 8127a6c186618642, started: 2026-07-30T08:41:00Z, outcome: review, grades: 20/30, stat: "16 files +762 -146", tokens: 207786, minutes: 21 }
 ---
 # Gate round history
 
@@ -532,3 +534,39 @@ Changes:
   no cross-story rollup).
 
 ## Open questions
+
+## Run notes
+
+Commits `0a5f85b` · `cae6783` · `5f461ef` · `4b84ec8` · `971156f` on master, 16 files
++762 -146. Gate: three adversary rounds, six flags, all fixed, none contested.
+
+`pnpm check` passes (`tsc --noEmit` clean, biome "Checked 106 files, No fixes applied").
+`node harness/episode/run.ts all` passes 9/9, up from 6/6: `gate-history-restart`,
+`gate-history-cleared` and `gate-history-block-style` are new, and `probe-missing-script`,
+`contested` and `exhausted` gained assertions on the record.
+
+Review graded 20/30 — every (file) and (command) criterion proved, the ten (live) ones
+returned unclear by rule. Eight of the ten were then checked by hand:
+
+- verify: done — the four unattended live criteria (restart accumulation, interrupted
+  round, drag-clear, block-style round-trip) each ride a named episode in the passing 9/9.
+- verify: done — `exhausted` halt: count-free phase line, `data-gate-phase="exhausted"`,
+  both rounds in the history box, the "Move the card to Ready…" line, no flag widget.
+- verify: done — `contested` halt: `data-gate-phase="review"` read off the DOM, the
+  contested flag's widget with its counter-argument, and round 1's history box beside it.
+- verify: done — `gate-history-cold`: with no attempt in memory, the refining story shows
+  three rounds with their resolutions and a "gate spent" badge; the Ready story carrying a
+  byte-identical `gate` block shows neither.
+
+Two criteria stay open, each proved in part:
+
+- verify: the 19 on-disk `gate` blocks all parse under the new schema and round-trip through
+  `serializeStory` as 16 byte-identical + exactly the 3 carrying overrides converted to block
+  maps. Not checked: the board rendering those cards in the running app.
+- verify: the schema rejects `passed` without `brief` and the reverse, both with "gate
+  `passed` and `brief` are recorded together", and a history-only block parses. Not checked:
+  that message surfacing in the invalid banner.
+
+Out-of-scope finding, not acted on: killing an episode driver mid-halt leaks its orchestrator
+child on the fixed port 8797, so the next episode binds against a stale server. The driver's
+own restart path handles this correctly; only an external kill exposes it.
