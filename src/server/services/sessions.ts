@@ -68,6 +68,9 @@ interface SessionInfo {
 const live = new Map<string, SessionProcess>();
 const known = new Map<string, SessionInfo>();
 const interrupted = new Set<string>();
+// Story ids whose refine turn is in flight, held from the spawn call through
+// the process's close: one refine turn per story, whatever id it carries.
+const refining = new Set<string>();
 const closedListeners = new Set<
 	(info: { sessionId?: string; stale: boolean }) => void
 >();
@@ -283,7 +286,26 @@ function spawnTracked(options: {
 }): TrackedTurn {
 	const runId = randomUUID();
 	const { kind, attach } = options;
+	// Check and set with nothing awaited in between, so a spawn holds the story
+	// from here until its close, the pre-init window included.
+	const storyKey =
+		kind === "refine" && attach?.type === "story" ? attach.id : undefined;
+	if (storyKey !== undefined) {
+		if (refining.has(storyKey)) {
+			throw new ApiError("SESSION_BUSY", {
+				status: 409,
+				message: `story ${storyKey} already has a refine turn in flight; wait for it to end`,
+			});
+		}
+		refining.add(storyKey);
+	}
 	const mcpToken = randomUUID();
+	const release = (): void => {
+		releaseSpawn(mcpToken);
+		// Only the spawn that acquired the key frees it: an adversary, a grader
+		// or a run segment on the same story must never end a live refine turn.
+		if (storyKey !== undefined) refining.delete(storyKey);
+	};
 	registerSpawn(mcpToken, { kind, attach });
 	let sessionId = options.resume;
 	let resultSeen = false;
@@ -323,9 +345,10 @@ function spawnTracked(options: {
 	} catch (error) {
 		// A synchronous spawn throw (a kind with no spawnable row) would
 		// otherwise leak the binding: the done handler below never registers.
-		releaseSpawn(mcpToken);
+		release();
 		throw error;
 	}
+	if (storyKey !== undefined) armInitTimer(child);
 	child.started
 		.then((init) => {
 			live.set(init.sessionId, child);
@@ -333,7 +356,7 @@ function spawnTracked(options: {
 		})
 		.catch(() => {});
 	const done = child.done.then((outcome) => {
-		releaseSpawn(mcpToken);
+		release();
 		if (sessionId !== undefined) {
 			live.delete(sessionId);
 			// A turn that ended without a result event was interrupted (kill or
@@ -357,6 +380,24 @@ function spawnTracked(options: {
 	return { child, done };
 }
 
+// A guarded spawn holds its story until it closes, and a process that never
+// reaches `system/init` has no session id, so `killSession` cannot reach it.
+// This is the escape hatch, the same bound the run path uses (`runs.ts`).
+const INIT_TIMEOUT_MS = 60_000;
+
+// `child.kill()` is a single-pid SIGTERM: a chat spawn is not detached, so it
+// leads no process group and a group kill would signal nothing.
+function armInitTimer(child: SessionProcess): void {
+	const timer = setTimeout(() => {
+		child.kill();
+	}, INIT_TIMEOUT_MS);
+	child.started
+		.finally(() => {
+			clearTimeout(timer);
+		})
+		.catch(() => {});
+}
+
 async function runTurn(
 	options: TurnOptions,
 ): Promise<{ sessionId: string; done: Promise<SessionResult | undefined> }> {
@@ -372,7 +413,17 @@ async function runTurn(
 		tools: options.tools,
 		extraTools: options.extraTools,
 	});
-	const init = await tracked.child.started;
+	let init: SessionInit;
+	try {
+		init = await tracked.child.started;
+	} catch (error) {
+		// The release rides the close, which lands after this rejection: waiting
+		// for it means every error this throws implies the spawn let its story
+		// go. The settlement is ignored so a throwing closed listener cannot
+		// replace the error the caller reads.
+		await tracked.done.catch(() => {});
+		throw error;
+	}
 	// Only the resumable chat kinds persist their id on the card; a cold
 	// kind's attach exists so its board tools resolve the story, nothing more.
 	if (
@@ -634,6 +685,7 @@ export default defineService({
 			live.clear();
 			known.clear();
 			interrupted.clear();
+			refining.clear();
 		};
 	},
 });

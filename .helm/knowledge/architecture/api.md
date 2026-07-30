@@ -111,7 +111,7 @@ Registry:
 | `RUN_ACTIVE`         | Any run path on a story with a queued run entry, or `run.start` (fresh starts only) on one whose run process is still live (HTTP 409). | none |
 | `RUN_FAILED`         | A run's worktree/branch convergence failed (git error, or the branch already carries `.helm/` changes). | none |
 | `EXIT_FAILED`        | A git step of an interactive review exit failed (rebase conflict, non-fast-forward merge, checkout on the wrong branch, deletion failure); the message carries the git error and the card is unchanged (HTTP 409). | none |
-| `SESSION_BUSY`       | The session is mid-turn; kill it before steering (HTTP 409). | none |
+| `SESSION_BUSY`       | The session is mid-turn (kill it before steering), or the story already has a refine turn in flight under any id (HTTP 409). | none |
 | `SERVICE_UNAVAILABLE` | An RPC reached a stopped board service: the board singletons are null only during the service's own stop (shutdown), since boot awaits service start before the port binds (HTTP 503). | none |
 | `SESSION_COLD`       | The kind's context policy is always-cold, so the session never resumes (HTTP 409). | none |
 | `SESSION_STALE`      | The transcript is gone and the session has no card to reseed from (HTTP 410). | none |
