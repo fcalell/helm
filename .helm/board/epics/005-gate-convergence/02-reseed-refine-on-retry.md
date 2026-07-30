@@ -1,6 +1,6 @@
 ---
 id: 005-02
-status: backlog
+status: refining
 depends: [005-01, 005-06]
 sessions: {}
 ---
@@ -8,320 +8,264 @@ sessions: {}
 
 ## Goal
 
-A re-requested gate after exhaustion runs its fix rounds in a fresh refine session seeded from
-the story file, replacing the resume of `sessions.refine`. The resumed transcript hurts twice:
-its replay re-enters the session on every fix round, so the per-round price grows with the
-rounds already spent, and it carries sunk-cost bias, the 004-02 session kept reintroducing the
-supersession design its own transcript had argued for even after edit resolutions removed it
-([loop-findings](../../../research/loop-findings.md) §004 loop). What broke that loop was a
-fresh read of the brief with no chat history. The seed is the durable state: the brief body, the
-open questions, and the attempt's override register. Anything that survives only in chat history
-was never durable, the files-as-truth rule the board already lives by
-([board-storage](../../../knowledge/architecture/board-storage.md)). Within an attempt the
-session still resumes; the reseed boundary is the user's retry, where exhaustion has already
-proven the current context stuck.
+A re-requested gate after exhaustion runs its fix round in a fresh refine session seeded from the
+story file, instead of resuming `sessions.refine`. The resumed transcript hurts twice: its replay
+re-enters the session on every fix round, so the per-round price grows with the rounds already
+spent, and it carries sunk-cost bias. The 004-02 session kept reintroducing the supersession design
+its own transcript had argued for, even after edit resolutions removed it
+([loop-findings](../../../research/loop-findings.md) §004 loop). What broke that loop was a fresh
+read of the brief with no chat history. The seed is the durable state: the brief body, the open
+questions, and the attempt's override register. Anything that survives only in chat history was
+never durable, the files-as-truth rule the board already lives by
+([board-storage](../../../knowledge/architecture/board-storage.md)). Within an attempt the session
+still resumes. The reseed boundary is the user's retry of an attempt the gate already declared
+exhausted, where two rounds have proven the current context stuck.
 
 ## Approach
 
-Measured at `8c15777`:
+Measured at `ad17280`:
 
-- **The retry path never touches the session.** `requestReady` (`src/server/services/gate.ts:196-251`)
-  handles a user retry of an exhausted attempt by calling `enqueueRound` on the *same* object
-  (`:232-235`); a fresh `Attempt` is minted whenever the map holds none (`:238-248`) — after every
-  restart and every abort — with `overrides: []` and no memory of the story's recorded rounds, even
-  though `current` (the fresh read at `:202`) carries them: 005-01 made `gate.rounds` durable
-  (`src/board/schema.ts:84-99`). An attempt exhausts only past the two-round cap
-  (`evaluate`, `gate.ts:376-380`), so exhaustion always leaves **at least two** recorded rounds,
-  while `gate.rounds` also accumulates one round from any aborted or interrupted attempt — the
-  record alone does not distinguish "stuck" from "interrupted once".
-- **`routeFlags` is the one resume site, and its id assignment precedes its await.** It reads
-  `story.frontmatter.sessions.refine` (`gate.ts:313`), concedes every flag when the story carries
-  none (`:314-317`), sets `attempt.refineSessionId = refineId` at `:319` **before** awaiting
-  `messageSession` (`:322-325`) so an instant close still matches `onClosed`'s key (`:594`);
-  `SESSION_BUSY` parks the flags (`:329-332`) for the `pendingFlags` retry (`:595-598`), and any
-  other failure concedes (`:333-336`).
-- **Today's one-refine-turn-at-a-time invariant is an accident of the shared id.** Gate turn and
-  user turn both run under `sessions.refine`, so `messageSession`'s `live.has` check
-  (`sessions.ts:186-191`) serializes them in both orders. Two ids for one story break it:
-  `known` is never pruned (`:166`), so a superseded id stays messageable; `resolveAttach` checks
-  only status (`:462-481`); and `contestGateFlag` / `gateFixProposed` authorize on phase alone
-  (`gate.ts:448-476`, `:502-526`), so a second concurrent refine turn could answer the current
-  round. The window is real: `spawnSession` resolves only after `runTurn` has awaited
-  `child.started` *and* `persistAttach`'s queued write (`:375-384`), and until that write lands the
-  drawer (`card-drawer.tsx:117-120`) and any user send still name the old id.
-- **An atomic guard is buildable where every refine spawn already passes.** `spawnTracked`
-  (`sessions.ts:268-358`) is synchronous from entry through the process spawn (its MCP registration
-  at `:287` already is), so a check-and-register keyed by story has no await between test and set;
-  its done continuation (`:335-356`) is where a release runs before the closed listeners fire.
+- **The retry path never touches the session, and the exhausted attempt is the only exact record of
+  exhaustion.** `requestReady` (`gate.ts:200-255`) handles a user retry by calling `enqueueRound` on
+  the same in-memory object when its phase is `exhausted` (`:236-240`); every other entry mints a
+  fresh `Attempt` with `overrides: []` (`:242-253`). Exhaustion itself is `evaluate`'s last branch
+  (`:392-396`): two rounds in *this* attempt plus a brief hash that moved (`:388`), reached only
+  past the early returns on open (`:371`) and contested (`:372`) flags.
+- **`gate.rounds` cannot stand in for that.** `persistGate` (`:156-190`) numbers each round against
+  the **durable** list, `n = rounds.length + 1` memoized per attempt in `attempt.durableRounds`
+  (`:167-170`), so the record accumulates across attempts: two separately interrupted single-round
+  attempts leave two recorded rounds with nothing ever exhausted. The stored shape is
+  `{ n, flags: [{ title, status }] }` (`schema.ts:78-88`) and carries no attempt boundary, no phase
+  and no timestamp, and both clearing writes wipe the whole list (`writePass`, `gate.ts:405-410`;
+  `clearGateRounds`, `transitions.ts:62-64`). No existing durable field distinguishes "spent" from
+  "interrupted twice". The trigger is therefore the live attempt's `exhausted` phase, and this story
+  adds no durable field: a retry with no attempt in memory resumes, which is exactly today's
+  behavior.
+- **That choice also keeps the seed complete.** `attempt.overrides` holds `"title: reason"` strings
+  (`gate.ts:586`) that never reach disk except on a pass (`writePass`, `:405-410`); recorded rounds
+  keep dismissed titles without reasons. Triggering on the in-memory attempt means the register is
+  always populated at the moment the reseed fires.
+- **`routeFlags` is the one resume site** (`:313-344`): it reads `sessions.refine` (`:317`),
+  concedes when the story carries none (`:318-323`), assigns `attempt.refineSessionId` **before**
+  awaiting `messageSession` (`:324`) so an instant close still matches `onClosed`'s key (`:618`),
+  parks on `SESSION_BUSY` (`:335-338`), and concedes on any other failure (`:339-343`).
+- **`onClosed` already owns two behaviors this story reuses** (`:607-626`): the park's
+  id-independent retry chain (`:611-616`) and the id-matched settle (`:617-624`), which concedes
+  open flags, flips `refine` to `review`, broadcasts once, and runs `evaluate`. 005-06 landed both.
+- **A fresh spawn seeded from the story file already exists, under a name that lies.**
+  `runColdSession` (`sessions.ts:141-163`) is `runTurn` plus `asSpawnFailed`, and `runTurn`
+  (`:401-440`) is kind-agnostic: with no `resume` it calls `seedFor` (`:494-503`), which builds
+  `refineSeedPrompt` from a fresh `readStoryFile` for the `refine` kind, and it persists the new id
+  to `sessions.refine` through `persistAttach` (`:434`, `:634-664`) because `refine` is
+  `reseed-on-stale`. The seed rides `--system-prompt` after the registry row's prompt
+  (`runner.ts:159-162`); a resume passes none, so the two spawns are distinguishable on argv alone.
+- **`SESSION_BUSY` survives that path.** `asSpawnFailed` (`sessions.ts:505-508`) converts only
+  `SessionSpawnError`, so the guard's `ApiError` (`:293-301`) reaches the caller unchanged and
+  today's park catch still fires.
+- **The reseed may await the spawn but never the turn.** `runRound` holds a dispatcher slot
+  (`gate.ts:259-261`) for the whole call, while chat spawns take no slot at all: `spawnSession`
+  (`sessions.ts:113-135`) and `messageSession` (`:165-231`) call `runTurn` with no `dispatch`.
+  Awaiting the spawn matches what `messageSession` already costs the slot; awaiting `done` would
+  hold it for a whole refine turn.
+- **A turn that ends before its id is known cannot settle through `onClosed`.** `runTurn` returns
+  only after `child.started` and `persistAttach`'s queued write, and a silent script's turn can
+  close inside that window. The id-matched branch would then miss it and the round would idle at
+  `refine` forever, which is why the reseeded turn's end has to ride `done`.
 - **A phase can leave `refine` mid-turn only with zero open flags.** `evaluate` returns on any open
-  flag at `:355` before either flip to `review` (`:357`, `:369`), and the user RPCs reachable
-  mid-turn (`gateBriefEdited:496`, `gateFixRejected:540`, `resolveGateFlag:572,:588`) all route
-  through it. So if the phase moved off `refine` while a reseeded turn ran, no open flag remains
-  and a turn-end concession is vacuous.
-- **`runTurn` already exposes completion.** It returns `{ sessionId, done }` (`:360-389`);
-  `spawnSession` merely discards `done` (`:110-132`). A gate that owns the turn's end must not
-  `await` it inside `runRound`, though: `runRound` holds a dispatcher slot (`dispatch`, `:255`),
-  and chat kinds bypass the queue by design (session-kinds.md §Registry), so the settle must ride
-  a continuation, never block the slot.
-- **`messageSession` reseeds only when the transcript is *gone*** (`sessions.ts:204-227`): a live
-  transcript always replays — the replay-price and sunk-cost costs of loop-findings.md §004 loop.
-- **The override register is the one seed piece the file lacks.** `attempt.overrides` entries are
-  already `"title: reason"` strings (`gate.ts:570`); `adversaryPrompt` carries them
-  (`prompts.ts:124-143`); durable `gate.overrides` is pass-only (`gate.ts:389-394`), and recorded
-  rounds keep dismissed titles only (`schema.ts:78-82`). `gateFlagsPrompt` (`prompts.ts:148-156`)
-  has exactly one caller (`gate.ts:322`).
-- **Chat content is not a stub observable; the session id is — on one channel only.** The pane
-  hydrates from the CLI transcript (`chat-pane.tsx:142` → `session.transcript` → `readTranscript`,
-  `src/worker/routes/session.ts:43-45`); the stub writes no transcript and emits two frames
-  (`frames.ts:22-36`, `:47-66`). The stub's `start` log entry carries argv and env, never the
-  minted id (`log.ts:10-25`; `stub.ts:75` mints it after the entry is written) — but the session
-  channel's `closed` frames carry it, and the driver already matches on them (`driver.ts:120-122`).
-- **The stub cannot hold a turn open.** `stubStepSchema` is exactly `emit`/`call`/`exit`
-  (`script.ts:6-14`); every board tool returns immediately. A live refine turn at flag-routing
-  time is undrivable without a new step.
-- **Script claiming supports failure-then-success by ordinal.** `claimScript` re-scans per spawn
-  and fails at the **first missing ordinal** (`script.ts:43-48`), so a pre-written `refine-3.json`
-  never masks a withheld `refine-2.json`; scripts are plain JSON files (`driver.ts:240-250`), and
-  `writeScripts` is module-private, so a mid-run script is the episode's own `writeFileSync` into
-  `ctx.scratch.scriptsDir`. claude-integration.md `:122` currently states the driver "pre-writes
-  every script", which a mid-run write falsifies. A missing script is the one pre-init death
-  (`NO_SCRIPT_EXIT`, `stub.ts:70-72`; a script `exit` step dies after init, `:75-76`).
-  `verifySpawnLog` demands an exact declaration list (`driver.ts:252-283`).
-- **`run.ts all` runs the unattended episodes only** (`run.ts:17-19`): nine of today's twelve;
-  `contested`, `exhausted`, `gate-history-cold` run by name (`:26-31`).
-- **Two committed episodes fixture ≥ 2 recorded rounds and will meet the bounded marker**:
-  `gate-history-block-style` on the default story (`episodes.ts:540`) and `gate-history-cleared` on
-  `SECOND_ID` (`:478`) — both fixture `FIXTURE_ROUNDS`, two rounds (`:401-404`).
-  `gate-history-restart` settles exactly **one** round before its restart (`:447-451`), under the
-  bound.
+  flag (`:371`) before either flip to `review` (`:373`, `:385`), and every user RPC reachable
+  mid-turn (`gateBriefEdited:512`, `gateFixRejected:556`, `resolveGateFlag:588`, `:604`) routes
+  through it, so a skipped concession is vacuous.
+- **`gateFlagsPrompt` (`prompts.ts:148-156`) has exactly one caller** (`gate.ts:329`), and
+  `adversaryPrompt` (`prompts.ts:124-143`) already renders an override register the same way.
+- **The guard, the park heal and the `wait` step are inherited, not built.** `spawnTracked` acquires
+  a story key for every refine spawn with a story attach (`sessions.ts:289-301`) and releases it in
+  the done continuation (`:303-308`, `:359`) ahead of the closed listeners (`:367-369`), so a retry
+  issued from a listener can spawn immediately. `holding()` and `releaseSentinel` exist
+  (`episodes.ts:670-681`, `driver.ts:254-256`).
+- **Harness observables cover every claim below.** Start entries carry `parsed.resume`,
+  `parsed.systemPrompt` and `parsed.prompt` (`stub.ts:77-91`, `argv.ts:15-35`); the stub keeps a
+  resumed id and mints a uuid only on a fresh spawn (`stub.ts:98`), so `sessions.refine` changing is
+  itself the reseed's signature; `closed` frames carry the minted id (`observer.ts:111-113`);
+  `waitForRecord` asserts the durable record (`driver.ts:87-106`); `verifySpawnLog` demands the
+  exact ordered start list (`driver.ts:267-298`). `EPISODES` holds 16 with 4 halting
+  (`episodes.ts:985-1002`), so `run.ts all` runs 12 (`run.ts:17-20`).
+- **No committed episode retries an exhausted attempt.** `exhausted` halts at exhaustion
+  (`episodes.ts:267-270`) and `gate-history-restart` re-requests only after a restart (`:459-465`),
+  which mints a fresh attempt. The marker never fires in today's suite, so no existing episode
+  shifts.
+- **The pane's rebind is a consequence of the server's write, not of anything this story builds in
+  the UI.** `ChatTab` derives its session from `props.story.frontmatter.sessions.refine` first
+  (`card-drawer.tsx:117-120`), and the pane hydrates whatever id it is handed (`chat-pane.tsx:142`
+  calling `hydrateChat`, `session-store.ts:653-665` calling `api.session.transcript` at `:657`;
+  route `src/worker/routes/session.ts:43-45`). Nothing in `src/app/` decides which session a story
+  shows, so the gate's write to `sessions.refine` is the whole mechanism and this story's diff into
+  app code is zero. That is why no `(live)` criterion covers the pane: there is no new UI behavior
+  to drive, only existing UI following a value it already followed. A human still drives it once by
+  hand after the run, recorded as a `verify:` note rather than an episode.
 
 Changes:
 
-1. **The attempt knows its refine context is stale, and "stale" means the exhaustion bar.**
-   `Attempt` gains a reseed marker, set in exactly two places: the exhausted-retry branch
-   (`:232-235`), and the fresh-attempt mint (`:238-248`) **only when the just-read story records at
-   least two rounds** — the same two-round cap that defines exhaustion, so the durable trigger and
-   the in-memory one demand the same evidence. A re-request after a restart that interrupted a
-   single round resumes today's session and keeps the user's conversation; only a gate that already
-   spent what an attempt is allowed to spend reseeds. A first-ever gate sets no marker.
-2. **The marked branch spawns fresh under a story-scoped turn guard, and owns the turn's end.**
-   - **Guard** (`src/server/services/sessions.ts`): `spawnTracked` gains a synchronous
-     one-refine-turn-per-story register — a refine spawn attached to a story with a refine turn in
-     flight throws `SESSION_BUSY` before any process spawns, registered with no await after the
-     check and released in the done continuation before the closed listeners run. Every refine
-     spawn funnels through it, so both orders lose cleanly: the gate's spawn during a live user
-     turn, and a user send to the superseded id during the gate's turn (it reaches `spawnTracked`
-     through `messageSession`'s unchanged code and gets today's error code, which the UI already
-     handles).
-   - **Branch** (`gate.ts` `routeFlags`, marker set): clear `attempt.refineSessionId` first, so no
-     close of the superseded session can match `onClosed` while the reseed is in flight. Then spawn
-     through a new sessions.ts export (`spawnChatTurn`: `runTurn` exposed for reseed-on-stale
-     kinds, returning `{ sessionId, done }`) with `gateFlagsPrompt(flags, attempt.overrides)`. On
-     `SESSION_BUSY`: park — `pendingFlags = true`, marker kept, nothing spawned. On any other
-     failure: today's concede-and-review fallback, marker kept, and `refineSessionId` restored to
-     the story's current session so later user turns keep today's turn-end semantics. On success:
-     clear the marker.
-   - **Settle**: a continuation on `done` — never an `await`, which would hold the dispatcher slot
-     through a refine turn — is the **sole owner** of the reseeded turn's end: if the attempt is
-     still current and the phase is still `refine`, it concedes open flags, flips to `review`,
-     broadcasts once, and runs `evaluate`; only *after* that does it assign
-     `attempt.refineSessionId = sessionId`, so `onClosed` structurally cannot settle a reseeded
-     turn (its key is unset until settle has run) and there is no dual path to distinguish. A phase
-     that left `refine` mid-turn implies zero open flags (`:355`), so skipping the concession is
-     vacuous, never a miss. Later user turns in the reseeded chat close through `onClosed` exactly
-     as today.
-   - **Park retry**: `onClosed`'s `pendingFlags` branch drops its session-id match and retries
-     parked flags on **any** close — the guard's release precedes the listeners, so the retry can
-     spawn immediately, and it re-parks on `SESSION_BUSY` if a different turn is still live.
-     Unrelated closes cost one idempotent `routeFlags` call.
-   Without the marker the path is byte-for-byte today's, `SESSION_BUSY` parking included.
-3. **The seed is the story file, through the machinery that exists.** `spawnChatTurn` is `runTurn`,
-   so the spawn seeds `refineSeedPrompt` from a fresh read (`seedFor`, `sessions.ts:443-452`; brief
-   body, open questions, recorded rounds all in `raw`) and `persistAttach` (`:583-601`) writes the
-   new id to `sessions.refine`; within-attempt rounds resume it through the unchanged path. The
-   override register rides the first user message: `gateFlagsPrompt` gains an overrides parameter,
-   one `title: reason` line each, mirroring `adversaryPrompt`; the resumed-round call passes none,
-   so resumed rounds' messages stay byte-identical. Known limit: after a restart the register is
-   empty (reasons are pass-only on disk, 005-01's deliberate scope); the reseed seeds dismissed
-   titles via the recorded rounds only.
-4. **The harness gains a hold-open step, and five episodes drive every branch.** The stub's script
-   schema gains a `wait` step naming a sentinel path: the stub polls for the file and proceeds when
-   it appears, with a bounded timeout exiting at a distinct nonzero code so a stuck episode fails
-   loud (`harness/stub-claude/script.ts`, `stub.ts`) — what makes a live refine turn at routing
-   time drivable at all. Episode observables are exactly four: the spawn log's parsed argv, the
-   story file, the gate channel, and the session channel's `closed` frames (the only place the
-   stub's minted id appears). All fixtures below carry two recorded rounds where the marker must
-   fire.
-   - `gate-reseed-retry` (**halts**, run by name): dismissal-plus-fix round, fix round, exhausted,
-     retry; the flagged retry round spawns fresh — no `parsed.resume`, `parsed.systemPrompt`
-     carrying the round-2 fix text, `parsed.prompt` carrying the flag plus the dismissed override
-     line — and settles (concession → `review`); `sessions.refine` equals the id from the fresh
-     turn's `closed` frame and differs from the pre-retry id. At the halt the operator reloads the
-     drawer with devtools open: the pane's `session.transcript` request names the reseeded id, the
-     human-visible face of the rebind and the lost scroll-back — falsifiable, since a broken reseed
-     requests the old id.
-   - `gate-reseed-park`: a `wait`-scripted user turn is live when flags route — the gate parks
-     (no spawn, no log entry, phase holds `refine`); the sentinel releases the turn, whose close
-     triggers the retry, and the fresh spawn's `start` follows the old turn's `exit` in the log.
-     The fresh turn is itself `wait`-scripted, and while it is live a `session/message` to the
-     superseded id returns `SESSION_BUSY` — both directions of the guard, then a normal settle.
-   - `gate-reseed-restart`: exhausted, `restart()`, re-request: the flagged round reseeds off the
-     recorded rounds with no attempt in memory.
-   - `gate-reseed-lazy`: a retry whose adversary raises nothing passes into Ready with no refine
-     spawn: the reseed is bought by the first flagged round, never eagerly.
-   - `gate-reseed-spawn-failure`: `refine-1` is the chat, `refine-3.json` is pre-written,
-     `refine-2.json` is withheld — the claim scan fails at the first missing ordinal
-     (`script.ts:43-48`), so the marked round's spawn dies before init (`claims: false`,
-     `NO_SCRIPT_EXIT`) and the fallback is observed. The episode then writes `refine-2.json`
-     itself (a fix resolving the conceded flag), messages the old chat — which claims `refine-2` —
-     and accepts the fix, buying round 2 under the cap; round 2's spawn claims the pre-written
-     `refine-3` with no `parsed.resume`: the kept marker, observed. Declarations, in order:
-     `refine-1` 0 · `adversary-1` 0 · refine ordinal 2 `claims: false` `NO_SCRIPT_EXIT` ·
-     `refine-2` 0 · `adversary-2` 0 · `refine-3` 0.
-5. **Three docs stop being true and are corrected**: define-refine.md §Ready gate's routing
-   sentence (`:129-130`) and wait paragraph (`:149-151`) gain the retry reseed;
-   session-kinds.md §Context policies' reseed-on-stale bullet (`:155-160`) gains the deliberate
-   gate-retry reseed; claude-integration.md §Verifying without burning the pool's "pre-writes every
-   script" sentence (`:122`) gains episode-authored mid-run scripts and the `wait` step.
+1. **The attempt knows its refine context is stale.** `Attempt` (`gate.ts:38-59`) gains a reseed
+   marker set in exactly one place: the exhausted-retry branch (`:236-240`). The fresh-attempt mint
+   never sets it, so a story's recorded rounds trigger nothing and a first-ever gate, a post-restart
+   re-request and a post-abort re-request all resume today's session with the user's conversation
+   intact. No durable field is added, and the `gate` block's format is untouched.
+2. **The marked branch spawns fresh and owns the turn's end.** In `routeFlags`, the story read and
+   the no-session concession (`:316-323`) stay shared. With the marker set the branch clears
+   `attempt.refineSessionId` first, so no close can match the id-settle while the reseed is in
+   flight, then spawns through `runFreshTurn` with `gateFlagsPrompt(round.flags, attempt.overrides)`.
+   On success it clears `pendingFlags` and the marker. `SESSION_BUSY` reaches today's catch and
+   parks, marker kept, nothing spawned; the inherited retry chain re-enters and spawns on the next
+   close. Any other failure runs today's concede-and-review fallback with the marker kept and
+   `refineSessionId` restored to the id read from the story, so later user turns keep today's
+   turn-end semantics. Without the marker the path is byte-for-byte today's.
+3. **One settle, shared with `onClosed`.** The settle body of `onClosed` (`:620-624`) moves into
+   `settleRefineTurn(attempt)`: concede, flip `refine` to `review`, broadcast once, evaluate. The
+   reseed attaches it as a continuation on the spawn's `done`, never an `await`, and assigns
+   `attempt.refineSessionId` after it runs, so the reseeded turn settles exactly once and later user
+   turns in the fresh chat close through `onClosed` as today.
+4. **`runColdSession` is renamed `runFreshTurn`** (`sessions.ts:141-163`), its comment widened from
+   "the always-cold kinds" to "spawns that never resume: the cold kinds, and the gate's reseed of a
+   spent refine chat". Body unchanged; the three existing call sites (`grader.ts:27`, `:276`;
+   `proposals.ts:68`, `:449`; `gate.ts:33`, `:282`) follow the name.
+5. **The register rides the first message.** `gateFlagsPrompt` takes an override register and appends
+   one `title: reason` line each only when non-empty, mirroring `adversaryPrompt`. The resumed round
+   passes an empty register, so its message stays byte-identical.
+6. **Two unattended episodes and two doc corrections.** `gate-reseed-retry` proves the whole path:
+   the fresh spawn's argv, the rebound `sessions.refine`, and the durable record.
+   `gate-reseed-not-on-record` proves the trigger's negative case. Both run under `run.ts all`; no
+   halting episode is added. define-refine.md §Ready gate's routing sentence (`:129-130`) and its
+   wait paragraph (`:149-152`) gain the retry reseed and its restart limit; session-kinds.md
+   §Context policies' reseed-on-stale bullet (`:155-160`) gains the gate's deliberate reseed
+   alongside the stale-transcript one.
 
 ## Blast radius
 
-- `src/server/services/gate.ts` — `Attempt` gains the reseed marker; `requestReady` sets it at its
-  two sites (the fresh-mint site bounded to ≥ 2 recorded rounds); `routeFlags` gains the marker
-  branch (clear `refineSessionId`, spawn via `spawnChatTurn`, `SESSION_BUSY` → park, failure →
-  fallback with `refineSessionId` restored, settle continuation owning the turn end); `onClosed`'s
-  `pendingFlags` branch becomes id-independent. `writePass`, `evaluate`'s cap, `persistGate`, the
-  tool entries, and every abort path untouched.
-- `src/server/services/sessions.ts` — no longer untouched, said plainly: `spawnTracked` gains the
-  synchronous one-refine-turn-per-story guard (registered before any await, released in the done
-  continuation before the closed listeners), and `spawnChatTurn` is exported (`runTurn` for
-  reseed-on-stale kinds, returning `{ sessionId, done }`). `messageSession`, `spawnSession`,
-  `seedFor`, `persistAttach` unchanged in code; refine messages to a busy story now surface
-  `SESSION_BUSY` from the guard instead of spawning a second turn.
-- `src/sessions/prompts.ts` — `gateFlagsPrompt` takes the override register; empty register renders
-  today's exact message. `refineSeedPrompt`, `adversaryPrompt`, `reseedPrompt` untouched.
-- `harness/stub-claude/script.ts`, `stub.ts` — the `wait` step: sentinel-file poll, bounded
-  timeout, distinct nonzero exit. Existing steps and claiming untouched.
-- `harness/episode/episodes.ts` — five new episodes (`gate-reseed-retry` halting, the other four
-  unattended); two of them author files mid-run (a sentinel, a script) into the scratch. Existing
-  episodes: `gate-history-restart` is **not** shifted — one recorded round is under the bounded
-  trigger, so its post-restart `refine-3` keeps resuming.
-  `gate-history-block-style` (default story fixtured with two rounds,
-  `:540`) is shifted: its marked round's `refine-2` becomes a fresh spawn that writes
-  `sessions.refine`; its frontmatter assertions test only the `gate` block's lines (`:568-595`)
-  and its `waitForSettledRound(..., 3)` settles through the continuation, so it passes.
-  `gate-history-cleared` (`SECOND_ID` fixtured with two rounds, `:478`) mints a marked attempt
-  whose flagless round passes without routing flags: marker set, never exercised. Declarations
-  everywhere are indifferent to resume-ness (`verifySpawnLog`, `driver.ts:252-283`).
-- `harness/episode/run.ts` — untouched: `all` picks up the four unattended episodes by the existing
-  filter; the halting four (three existing plus `gate-reseed-retry`) stay by-name.
-- `.helm/knowledge/product/features/define-refine.md` §Ready gate — `:129-130`, `:149-151`.
-- `.helm/knowledge/architecture/session-kinds.md` §Context policies — `:155-160`.
-- `.helm/knowledge/architecture/claude-integration.md` §Verifying without burning the pool — the
-  script pre-write sentence (`:122`).
-- Behavioral reach: on every reseed, `sessions.refine` is overwritten and the drawer's pane
-  (`card-drawer.tsx:117-120`) follows, scroll-back gone — carried by a `(live)` criterion. A
-  refine send into a story whose other refine turn is live gets `SESSION_BUSY` instead of a second
-  concurrent turn — new user-facing refusal, in the code the UI already handles for a busy id. A
-  mid-turn chat delays the reseed by one turn (the park). No RPC contract change, no WS channel
-  shape change, no schema change, no app code change.
+- `src/server/services/gate.ts`: `Attempt` gains the reseed marker; `requestReady` sets it at the
+  exhausted-retry branch only; `routeFlags` gains the marked branch and passes the register to
+  `gateFlagsPrompt`; `settleRefineTurn` is factored out of `onClosed` and called from the reseed's
+  `done` continuation. `persistGate`, `evaluate`, `writePass`, `retryFlags`, the tool entries and
+  every abort path untouched.
+- `src/server/services/sessions.ts`: `runColdSession` renamed `runFreshTurn` with a widened comment,
+  body unchanged. `spawnTracked`, `runTurn`, `messageSession`, `spawnSession`, `seedFor`,
+  `persistAttach` untouched.
+- `src/server/grader.ts`, `src/server/services/proposals.ts`: the rename's call sites, nothing else.
+- `src/sessions/prompts.ts`: `gateFlagsPrompt` takes the register; an empty one renders today's exact
+  message. Every other prompt untouched.
+- `src/app/`: **zero diff, stated plainly because the reach looks larger than it is.** The drawer's
+  pane already binds to `sessions.refine` (`card-drawer.tsx:117-120`) and already hydrates whatever
+  id it is given (`chat-pane.tsx:142`, `session-store.ts:653-665`), so a reseed changes what the
+  pane shows without changing a line that shows it. No component, store, route or RPC input changes,
+  which is why the pane carries a `(file)` criterion and no `(live)` one.
+- `src/board/schema.ts`, `src/board/markdown.ts`, `src/board/transitions.ts`: untouched. The trigger
+  adds no durable field, so the `gate` block's schema, its serialization and its clearing rules all
+  stand.
+- `harness/episode/episodes.ts`: two episodes, two flag constants and one fix constant. `EPISODES`
+  grows 16 to 18, halting stays 4. No existing episode changes, because none retries an exhausted
+  attempt. `run.ts`, `driver.ts`, `observer.ts`, `scratch.ts` and the stub untouched.
+- `.helm/knowledge/product/features/define-refine.md` §Ready gate (`:129-130`, `:149-152`),
+  `.helm/knowledge/architecture/session-kinds.md` §Context policies (`:155-160`).
+- Behavioral reach: on a reseed, `sessions.refine` is overwritten and the drawer's pane follows it,
+  so the user's scroll-back is gone and the superseded transcript is reachable only on disk. The
+  reseeded round costs one extra queued write inside the dispatcher slot (`persistAttach`) that a
+  resume skips. A retry while a user turn holds the story parks for one turn instead of failing. No
+  durable format change, no RPC contract change, no WS shape change.
 
 ## Acceptance criteria
 
-- [ ] `Attempt` in `src/server/services/gate.ts` carries the reseed marker, set in exactly two
-      places: the exhausted-retry branch (`:232-235`), and the fresh-attempt mint (`:238-248`) only
-      when the just-read story's `gate.rounds` holds **two or more** rounds — the exhaustion bar of
-      `evaluate:376-380` — so a story with one recorded round or none sets no marker and its next
-      round resumes today's session. (file)
-- [ ] `spawnTracked` in `src/server/services/sessions.ts` refuses a refine spawn for a story that
-      already has a refine turn in flight with `SESSION_BUSY`, via a story-keyed register checked
-      and set with no await between (the function is synchronous through the process spawn) and
-      released in the done continuation **before** the closed listeners run; every refine spawn —
-      `spawnSession`, `messageSession` resumes to any id, the gate's reseed — passes through it. (file)
-- [ ] With the marker set, `routeFlags` reads `sessions.refine` never to resume: it clears
-      `attempt.refineSessionId` at branch entry, spawns through the new `spawnChatTurn` export
-      (`runTurn` exposed with `{ sessionId, done }`) carrying
-      `gateFlagsPrompt(flags, attempt.overrides)`; on `SESSION_BUSY` it parks
-      (`pendingFlags = true`, marker kept, nothing spawned); on any other failure it runs the
-      concede-and-review fallback with the marker kept and `refineSessionId` restored to the
-      story's current session; on success it clears the marker. Without the marker the resume path
-      (`:313-336`) is unchanged. (file)
-- [ ] The reseeded turn's end is owned by a single continuation on `done` (never an `await` holding
-      the dispatcher slot): if the attempt is current and the phase still `refine`, it concedes,
-      flips to `review`, broadcasts once, and runs `evaluate`; `attempt.refineSessionId` is
-      assigned only **after** that block, so `onClosed` structurally cannot settle a reseeded turn
-      and no dual settle path exists. The skip when the phase left `refine` is vacuous by
-      `evaluate`'s open-flag return at `:355`. (file)
-- [ ] `onClosed`'s `pendingFlags` branch retries parked flags on any session close, id-independent,
-      and `routeFlags` re-parks on `SESSION_BUSY`, so parked flags never idle whichever turn was
-      live when they parked. (file)
+- [ ] `Attempt` in `src/server/services/gate.ts` carries the reseed marker, set in exactly one
+      place: the exhausted-retry branch of `requestReady` (`:236-240`). The fresh-attempt mint
+      (`:242-253`) never sets it, so no count of `gate.rounds` can trigger a reseed and a re-request
+      with no attempt in memory resumes today's session. (file)
+- [ ] With the marker set, `routeFlags` never resumes: it clears `attempt.refineSessionId` at branch
+      entry, spawns through `runFreshTurn` carrying `gateFlagsPrompt(round.flags, attempt.overrides)`,
+      and clears `pendingFlags` and the marker on success. `SESSION_BUSY` parks through today's catch
+      with the marker kept and nothing spawned; any other failure runs today's concede-and-review
+      fallback with the marker kept and `refineSessionId` restored to the id read from the story at
+      `:317`. Without the marker the resume path (`:316-343`) is unchanged. (file)
+- [ ] The reseeded turn's end is owned by a continuation on the spawn's `done`, never an `await`
+      holding `runRound`'s dispatcher slot (`:259-261`). The continuation and `onClosed`'s id-matched
+      branch call one shared `settleRefineTurn`: concede open flags, flip `refine` to `review`,
+      broadcast once, run `evaluate`. `attempt.refineSessionId` is assigned only after it runs, so
+      `onClosed` cannot double-settle a reseeded turn, and a phase that left `refine` mid-turn
+      implies zero open flags by `evaluate`'s return at `:371`. (file)
+- [ ] `runColdSession` in `src/server/services/sessions.ts` is renamed `runFreshTurn` with its
+      comment widened to cover the gate's reseed, its body unchanged, and every existing call site
+      follows (`grader.ts:276`, `proposals.ts:449`, `gate.ts:282`). (file)
 - [ ] `gateFlagsPrompt` in `src/sessions/prompts.ts` takes the override register and appends one
-      `title: reason` line each only when non-empty; the resumed-round call site passes none, so a
-      resumed round's message is byte-identical to today's. (file)
-- [ ] The stub's script schema in `harness/stub-claude/script.ts` gains a `wait` step naming a
-      sentinel path; `stub.ts` polls for it and proceeds when it appears, exiting at a distinct
-      nonzero code on a bounded timeout. Existing steps unchanged. (file)
-- [ ] Episode `gate-reseed-retry` (run by name; it halts): after a two-round attempt with one
-      dismissed and one fixed flag plus a fixed second round exhausts and the user re-requests,
-      `spawns.log` shows the pre-retry refine turns resuming (`parsed.resume` set) and the
-      post-retry refine spawn with no `parsed.resume`, a `parsed.systemPrompt` containing the
-      round-2 fix text, and a `parsed.prompt` carrying the retry flag plus the dismissed flag's
-      title and reason; the story file's `sessions.refine` equals the fresh turn's id from the
-      session channel's `closed` frame and differs from the pre-retry id; the turn settles
-      (contested, phase `review`) — reachable only through the settle continuation, since
-      `onClosed` cannot match an unset id. At the halt, reloading the drawer with devtools open
-      shows the pane's `session.transcript` request naming the reseeded id, not the pre-retry one —
-      the visible rebind and lost scroll-back. (live)
-- [ ] Episode `gate-reseed-park`: with a `wait`-scripted user turn live when flags route, the gate
-      parks — no spawn, no `start` entry, phase holds `refine`; releasing the sentinel closes the
-      turn and the retry's fresh `start` follows that turn's `exit` in the log; while the
-      `wait`-scripted fresh turn is live, a `session/message` to the superseded id returns
-      `SESSION_BUSY`; the turn then settles normally. (live)
-- [ ] Episode `gate-reseed-restart`: after exhaustion (two recorded rounds), `restart()`, and a
-      re-request, the flagged round's refine spawn carries no `parsed.resume` — the recorded
-      rounds, not the in-memory attempt, trigger the reseed. (live)
-- [ ] Episode `gate-reseed-lazy`: a retry whose adversary raises no flags passes into Ready with no
-      refine spawn at all — refine spawns stay at three and `sessions.refine` is unchanged. (live)
-- [ ] Episode `gate-reseed-spawn-failure`: on a story fixtured with two recorded rounds, with
-      `refine-3.json` pre-written and `refine-2.json` withheld, the marked round's spawn dies
-      before init (`claims: false`, `NO_SCRIPT_EXIT` — the scan fails at the first missing
-      ordinal) and the fallback is observed: flag contested with no argument, phase `review`,
-      `sessions.refine` unchanged. The episode writes `refine-2.json` into
-      `ctx.scratch.scriptsDir`, messages the old chat (which claims it), accepts its fix, and
-      round 2's spawn claims `refine-3` with no `parsed.resume` — the marker survived the failure.
-      Declared spawns exactly: `refine-1`, `adversary-1`, refine `claims: false`, `refine-2`,
-      `adversary-2`, `refine-3`. (live)
-- [ ] `node harness/episode/run.ts all` passes 13/13 — the nine existing unattended episodes plus
-      `gate-reseed-park`, `-restart`, `-lazy`, `-spawn-failure` — with `gate-history-restart`'s
-      post-restart round still **resuming** (one recorded round is under the bound) and
-      `gate-history-block-style`'s marked round now a fresh spawn; the halting four (`contested`,
-      `exhausted`, `gate-history-cold`, `gate-reseed-retry`) each run by name to their halts. (live)
+      `title: reason` line each only when non-empty; the resumed-round call site passes an empty
+      register, so a resumed round's message is byte-identical to today's. (file)
+- [ ] The drawer's rebind needs no app change, proved by reading the two files that carry it:
+      `ChatTab`'s session is `props.story.frontmatter.sessions.refine` first
+      (`card-drawer.tsx:117-120`), and the pane hydrates whatever id it is handed
+      (`chat-pane.tsx:142` calling `hydrateChat`, which calls `api.session.transcript`,
+      `session-store.ts:653-665`; route `src/worker/routes/session.ts:43-45`), with `git diff`
+      showing no change under `src/app/` or `src/worker/`. What the reading proves: no app code
+      chooses the session, so the gate's write to `sessions.refine` is the entire rebind mechanism.
+      What it does not prove: that a human reloading the drawer after a reseed sees the new id
+      requested and an empty pane. No episode drives that, and the run's closing notes carry it as a
+      `verify:` item. (file)
+- [ ] Episode `gate-reseed-retry`: round 1 flags and is fixed; round 2 raises two flags, one fixed
+      and one conceded then dismissed with a reason, so the attempt reaches `exhausted` with two
+      recorded rounds and one override. On the re-request, round 3's flag routes to a **fresh**
+      spawn: `spawns.log` shows `refine-4` with `parsed.resume` unset, a `parsed.systemPrompt`
+      containing the fixture card's title and the text round 1's fix wrote into the brief (the seed
+      is the current story file), and a `parsed.prompt` carrying round 3's flag title plus the
+      dismissed flag's title and reason, while `refine-2` and `refine-3` each carry `parsed.resume`
+      equal to the original chat id. The story's `sessions.refine` changes to an id that differs from
+      the chat id and appears on a session-channel `closed` frame, and the round settles: phase
+      `review` and `gate.rounds` on disk holding round 3 with its flag `contested`. Declared spawns
+      exactly: `refine-1` 0, `adversary-1` 0, `refine-2` 0, `adversary-2` 0, `refine-3` 0,
+      `adversary-3` 0, `refine-4` 0; rounds 3. (live)
+- [ ] Episode `gate-reseed-not-on-record`: on a story fixtured with two recorded rounds and no
+      attempt in memory, the first flagged round's refine spawn **resumes** (`parsed.resume` equal to
+      the chat id, no card text in `parsed.systemPrompt`) and `sessions.refine` is unchanged, so a
+      durable round count never triggers a reseed. The round settles and the record reaches three
+      rounds. Declared spawns exactly: `refine-1` 0, `adversary-1` 0, `refine-2` 0; rounds 1. (live)
+- [ ] `node harness/episode/run.ts all` passes 14/14, the twelve existing unattended episodes plus
+      `gate-reseed-retry` and `gate-reseed-not-on-record`, with every existing episode's declarations
+      unchanged; the halting four (`contested`, `exhausted`, `gate-history-cold`, `refine-turn-live`)
+      stay by-name and this story adds no fifth. (live)
 - [ ] `pnpm check` passes. (command)
-- [ ] `.helm/knowledge/product/features/define-refine.md` §Ready gate states that a re-requested
-      gate that already spent its two rounds runs its fix round in a fresh refine session seeded
-      from the story file (`:129-130`, `:149-151` corrected). (file)
-- [ ] `.helm/knowledge/architecture/session-kinds.md` §Context policies' reseed-on-stale bullet
-      names the gate-retry reseed alongside the stale-transcript one. (file)
-- [ ] `.helm/knowledge/architecture/claude-integration.md`'s script sentence (`:122`) covers
-      episode-authored mid-run scripts and the `wait` step. (file)
+- [ ] `.helm/knowledge/product/features/define-refine.md` §Ready gate states that flags resume the
+      refine session within an attempt and that a re-request of an exhausted attempt runs its round
+      in a fresh refine session seeded from the story file and the override register, with the
+      restart limit named (`:129-130`, `:149-152`). (file)
+- [ ] `.helm/knowledge/architecture/session-kinds.md` §Context policies' reseed-on-stale bullet names
+      the gate's deliberate reseed of a spent refine chat alongside the stale-transcript one
+      (`:155-160`). (file)
 
 ## Out of scope
 
-- Delta rounds (005-03) and the round budget, escalation surface, and digest (005-04).
-- Reseeding on a re-request with fewer than two recorded rounds: a single interrupted round keeps
-  its session and its conversation.
-- Persisting a dismissal's override reason so it survives a restart: 005-01 deliberately kept
-  reasons pass-only, and 005-04 decides what its digest needs — a post-restart reseed carries
-  dismissed titles via the recorded rounds only.
-- Any change to the two-automatic-round cap, `evaluate`'s exhaustion rule, the adversary's prompt
-  or its override handling, or the flag round trip.
-- Reseeding within an attempt (mid-attempt rounds keep resuming), reseeding any other chat kind, or
-  touching `messageSession`'s stale-transcript reseed path.
+- Delta rounds (005-03), and the round budget, escalation surface and digest (005-04).
+- A durable exhaustion marker on the `gate` block. The trigger lives in memory, so a re-request
+  after a restart or an abort resumes the existing refine session, exactly today's behavior.
+  `gateSchema`, `gateBlock`'s serialization and `clearGateRounds` are untouched.
+- Reseeding within an attempt, reseeding any other chat kind, and `messageSession`'s
+  stale-transcript reseed path.
+- Carrying the override register on resumed rounds' flag prompts. The resumed session's message
+  stays byte-identical.
+- Any change to the two-automatic-round cap, `evaluate`'s exhaustion rule, `persistGate`'s
+  numbering, the adversary's prompt, or the flag round trip.
+- Persisting a dismissal's override reason. 005-01 kept reasons pass-only, and the in-memory trigger
+  means the register is always full when the reseed fires.
 - Deleting or archiving the superseded refine transcript, and any UI affordance announcing the
   reseed beyond the pane following `sessions.refine`.
+- A halting episode for the pane. No episode drives the drawer after a reseed, so the run's closing
+  notes carry it: `verify: the drawer's rebind by hand. Retry an exhausted gate, reload the drawer
+  with devtools open, and confirm the pane's session/transcript call names the reseeded id rather
+  than the pre-retry one, with no scroll-back in the pane.`
+- The one-refine-turn guard, the park's retry chain and the stub's `wait` step: 005-06 landed all
+  three and this story inherits them.
+- The roughly 50% isolation flakiness of `one-flag` and `exhausted` (005-07). Both new episodes
+  reuse `acceptFix` and the exhaustion beats, so they can inherit it; neither fixing it nor
+  designing around it belongs here.
 
 ## Open questions
 
-- [x] The durable reseed trigger is "two or more recorded rounds", the exhaustion bar: a
-      post-restart or post-abort retry of a spent gate reseeds, while a single interrupted round
-      keeps its session.
+- [x] The reseed trigger stays in memory: the marker is set only when a retry finds an attempt in
+      the `exhausted` phase, no durable field is added, and a retry after a restart or an abort
+      resumes its existing refine session.
+- [x] The halting `gate-reseed-live` episode is dropped. This story changes no app code, so the
+      pane's rebind is graded by reading `card-drawer.tsx` and the transcript path, and a human
+      drives it once by hand as a `verify:` note in the run's closing report.
