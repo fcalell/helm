@@ -345,7 +345,10 @@ export async function runEpisode(episode: Episode): Promise<boolean> {
 	// post-run checks must act on the live orchestrator, never the dead one,
 	// or the replacement leaks onto the fixed port.
 	let orchestrator = await startOrchestrator(scratch, PORT);
-	let obs = await observe(orchestrator.base);
+	// Outlives every observer the episode goes through, so a restart cannot
+	// discard what the pre-restart half saw.
+	const invalid = new Map<string, string>();
+	let obs = await observe(orchestrator.base, invalid);
 	const ctx: EpisodeContext = {
 		base: orchestrator.base,
 		scratch,
@@ -360,7 +363,7 @@ export async function runEpisode(episode: Episode): Promise<boolean> {
 			obs.close();
 			await orchestrator.stop();
 			orchestrator = await startOrchestrator(scratch, PORT);
-			obs = await observe(orchestrator.base);
+			obs = await observe(orchestrator.base, invalid);
 			ctx.base = orchestrator.base;
 			ctx.obs = obs;
 			ctx.rpc = rpcClient(orchestrator.base);
@@ -384,6 +387,13 @@ export async function runEpisode(episode: Episode): Promise<boolean> {
 			assert(
 				obs.maxRounds(scratch.storyId) <= episode.rounds,
 				`the gate ran ${obs.maxRounds(scratch.storyId)} rounds, the episode declares ${episode.rounds}`,
+			),
+		() =>
+			assert(
+				invalid.size === 0,
+				`the board reported invalid files: ${[...invalid]
+					.map(([path, message]) => `${path} (${message})`)
+					.join("; ")}`,
 			),
 	]) {
 		try {

@@ -66,7 +66,13 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function observe(base: string): Promise<Observer> {
+// `invalid` is owned by the episode, not by this socket: a restart swaps the
+// observer, and an invalid file that heals between two board frames leaves no
+// other trace because `board` is last-write-wins.
+export async function observe(
+	base: string,
+	invalid: Map<string, string>,
+): Promise<Observer> {
 	const socket = new WebSocket(`${base.replace("http", "ws")}/ws`);
 	let board: Board | undefined;
 	let gate: GateSnapshot | undefined;
@@ -83,9 +89,10 @@ export async function observe(base: string): Promise<Observer> {
 		const frame = frameSchema.safeParse(JSON.parse(event.data));
 		if (!frame.success) return;
 		const { ch, type, payload } = frame.data;
-		if (ch === "board" && type === "snapshot")
+		if (ch === "board" && type === "snapshot") {
 			board = boardSchema.parse(payload);
-		else if (ch === "board" && type === "notice") {
+			for (const file of board.invalid) invalid.set(file.path, file.message);
+		} else if (ch === "board" && type === "notice") {
 			notices.push(noticeSchema.parse(payload));
 		} else if (ch === "gate" && type === "snapshot") {
 			gate = gateSnapshotSchema.parse(payload);
