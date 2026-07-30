@@ -57,6 +57,13 @@ export function verdictValid(gate: Gate | undefined, body: string): boolean {
 	return gate !== undefined && gate.brief === briefHash(body);
 }
 
+// The round record means something only while the story is refining, so every
+// write that moves it out drops the rounds and keeps the verdict.
+export function clearGateRounds(gate: Gate | undefined): Gate | undefined {
+	if (gate === undefined) return undefined;
+	return { ...gate, rounds: [] };
+}
+
 export interface TransitionStory {
 	brief: Brief;
 	body: string;

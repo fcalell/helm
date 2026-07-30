@@ -13,6 +13,7 @@ import {
 import {
 	canTransition,
 	checkReadyGate,
+	clearGateRounds,
 	LEGAL_TRANSITIONS,
 	verdictValid,
 } from "../../board/transitions.ts";
@@ -33,7 +34,7 @@ import { messageSession, onSessionClosed, runColdSession } from "./sessions.ts";
 
 // One ready-gate attempt per story, in memory only (like pending proposals):
 // a restart drops it and the next move-to-ready starts fresh. The `gate`
-// frontmatter block is the durable outcome.
+// frontmatter block is the durable record every attempt appends to.
 interface Attempt {
 	storyId: string;
 	phase: GatePhase;
@@ -41,6 +42,9 @@ interface Attempt {
 	// landing after an edit fails this check and is discarded.
 	briefHash: string;
 	rounds: GateRound[];
+	// The recorded round number of `rounds[i]`, taken on that round's first
+	// write and reused by every later one; sparse until then.
+	durableRounds: number[];
 	overrides: string[];
 	adversarySessionId?: string;
 	refineSessionId?: string;
@@ -65,19 +69,31 @@ function snapshot(): GateSnapshot {
 	};
 }
 
-function broadcast(): void {
+// The one funnel every gate state change passes through: the live snapshot to
+// the UI, the round record to disk. Both audiences see the same state, so the
+// changed attempt is the subject of both.
+function broadcast(attempt: Attempt): void {
 	handle?.broadcast("snapshot", snapshot());
+	persistGate(attempt);
 }
 
 function setPhase(attempt: Attempt, phase: GatePhase): void {
 	attempt.phase = phase;
-	broadcast();
+	broadcast(attempt);
 }
 
 function abort(attempt: Attempt): void {
 	if (attempts.get(attempt.storyId) !== attempt) return;
 	attempts.delete(attempt.storyId);
-	broadcast();
+	broadcast(attempt);
+}
+
+// Drops the attempt a story holds, so a clear of its record is not restored by
+// the attempt's next broadcast. Called by every write that moves a story out
+// of `refining` outside this module.
+export function dropGateAttempt(storyId: string): void {
+	const attempt = attempts.get(storyId);
+	if (attempt !== undefined) abort(attempt);
 }
 
 function currentRound(attempt: Attempt): GateRound | undefined {
@@ -127,6 +143,48 @@ async function readFresh(storyId: string): Promise<Story> {
 	}
 }
 
+// Appends this attempt's rounds to the story's record. Synchronous by
+// contract: it *schedules* the write and never awaits it, so calling it from
+// inside a queued task cannot deadlock the shared write queue, and a failure
+// cannot reach `evaluate`'s callers or abort the attempt it exists to record.
+// Every guard is re-checked inside the task, which runs an unknown amount of
+// queued work later.
+function persistGate(attempt: Attempt): void {
+	if (attempt.rounds.length === 0) return;
+	void enqueueWrite(async () => {
+		const story = await readFresh(attempt.storyId).catch(() => undefined);
+		if (story === undefined) return;
+		if (story.frontmatter.status !== "refining") return;
+		if (attempt.rounds.length === 0) return;
+		const current = story.frontmatter.gate;
+		const rounds = [...(current?.rounds ?? [])];
+		for (const [index, round] of attempt.rounds.entries()) {
+			let n = attempt.durableRounds[index];
+			if (n === undefined) {
+				n = rounds.length + 1;
+				attempt.durableRounds[index] = n;
+			}
+			const entry = {
+				n,
+				flags: round.flags.map((flag) => ({
+					title: flag.title,
+					status: flag.status,
+				})),
+			};
+			const at = rounds.findIndex((each) => each.n === n);
+			if (at === -1) rounds.push(entry);
+			else rounds[at] = entry;
+		}
+		const gate: Gate = { ...(current ?? { overrides: [] }), rounds };
+		if (JSON.stringify(gate) === JSON.stringify(current)) return;
+		await writeStory({
+			path: story.path,
+			frontmatter: { ...story.frontmatter, gate },
+			body: story.body,
+		});
+	}).catch(logError);
+}
+
 function illegal(from: Status, reason: string) {
 	return new ApiError("ILLEGAL_TRANSITION", {
 		status: 409,
@@ -150,9 +208,14 @@ export async function requestReady(
 		const complete = checkReadyGate(current.brief);
 		if (!complete.ok) throw illegal(from, complete.reason);
 		if (verdictValid(current.frontmatter.gate, current.body)) {
+			dropGateAttempt(id);
 			await writeStory({
 				path: current.path,
-				frontmatter: { ...current.frontmatter, status: "ready" },
+				frontmatter: {
+					...current.frontmatter,
+					status: "ready",
+					gate: clearGateRounds(current.frontmatter.gate),
+				},
 				body: current.body,
 			});
 			return { gating: false };
@@ -177,6 +240,7 @@ export async function requestReady(
 			phase: "queued",
 			briefHash: briefHash(current.body),
 			rounds: [],
+			durableRounds: [],
 			overrides: [],
 			pendingFixes: new Set(),
 		};
@@ -326,6 +390,7 @@ async function writePass(attempt: Attempt): Promise<void> {
 				passed: new Date().toISOString(),
 				brief: attempt.briefHash,
 				overrides: [...attempt.overrides],
+				rounds: [],
 			};
 			const check = canTransition(story.frontmatter.status, "ready", {
 				brief: story.brief,
@@ -375,7 +440,7 @@ export function recordAdversaryFlag(
 		detail: payload.detail,
 		status: "open",
 	});
-	broadcast();
+	broadcast(attempt);
 	return undefined;
 }
 
@@ -406,7 +471,7 @@ export function contestGateFlag(
 	}
 	flag.status = "contested";
 	flag.argument = payload.argument;
-	broadcast();
+	broadcast(attempt);
 	return undefined;
 }
 
@@ -425,7 +490,7 @@ export function gateBriefEdited(storyId: string, resolves?: string): void {
 			flag.status = "fixed";
 			flag.argument = undefined;
 			attempt.pendingFixes.delete(resolves);
-			broadcast();
+			broadcast(attempt);
 		}
 	}
 	void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
@@ -455,7 +520,7 @@ export function gateFixProposed(
 	}
 	if (!attempt.pendingFixes.has(resolves)) {
 		attempt.pendingFixes.add(resolves);
-		broadcast();
+		broadcast(attempt);
 	}
 	return undefined;
 }
@@ -471,7 +536,7 @@ export function gateFixRejected(storyId: string, resolves: string): void {
 		(each) => each.title === resolves,
 	);
 	if (flag !== undefined && flag.status === "open") flag.status = "contested";
-	broadcast();
+	broadcast(attempt);
 	void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 }
 
@@ -503,7 +568,7 @@ export async function resolveGateFlag(input: {
 	if (input.resolution.type === "dismiss") {
 		flag.status = "dismissed";
 		attempt.overrides.push(`${flag.title}: ${input.resolution.reason}`);
-		broadcast();
+		broadcast(attempt);
 		void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 		return;
 	}
@@ -519,7 +584,7 @@ export async function resolveGateFlag(input: {
 		});
 	});
 	flag.status = "accepted";
-	broadcast();
+	broadcast(attempt);
 	void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 }
 
@@ -536,7 +601,7 @@ function onClosed({ sessionId }: { sessionId?: string; stale: boolean }): void {
 		concedeOpenFlags(attempt);
 		// direct assign: one broadcast for the phase flip and the flag change together
 		if (attempt.phase === "refine") attempt.phase = "review";
-		broadcast();
+		broadcast(attempt);
 		void evaluate(attempt).catch((error) => logAndAbort(attempt, error));
 	}
 }

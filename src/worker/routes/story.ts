@@ -12,9 +12,9 @@ import {
 	readStoryFile,
 	writeStory,
 } from "../../board/store.ts";
-import { canTransition } from "../../board/transitions.ts";
+import { canTransition, clearGateRounds } from "../../board/transitions.ts";
 import { boardSnapshot } from "../../server/services/board.ts";
-import { requestReady } from "../../server/services/gate.ts";
+import { dropGateAttempt, requestReady } from "../../server/services/gate.ts";
 import { enqueueWrite } from "../../server/write-queue.ts";
 import type { GatePhase } from "../../shared/gate.ts";
 
@@ -90,7 +90,18 @@ export const story = {
 					});
 				}
 
-				const frontmatter = { ...current.frontmatter, status: input.to };
+				// The gate record and its attempt die together, and only once the
+				// move is validated: dropping either before would let a rejected
+				// move kill a live gate attempt.
+				const leavingRefining = from === "refining";
+				if (leavingRefining) dropGateAttempt(input.id);
+				const frontmatter = {
+					...current.frontmatter,
+					status: input.to,
+					...(leavingRefining && {
+						gate: clearGateRounds(current.frontmatter.gate),
+					}),
+				};
 				await writeStory({
 					path: current.path,
 					frontmatter,
