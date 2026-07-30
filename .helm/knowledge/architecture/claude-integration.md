@@ -111,17 +111,49 @@ Helm's own verification runs real spawn and UI cycles without spending subscript
 measured patterns cover nearly everything, with real spawns reserved for behavior only the live
 CLI shows (compaction, refusals, rate-limit events):
 
-- **Stub `claude` on `PATH`**: a script that logs its argv and replays recorded stream-json
-  init/result frames. A live orchestrator pointed at it exercises full spawn/close/exit cycles,
-  flag construction (`--model`/`--effort`/`--resume`), the close path, and queue behavior at zero
-  pool cost (002-07 verified eleven of twelve criteria this way).
+- **The gate harness** (`harness/`), two halves that drive nothing apart. `harness/stub-claude/`
+  is an executable file named `claude`, extensionless ESM importing its `.ts` modules so node
+  strips the types and `tsc` still covers the implementation. It parses the argv the runner
+  writes, appends every spawn and its exit code to a log, claims a pre-written script, emits
+  stream-json frames, and calls the orchestrator's board tools over the MCP url on its own
+  `--mcp-config`. `harness/episode/` is the driver: it writes a scratch repo and its
+  verdict-free board fixture, starts the real orchestrator against it, pre-writes every script
+  of the episode, subscribes to all five WS channels, then plays the user's beats through the
+  API alone. The board-tool half is what makes flagged rounds, a contested flag, an accepted fix
+  and the two-round exhausted attempt reachable at zero cost; a replay-only stub never calls a
+  board tool, so its round is always flagless and always passes.
 - **Headless Chromium via playwright-core** against a live orchestrator on a scratch target repo:
   DOM assertions plus intercepted RPC traffic verify UI behavior end to end (002-08 ran 26 checks
   this way), skipping only clicks that would spawn real sessions, which get by-hand steps in the
-  run report instead.
+  run report instead. It leans on `helm.config.json` being gitignored machine config: a scratch
+  config pointing at a throwaway repo swaps in for the test and must never be committed.
 
-Both lean on `helm.config.json` being gitignored machine config: a scratch config pointing at a
-throwaway repo swaps in for the test and must never be committed.
+Three things reach the stub, and only these. The spawn inherits the parent environment and runs
+in the managed repo, so nothing is discoverable by convention: the driver passes
+`HELM_STUB_SCRIPTS` (the script directory) and `HELM_STUB_LOG` (the log file), both absolute
+paths, and prepends the stub's directory to `PATH`, which is what makes `spawn("claude", …)`
+find it at all. Scripts are named `<role>-<ordinal>.json` and claimed by role, read off the
+board tools on `--allowedTools`. Nothing on the command line identifies the individual spawn, so
+the stub takes the lowest unclaimed ordinal for its role through an exclusive
+`open("<script>.claim", "wx")`, and the driver compares the log's whole sequence and every exit
+code against the episode's declaration at the end. Two absences behave in opposite ways: with no
+script directory configured the stub emits a bare init and a flagless result, while a configured
+directory with no script for this role and ordinal exits non-zero *before* init, which reaches
+the driver as a `gate-aborted` notice instead of a silent pass.
+
+The orchestrator runs from a scratch cwd, `/tmp/helm-harness/<episode>/`, holding its own
+`helm.config.json` and a `dist/client` symlink, so the developer's gitignored config is never
+read or written. Its entry stays in this repo (`harness/episode/entry.ts`): node resolves bare
+specifiers by walking up from the importing file, so an entry written into the scratch directory
+cannot find `@fcalell/plugin-node`, and NODE_PATH does not apply to ESM. `.stack/server.ts`
+cannot serve either, since its hardcoded port belongs to `stack dev`. The scratch orchestrator
+needs three build outputs that are not committed (`dist/client`, `.stack/worker.ts`,
+`.stack/procedure.ts`), so the driver checks all three and stops with the build instruction.
+
+Two episodes stop with the server up and wait for an operator, because a contested flag's widget
+and the exhausted round history are live-attempt state that vanishes when the attempt does. The
+argv log is the evidence of zero spend, never the meter: the meter sums `usage` from `result`
+events, which the stub authors.
 
 ## Context management
 

@@ -21,8 +21,11 @@ instance of the layout Helm scaffolds
   registry + headless `claude` runner, `.helm/knowledge/architecture/session-kinds.md`),
   `src/worker/` (oRPC routes, `.helm/knowledge/architecture/api.md`), `src/server/` (managed-repo
   config + the board and session services that broadcast over WS), `src/shared/` (the WS channel
-  contract), `src/app/` (the SolidJS board UI), `helm.config.json` (gitignored machine paths;
-  committed example), `spikes/` (throwaway reference scripts, one folder per spike).
+  contract), `src/app/` (the SolidJS board UI), `harness/` (the zero-cost gate harness: a stub
+  `claude` and the episode driver that runs it against a scratch orchestrator,
+  `.helm/knowledge/architecture/claude-integration.md` §Verifying without burning the pool),
+  `helm.config.json` (gitignored machine paths; committed example), `spikes/` (throwaway
+  reference scripts, one folder per spike).
 - **Shape** (detail in `.helm/knowledge/architecture/overview.md`): a Node/TypeScript
   orchestrator that spawns headless `claude` sessions and exposes HTTP + WebSocket; a web UI as
   its first client; boards stored as markdown under each target repo's `.helm/`. No database.
