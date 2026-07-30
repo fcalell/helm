@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { once } from "node:events";
 import { createInterface } from "node:readline";
 import {
 	parseInitEvent,
@@ -191,6 +190,17 @@ export function spawnSessionProcess(
 	child.stderr.on("data", (chunk: Buffer) => {
 		stderr += chunk.toString();
 	});
+	// `error` is not the end of the process: a spawn failure emits it and then
+	// `close` with the errno as the exit code, and a live child can emit it on
+	// a failed signal. Only `close` settles the turn.
+	child.on("error", (error) => {
+		stderr += `${String(error)}\n`;
+	});
+	const closed = new Promise<[number | null, NodeJS.Signals | null]>(
+		(resolve) => {
+			child.on("close", (exitCode, signal) => resolve([exitCode, signal]));
+		},
+	);
 
 	let init: SessionInit | undefined;
 	const {
@@ -221,10 +231,7 @@ export function spawnSessionProcess(
 	});
 
 	const done = (async (): Promise<SessionOutcome> => {
-		const [exitCode, signal] = (await once(child, "close")) as [
-			number | null,
-			NodeJS.Signals | null,
-		];
+		const [exitCode, signal] = await closed;
 		const outcome: SessionOutcome = {
 			sessionId: init?.sessionId,
 			exitCode,
