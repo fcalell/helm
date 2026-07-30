@@ -23,7 +23,7 @@ exhausted, where two rounds have proven the current context stuck.
 
 ## Approach
 
-Measured at `ad17280`, re-checked at `36439b5` (board-only commits since, no code anchor moved):
+Measured at `ad17280`, re-checked at `d81b45d` (board-only commits since, no code anchor moved):
 
 - **The retry path never touches the session, and the exhausted attempt is the only exact record of
   exhaustion.** `requestReady` (`gate.ts:200-255`) handles a user retry by calling `enqueueRound` on
@@ -45,34 +45,47 @@ Measured at `ad17280`, re-checked at `36439b5` (board-only commits since, no cod
   (`gate.ts:586`) that never reach disk except on a pass (`writePass`, `:405-410`); recorded rounds
   keep dismissed titles without reasons. Triggering on the in-memory attempt means the register is
   always populated at the moment the reseed fires.
-- **`routeFlags` is the one resume site** (`:313-344`): it reads `sessions.refine` (`:317`),
-  concedes when the story carries none (`:318-323`), assigns `attempt.refineSessionId` (`:324`) and
-  flips the phase to `refine` (`:325`) **before** awaiting `messageSession` (`:327-330`), so an
-  instant close still matches `onClosed`'s key (`:618`) and phase check (`:619`). It parks on
-  `SESSION_BUSY` (`:335-338`) and concedes on any other failure (`:339-343`).
+- **`routeFlags` is the one resume site** (`:313-344`): it returns when the attempt has no round
+  (`:315`), reads `sessions.refine` (`:317`), concedes when the story carries none (`:318-323`),
+  assigns `attempt.refineSessionId` (`:324`) and flips the phase to `refine` (`:325`) **before**
+  awaiting `messageSession` (`:327-330`), so an instant close still matches `onClosed`'s key
+  (`:618`) and phase check (`:619`). It parks on `SESSION_BUSY` (`:335-338`) and concedes on any
+  other failure (`:339-343`).
 - **That phase flip is load-bearing, so the reseed keeps it in the same position.** Every downstream
-  guard fails closed on `adversary`: the settle's own flip reads `attempt.phase === "refine"`
-  (`:622`), `evaluate` returns unless the phase is `refine` or `review` (`:368`), and
-  `contestGateFlag` refuses the session's `contest_flag` outside those two phases (`:470-475`). A
-  reseeded turn spawned without the flip would answer into refusals and its round would never
-  settle.
-- **`onClosed` wraps its settle in three guards, and a detached continuation inherits none of them**
-  (`:607-624`). The loop `for (const attempt of attempts.values())` (`:608`) is the first:
+  guard fails closed on `adversary`: the settle's flip reads `attempt.phase === "refine"` (`:622`),
+  `evaluate` returns unless the phase is `refine` or `review` (`:368`), and `contestGateFlag`
+  refuses the session's `contest_flag` outside those two phases (`:470-475`). A reseeded turn
+  spawned without the flip would answer into refusals and its round would never settle.
+- **`onClosed` guards its settle five ways, and a detached continuation inherits none of them**
+  (`:607-624`). In source order: the loop `for (const attempt of attempts.values())` (`:608`); the
+  parked-round short-circuit `if (attempt.pendingFlags === true)`, which appends a retry link and
+  `continue`s (`:611-616`), so while a round is parked a close is a retry signal and never a settle;
+  the id-less return (`:617`); the id match (`:618`); and the phase check admitting only `refine` or
+  `review` (`:619`). The last two but one are how `onClosed` decides *which* attempt a close belongs
+  to, the continuation's own concern by construction. The loop, the parked-round branch and the
+  phase check are about what the attempt is doing, and the continuation needs every one:
   `dropGateAttempt` (`:98-101`) exists so a cleared record is not restored by a later broadcast, and
-  its comment (`:95-97`) says so. `broadcast` is `persistGate` (`:79-82`), whose only in-task guard
-  is `status !== "refining"` (`:161`), so a story dragged out of Refining and back would take the
-  dead attempt's rounds over the record `clearGateRounds` just cleared. The id match (`:618`) is the
-  second. The phase check `phase !== "refine" && phase !== "review"` (`:619`) is the third, and it
-  is not decorative.
-- **A reseeded turn can outlive its own round, which is what the phase check catches.** Accepting a
-  fix while the turn is still live calls `gateBriefEdited` (`:496-513`) and so `evaluate`; with
-  three rounds recorded and a moved hash that sets `exhausted` (`:392-396`). The user re-requests,
-  hits the exhausted branch (`:236-240`), and `runRound` pushes round 4 and sets `adversary`
-  (`:280-281`) while `recordAdversaryFlag` (`:454-459`) starts filling it. The old turn's close then
-  finds `currentRound` pointing at round 4, and `concedeOpenFlags` (`:358-364`) would contest the
-  in-flight adversary's flags. `evaluate`'s open-flag return (`:371`) says nothing about this: it
-  proves only that *`evaluate`* cannot flip out of `refine` with a flag open, never that a phase a
-  retry re-entered is safe. So the phase check moves with the body, and both callers hold it.
+  its comment (`:95-97`) says so, while `broadcast` is `persistGate` (`:79-82`) whose only in-task
+  guard is `status !== "refining"` (`:161`).
+- **A reseeded turn can outlive its own round, and the reachable case is a park.** Accepting a fix
+  while the turn is live calls `gateBriefEdited` (`:496-513`) and so `evaluate`; with the rounds
+  spent and a moved hash that sets `exhausted` (`:392-396`). The user re-requests (`:236-240`),
+  `runRound` pushes round N+1 at phase `adversary` (`:280-281`), and `recordAdversaryFlag`
+  (`:454-459`) fills it, an adversary spawn taking no story key (`sessions.ts:291-293`). When that
+  round routes, `spawnTracked` throws `SESSION_BUSY` because the old refine turn still holds the key
+  (`:293-301`), so the round parks at phase `refine` with its flag `open`. The old turn's `done`
+  then fires against a round it never owned, and `concedeOpenFlags` (`gate.ts:358-364`) would
+  contest the in-flight round's flags. The phase check alone does not catch this (the phase is
+  `refine` again) and `evaluate`'s open-flag return (`:371`) says nothing about it: that proves only
+  that *`evaluate`* cannot flip out of `refine` with a flag open. The park guard catches it, and the
+  story key is why the park is the only reachable shape: while the old turn holds the key no second
+  refine turn can spawn, so a later round is either parked or has not routed yet, which the phase
+  check covers.
+- **Round identity is the check that does not depend on that list.** `currentRound` (`:103-105`)
+  reads the last pushed round, and rounds are pushed only by `runRound` (`:280`), so the round a
+  turn was spawned for is a stable reference. A settle that takes its round as an argument and
+  refuses when `currentRound` has moved is correct whatever a future reader forgets, and it costs
+  one parameter.
 - **`done` can reject, and a rejection must not strand the round.** `spawnTracked` builds `done` as
   `child.done.then(...)` whose body calls every closed listener (`sessions.ts:358-379`), and the
   codebase already treats a throwing listener as live: `runTurn` awaits `tracked.done.catch(() => {})`
@@ -164,28 +177,33 @@ Changes:
    never sets it, so a story's recorded rounds trigger nothing and a first-ever gate, a post-restart
    re-request and a post-abort re-request all resume today's session with the user's conversation
    intact. No durable field is added, and the `gate` block's format is untouched.
-2. **The marked branch spawns fresh.** In `routeFlags`, the story read and the no-session concession
-   (`:316-323`) stay shared. With the marker set the branch clears `attempt.refineSessionId`, so no
-   close can match the id-settle while the reseed is in flight, then calls
-   `setPhase(attempt, "refine")` exactly where `:325` does it today, then spawns through
+2. **The marked branch spawns fresh.** In `routeFlags`, the round check, the story read and the
+   no-session concession (`:314-323`) stay shared. With the marker set the branch clears
+   `attempt.refineSessionId`, so no close can match the id-settle while the reseed is in flight,
+   then calls `setPhase(attempt, "refine")` exactly where `:325` does it today, then spawns through
    `runFreshTurn` with `gateFlagsPrompt(round.flags, attempt.overrides)`. On success it clears
    `pendingFlags` and the marker. `SESSION_BUSY` reaches today's catch and parks, marker kept,
    nothing spawned; the inherited retry chain re-enters and spawns fresh on the next close. Any
    other failure runs today's concede-and-review fallback with the marker kept and `refineSessionId`
    restored to the id read from the story, so later user turns keep today's turn-end semantics.
    Without the marker the path is byte-for-byte today's.
-3. **One settle, carrying every guard both callers need.** `settleRefineTurn(attempt)` takes the
-   body at `:620-624` plus the two guards `onClosed`'s branch supplies around it: the live-attempt
-   check (`attempts.get(attempt.storyId) !== attempt`, from the loop at `:608`) and the phase check
-   (`refine` or `review` only, from `:619`). `onClosed` keeps its id match (`:618`) and calls it;
-   the reseed calls it from the continuation. Neither caller can concede against a round it does not
-   own.
-4. **The reseeded turn's end rides a settled continuation, never an await.** The spawn's `done` gets
-   a continuation that runs on **either** settlement: a rejection is logged through `logError` and
-   the settle still runs, then `attempt.refineSessionId` is assigned, and the whole chain ends in
+3. **One settle, written against `onClosed` and given the round it settles.**
+   `settleRefineTurn(attempt, round)` takes the body at `:620-624` and reproduces every guard
+   `onClosed` applies to it that is about the attempt rather than about identifying the close: the
+   map membership of `:608`, the parked-round short-circuit of `:611-616` (a parked round's close
+   belongs to its retry chain, never to a settle), and the phase check of `:619`. It adds one guard
+   neither caller has today, `currentRound(attempt) === round`, so the function settles the round it
+   was handed or nothing at all. `onClosed` keeps its id-less return and id match (`:617-618`) and
+   calls `settleRefineTurn(attempt, currentRound(attempt))`, where the new check is true by
+   construction and the parked branch already returned, so its behavior is unchanged.
+4. **The reseeded turn's end rides a settled continuation, never an await.** The branch captures
+   `currentRound(attempt)` before the spawn and attaches a continuation to the spawn's `done` that
+   runs on **either** settlement: a rejection is logged through `logError` and the settle still runs
+   with that captured round, then `attempt.refineSessionId` is assigned, and the chain ends in
    `.catch(logError)` like every other fire-and-forget in the file. So the round settles exactly
    once whether the listener chain threw or not, `onClosed` cannot double-settle it (the id is unset
-   until the settle has run), and no rejection reaches the process unhandled.
+   until the settle has run), a turn outliving its round settles nothing, and no rejection reaches
+   the process unhandled.
 5. **`runColdSession` is renamed `runFreshTurn`** (`sessions.ts:141-163`), its comment widened from
    "the always-cold kinds" to "spawns that never resume: the cold kinds, and the gate's reseed of a
    spent refine chat". Body unchanged; the three existing call sites (`grader.ts:27`, `:276`;
@@ -207,11 +225,12 @@ Changes:
 
 - `src/server/services/gate.ts`: `Attempt` gains the reseed marker; `requestReady` sets it at the
   exhausted-retry branch only; `routeFlags` gains the marked branch (clear id, keep the `:325` phase
-  flip, spawn fresh, park or fall back) and passes the register to `gateFlagsPrompt`;
-  `settleRefineTurn` is factored out of `onClosed` carrying the live-attempt and phase guards,
-  called from `onClosed` behind its unchanged id match and from the reseed's settled continuation.
-  `persistGate`, `evaluate`, `writePass`, `retryFlags`, `dropGateAttempt`, `concedeOpenFlags`, the
-  tool entries and every abort path untouched.
+  flip, capture the round, spawn fresh, park or fall back) and passes the register to
+  `gateFlagsPrompt`; `settleRefineTurn(attempt, round)` is factored out of `onClosed` carrying the
+  membership, parked-round, phase and round-identity guards, called from `onClosed` behind its
+  unchanged id tests and from the reseed's settled continuation. `persistGate`, `evaluate`,
+  `writePass`, `retryFlags`, `dropGateAttempt`, `concedeOpenFlags`, `currentRound`, the tool entries
+  and every abort path untouched.
 - `src/server/services/sessions.ts`: `runColdSession` renamed `runFreshTurn` with a widened comment,
   body unchanged. `spawnTracked`, `runTurn`, `messageSession`, `spawnSession`, `seedFor`,
   `persistAttach` untouched, `done`'s construction included.
@@ -237,8 +256,9 @@ Changes:
   so the user's scroll-back is gone and the superseded transcript is reachable only on disk. The
   reseeded round costs one extra queued write inside the dispatcher slot (`persistAttach`) that a
   resume skips. A retry while a user turn holds the story parks for one turn instead of failing.
-  `onClosed`'s settle gains one redundant check (the phase, now inside the shared function) and
-  behaves identically. No durable format change, no RPC contract change, no WS shape change.
+  `onClosed`'s settle gains two checks that are already true on its path (the round identity, the
+  parked branch it returned from) and behaves identically. No durable format change, no RPC contract
+  change, no WS shape change.
 
 ## Acceptance criteria
 
@@ -255,27 +275,30 @@ Changes:
       kept and nothing spawned; any other failure runs today's concede-and-review fallback with the
       marker kept and `refineSessionId` restored to the id read from the story at `:317`. Without
       the marker the resume path (`:316-343`) is unchanged. (file)
-- [ ] `settleRefineTurn(attempt)` holds the body at `:620-624` behind **both** guards `onClosed`
-      supplies around it today, so a caller with no loop and no id match cannot settle a round it
-      does not own: the live-attempt check `attempts.get(attempt.storyId) !== attempt` (from
-      `:608`), which stops a close after `dropGateAttempt` (`:98-101`) reaching `broadcast` and
-      restoring rounds `clearGateRounds` cleared, and the phase check admitting only `refine` or
-      `review` (from `:619`), which stops a turn outliving its round from conceding the next one's
-      flags: accepting a fix mid-turn can reach `exhausted` through `gateBriefEdited` (`:496-513`)
-      and `evaluate` (`:392-396`), and a retry then pushes round 4 at phase `adversary` (`:280-281`)
-      with `recordAdversaryFlag` filling it (`:454-459`), which `concedeOpenFlags` (`:358-364`)
-      would otherwise contest. Past both checks it concedes, flips `refine` to `review`, broadcasts
-      once, and runs `evaluate`. `onClosed` keeps its id match (`:618`) and calls it. (file)
+- [ ] `settleRefineTurn(attempt, round)` holds the body at `:620-624` behind every guard `onClosed`
+      applies to it that concerns the attempt rather than which close arrived, read off the source
+      in order: map membership (`:608`), so a close after `dropGateAttempt` (`:98-101`) never
+      reaches `broadcast` and cannot restore rounds `clearGateRounds` cleared; the parked-round
+      short-circuit (`:611-616`), so a parked round's close feeds only its retry chain, the case a
+      turn that outlived its round actually hits, since the story key (`sessions.ts:291-301`) means
+      a later round can only park while the old turn is live; and the phase check admitting `refine`
+      or `review` (`:619`), which covers the same round before it routed. It adds
+      `currentRound(attempt) === round` (`:103-105`), so the function settles the round it was
+      handed or nothing, independent of that list. Past all four it concedes, flips `refine` to
+      `review`, broadcasts once, and runs `evaluate`. `onClosed` keeps its id-less return and id
+      match (`:617-618`) and calls `settleRefineTurn(attempt, currentRound(attempt))`, so its
+      behavior is unchanged. (file)
 - [ ] The reseeded turn's end rides a detached continuation on the spawn's `done`, never an `await`
-      holding `runRound`'s dispatcher slot (`:259-261`), and it runs on **either** settlement of
-      `done`: a rejection is logged through `logError` and the settle still runs, because `done`
-      calls every closed listener in its body (`sessions.ts:358-379`) and a throwing listener is a
-      live case the codebase already handles (`runTurn:419-425`), while a settle attached to
-      fulfilment alone would leave the round at `refine` with `refineSessionId` unset and
-      `onClosed:618` unable to match. `attempt.refineSessionId = sessionId` is assigned only after
-      the settle attempt, so `onClosed` cannot double-settle a reseeded turn, and the chain ends in
-      `.catch(logError)` like every other fire-and-forget in the file (`:189`, `:262`, `:512`,
-      `:556`, `:588`, `:604`, `:614`), so no rejection reaches the process unhandled. (file)
+      holding `runRound`'s dispatcher slot (`:259-261`). The branch captures `currentRound(attempt)`
+      before the spawn and passes it to the settle, and the continuation runs on **either**
+      settlement of `done`: a rejection is logged through `logError` and the settle still runs,
+      because `done` calls every closed listener in its body (`sessions.ts:358-379`) and a throwing
+      listener is a live case the codebase already handles (`runTurn:419-425`), while a settle
+      attached to fulfilment alone would leave the round at `refine` with `refineSessionId` unset
+      and `onClosed:618` unable to match. `attempt.refineSessionId = sessionId` is assigned only
+      after the settle attempt, so `onClosed` cannot double-settle a reseeded turn, and the chain
+      ends in `.catch(logError)` like every other fire-and-forget in the file (`:189`, `:262`,
+      `:512`, `:556`, `:588`, `:604`, `:614`), so no rejection reaches the process unhandled. (file)
 - [ ] `runColdSession` in `src/server/services/sessions.ts` is renamed `runFreshTurn` with its
       comment widened to cover the gate's reseed, its body unchanged, and every existing call site
       follows (`grader.ts:276`, `proposals.ts:449`, `gate.ts:282`). (file)
@@ -360,10 +383,10 @@ Changes:
   reseed beyond the pane following `sessions.refine`.
 - A second reseed after a failed one. `gate-reseed-park` observes the fallback but stops there, so
   the marker's survival past a failure rides the marked-branch criterion's reading.
-- An episode for a reseeded turn that outlives its round or for a rejected `done`. Both need a
-  mid-turn exhaustion and a throwing closed listener, neither of which the stub can produce; the
-  settle and continuation criteria grade them by reading, and the guards they name make both cases
-  no-ops rather than recoveries.
+- An episode for a reseeded turn that outlives its round or for a rejected `done`. The first needs a
+  mid-turn exhaustion with a second live round, the second a throwing closed listener, and the stub
+  can produce neither; the settle and continuation criteria grade them by reading, and the guards
+  they name make both cases no-ops rather than recoveries.
 - The one-refine-turn guard, the park's retry chain and the stub's `wait` step: 005-06 landed all
   three and this story inherits them.
 - Repairing the harness's sampling flakiness, or writing the new episodes around it. `waitForFlag`,
