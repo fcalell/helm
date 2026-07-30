@@ -93,7 +93,15 @@ status: review        # backlog|refining|ready|running|needs-input|review|done|b
 depends: []           # sibling story ids
 branch: helm/012-01-sync-engine
 preset: auto          # guarded|auto|manual; absent means guarded, the default
-gate: { passed: 2026-07-14T18:03:00Z, brief: <hash>, overrides: ["<flag>: <reason>"] }
+gate:                 # the verdict, the override register, and the rounds spent so far
+  passed: 2026-07-14T18:03:00Z
+  brief: <hash>
+  overrides:
+    - "<flag>: <reason>"
+  rounds:
+    - n: 1
+      flags:
+        - { title: <flag>, status: dismissed }
 sessions: { refine: <uuid> }
 runs:                 # one entry per implement session; request-changes follow-ups extend it
   - { n: 1, session: <uuid>, brief: <hash>, started: 2026-07-15T09:12:00Z, outcome: review, grades: 5/6, stat: 3 files +42 -7, tokens: 184000, minutes: 22 }
@@ -114,9 +122,21 @@ the human checks the rest at review ([review](../product/features/review.md) §S
 checked question is resolved, and unresolved questions are what the ready gate counts
 ([define-refine](../product/features/define-refine.md) §Ready gate).
 
-`gate` records the adversary pass: timestamp, the hash of the brief body it binds to, and the
-dismissed flags with their override reasons; any brief edit stales it
-([define-refine](../product/features/define-refine.md) §Ready gate). The hash excludes the body's
+`gate` is the story's persistent gate record. `passed` and `brief` are the verdict, the timestamp
+and the hash of the brief body it binds to; they are written together and parse only as a pair, so
+a half-written pair is an invalid file rather than a passed-but-unverified gate. Any brief edit
+stales the verdict ([define-refine](../product/features/define-refine.md) §Ready gate).
+`overrides` holds the passing attempt's dismissed flags with their reasons. `rounds` accumulates
+every adversary round as it is spent: the round's number and the flags it raised, each at its last
+known status, so a round interrupted before its verdict still counts and a flag frozen at `open`
+or `contested` is the truth about what happened. A block with `rounds` and no `brief` is history
+without a verdict, which is what a story mid-gate carries.
+
+The record exists only while the story is refining. Every orchestrator write that moves a story
+out of refining drops `rounds` in the same write and drops the live attempt with it: the pass, the
+recorded-verdict fast path back into Ready, and the drag to `backlog` or `blocked`. A hand-edited
+status is the one path outside all three, and the next round on that story appends to what is
+there. The hash excludes the body's
 trailing `## Run notes` block (from the final such heading to the next `##` heading or end of
 body): run notes are bookkeeping appends, so they never stale the verdict, while anything a hand
 edit adds after the section re-enters the hash and stales it. A run entry records the
@@ -146,8 +166,14 @@ survives onto a closed entry (the stop and finish writes drop it).
 
 The orchestrator writes frontmatter in fixed key order (id · status · depends · branch · preset ·
 gate · sessions · runs) with one flow-styled run per line, so a rewrite diffs as exactly the lines
-that changed. `preset` is optional; an absent field means Guarded, so pre-preset cards keep
-parsing with no migration.
+that changed. The `gate` container follows the same rule conditionally: it stays flow-styled on
+one line while it holds no rounds and no overrides, and becomes a block map as soon as either list
+is non-empty, with `rounds`, each round's `flags` and `overrides` written as block sequences (a
+flag stays a flow map on its own line). Flow containers do not wrap, so a flow container holding a
+list would render as one line that grows with the list. An empty `rounds` is omitted, and a `gate`
+holding no verdict, no rounds and no overrides is dropped entirely, so a cleared record leaves no
+residue. `preset` is optional; an absent field means Guarded, so pre-preset cards keep parsing
+with no migration.
 
 `epic.md` has the same shape: frontmatter holds `sessions: { define: <uuid> }` (the epic chat);
 the body is `# Title`, the goal, and the breakdown rationale. A shaping thread under

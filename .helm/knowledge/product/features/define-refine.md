@@ -146,13 +146,18 @@ re-enqueues the fresh pass itself, capped at two automatic rounds. A dismissal s
 whole attempt: each later pass reads the override register (the dismissed flags with their
 reasons) alongside the brief and does not re-raise an accepted risk, the `gate` block accumulates
 every round's dismissals, and a re-raise that slips through takes the normal fix-or-contest path.
-After the second round the gate surfaces the round history and waits, so a fix-attack loop never
-burns the shared pool unattended.
+After the second round the gate waits, so a fix-attack loop never burns the shared pool
+unattended. The drawer's round history reads the story file rather than the live attempt, so a
+user returning after a restart still sees what the story already cost before deciding to
+re-request.
 
-**The verdict persists in frontmatter and binds to the brief.** A pass writes the story's `gate`
-block: timestamp, a hash of the brief body at pass time, and the dismissed flags with their
-override reasons ([board-storage](../../architecture/board-storage.md) §Story file). The flags are
-the adversary's whole output; no report file exists. The hash is the validity rule: any brief
+**The record persists in frontmatter, and the verdict inside it binds to the brief.** Every round
+joins the story's `gate` block as it is spent: its number and the flags it raised, each at its
+last known status, so an interrupted round counts and the count survives a restart. A pass adds
+the verdict to the same block (timestamp, a hash of the brief body at pass time, and the dismissed
+flags with their override reasons) and clears the rounds, which mean something only while the
+story is refining ([board-storage](../../architecture/board-storage.md) §Story file). The flags
+are the adversary's whole output; no report file exists. The hash is the validity rule: any brief
 edit, hand edits included, stales the verdict, and the next move into Ready runs a fresh adversary
 pass, while an unchanged brief re-enters Ready on the recorded verdict for free (a restart, or
 discard's `review → ready`). A verdict that lands after a mid-flight brief edit fails the same

@@ -39,7 +39,9 @@ Five channels live in `src/shared/channels.ts`. `board` carries two server messa
 - `snapshot`: the full `Board`. Sent on every (re)subscribe and rebroadcast on any change, with a
   trailing 100ms debounce. The client applies it wholesale (with a pending-move overlay, below), so
   a missed one is irrelevant: the next supersedes it. `board.get` and `onSubscribe` serve the same
-  `watcher.snapshot()`, so RPC and WS snapshots agree by construction.
+  `watcher.snapshot()`, so RPC and WS snapshots agree by construction. Each story carries its whole
+  frontmatter, the `gate` block's round record included, which is what the drawer's gate history
+  and the card's gate badge read.
 - `notice`: `{ kind: "illegal-transition" | "watch-error" | "run-skipped", message }`, for reasons
   a snapshot cannot carry (a toast). An illegal hand edit is still applied (files are the truth)
   and reported; a `run-skipped` notice is a queued run dropped at dequeue (stale story, or a
@@ -73,9 +75,10 @@ permissions:
 - `snapshot`: `{ attempts }`, one entry per story with an open attempt: phase
   (`queued | adversary | refine | review | exhausted`), the rounds with their flags (title, detail,
   status, counter-argument), and the accumulated override reasons. Sent on every (re)subscribe and
-  on every change, so a late subscriber replays the current gate state. Attempts are in-memory only;
-  the durable outcome is the story's `gate` frontmatter block. Flag resolutions travel over RPC
-  (`gate.resolveFlag`).
+  on every change, so a late subscriber replays the current gate state. Attempts are in-memory
+  only, and every change to one also schedules a write of that story's `gate` frontmatter block, so
+  the round record outlives the attempt and a restart ([board-storage](./board-storage.md) §Story
+  file). Flag resolutions travel over RPC (`gate.resolveFlag`).
 
 `meter` carries the dispatcher queue and the rate-limit meter:
 
