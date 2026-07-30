@@ -8,13 +8,4 @@ import review from "./review.ts";
 import runs from "./runs.ts";
 import sessions from "./sessions.ts";
 
-export const services = [
-	board,
-	gate,
-	mcp,
-	meter,
-	proposals,
-	review,
-	runs,
-	sessions,
-];
+export const services = [board, gate, mcp, meter, proposals, review, runs, sessions];
