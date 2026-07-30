@@ -383,5 +383,5 @@ Out of scope, found while verifying: two committed episodes are flaky at roughly
 `one-flag` ("timed out waiting for story 001-01 to reach Ready", and once "waiting for the proposing
 session to close") and `exhausted` ("timed out waiting for the flag ... on the gate channel"). Both
 fail at the same rate at `5f1461c`, the commit before this run, so neither is caused by this story.
-A suite that reports 11/12 about a third of the time undercuts the harness's purpose and wants its
-own card.
+A suite that reports 11/12 about a third of the time undercuts the harness's purpose. Carded as
+005-07.

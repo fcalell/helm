@@ -14,7 +14,7 @@ analysis and the 002-02 warm-middle measurement as the earlier evidence.
 
 ## Breakdown rationale
 
-Six stories. The enabling ones land first, then the small spec-aligned pieces, then the
+Seven stories. The enabling ones land first, then the small spec-aligned pieces, then the
 design-heavy ones whose value they may erase:
 
 0. **Harness drives flagged gate rounds** commits the verification harness in two halves — a stub
@@ -49,6 +49,12 @@ design-heavy ones whose value they may erase:
    exists and an exhaustion-driven override register defeats the gate. Split out of story 1 at
    its fourth gate round, when the record's semantics and the escalation's kept colliding in one
    brief — the epic's own thesis, applied to itself.
+
+6. **Deterministic episodes** repairs story 0's own instrument: `one-flag` and `exhausted` each
+   fail at roughly 50% in isolation, at the same rate before and after 005-06, so the suite
+   reports a false failure about a third of the time. Numbered last, built early: every remaining
+   story here grades its live criteria against this harness, and 005-06's review already had to
+   run each new episode in isolation to tell a real failure from the noise.
 
 Model tiering for late rounds was considered and rejected: spurious flags from a weaker
 adversary cost full refine round trips, and 004-02's late rounds raised genuine accepted flaws
