@@ -1,7 +1,8 @@
 ---
 id: 005-07
-status: refining
+status: ready
 depends: [005-05]
+gate: { passed: 2026-07-30T17:32:24.434Z, brief: 89193042aa29059d, overrides: [] }
 sessions: {}
 ---
 # Deterministic episodes
