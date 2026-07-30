@@ -1,7 +1,8 @@
 ---
 id: 005-02
-status: refining
+status: ready
 depends: [005-01, 005-06]
+gate: { passed: 2026-07-30T14:55:56.479Z, brief: 8f2d0ba2ed68f9f0, overrides: [] }
 sessions: {}
 ---
 # Reseed refine on retry
