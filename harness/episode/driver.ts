@@ -183,6 +183,11 @@ export async function acceptFix(
 	ctx: EpisodeContext,
 	resolves: string,
 ): Promise<void> {
+	// A refine session closes once per segment and the proposing segment has
+	// not started yet, so the mark is taken before the proposal is waited for:
+	// taking it after loses the closure whenever the proposal frame and the
+	// closed frame land inside the same 50 ms poll.
+	const seen = ctx.obs.closed().length;
 	const proposal = await ctx.obs.waitFor(
 		`the fix proposal resolving "${resolves}"`,
 		() =>
@@ -194,7 +199,6 @@ export async function acceptFix(
 						each.items.some((item) => item.payload.resolves === resolves),
 				),
 	);
-	const seen = ctx.obs.closed().length;
 	// Resolving a fix while the session that proposed it is still live parks
 	// the round it enqueues on SESSION_BUSY, a stall no channel carries.
 	await ctx.obs.waitFor(
