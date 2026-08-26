@@ -1,6 +1,6 @@
 ---
 id: 004-09
-status: review
+status: done
 depends: []
 sessions: {}
 ---
@@ -104,5 +104,8 @@ harness code.
 - verify: 0 dead colour classes in `src/`; every `src/app/` colour class is a generated token
 - verify: live render in Chrome against the sailward board, dark theme: board, card drawer, Brief
   and Chat tabs, epic view. Zero console errors.
-- The status hop blocked to review is not one the state machine allows; the work was a direct
-  migration outside a run, so no legal path reaches the column the work is actually in.
+- The card reached review from blocked, which `LEGAL_TRANSITIONS.blocked` does not allow
+  (`transitions.ts:16` lists backlog, refining and ready). The work was a direct migration on master
+  rather than a run, so no legal walk reaches the column the work was actually in, and the only
+  alternative was inventing the ready and running hops plus the run record that would have to
+  justify them. The exit to done is legal from review.

@@ -1,6 +1,6 @@
 ---
 id: 005-07
-status: review
+status: done
 depends: [005-05]
 gate: { passed: 2026-07-30T17:32:24.434Z, brief: 89193042aa29059d, overrides: [] }
 sessions: {}
