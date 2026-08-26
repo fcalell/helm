@@ -195,13 +195,13 @@ Changes:
 
 ## Acceptance criteria
 
-- [ ] `writeStory` (`store.ts:448-456`), `writeEpic` (`:458-466`), `writeShaping` (`:487-495`) and
+- [x] `writeStory` (`store.ts:448-456`), `writeEpic` (`:458-466`), `writeShaping` (`:487-495`) and
       `createShapingThread` (`create.ts:66-80`) all write through a single private
       `writeAtomic(path, contents, exclusive)` in `store.ts` that fills a temp file in
       `dirname(path)` and then puts it in place. The only `writeFile` call left in `src/board/` is
       the one inside `writeAtomic`, and `create.ts` imports neither `writeFile` nor
       `serializeShaping`. The four writers keep their signatures and their return types. (file)
-- [ ] The exclusive create survives the conversion. `writeShaping(thread, options?)` passes
+- [x] The exclusive create survives the conversion. `writeShaping(thread, options?)` passes
       `options?.exclusive === true` to `writeAtomic`, which then puts the temp in place with
       `link(temp, path)` rather than `rename`, inside a `try` whose `finally` unlinks the temp.
       `link` throws `EEXIST` when the target exists where `rename` would clobber it, which is the
@@ -209,25 +209,25 @@ Changes:
       `<base>-2` (`:559-575`); a dropped throw would silently overwrite a live shaping thread rather
       than error. `createShapingThread` is the only caller passing `exclusive`, so `store.ts:502`,
       `proposals.ts:318` and `:361` keep today's clobbering rename. (file)
-- [ ] Starting two shaping threads whose opening line is identical, through a running orchestrator,
+- [x] Starting two shaping threads whose opening line is identical, through a running orchestrator,
       leaves two files in `.helm/board/shaping/`: `<slug>.md` and `<slug>-2.md`, both with valid
       frontmatter and the second holding the second thread's seed. This is the behavior the `wx`
       throw bought, and it is the one thing the conversion could silently take away. (live)
-- [ ] The temp file is named `.${basename(path)}.tmp`, so `classify` returns `ignored` for it at
+- [x] The temp file is named `.${basename(path)}.tmp`, so `classify` returns `ignored` for it at
       every depth it can appear: epic-directory entries (`store.ts:94`), story and `epic.md` entries
       (`:110`) and shaping entries (`:131`). Read those three branches against the name; a temp that
       is not dot-prefixed is a banner in the UI for as long as it exists. (file)
-- [ ] `src/server/write-queue.ts` and `readFresh` (`gate.ts:129-152`) are byte-unchanged, and no
+- [x] `src/server/write-queue.ts` and `readFresh` (`gate.ts:129-152`) are byte-unchanged, and no
       `enqueueWrite` call site is added anywhere, proved by `git diff` over both files and a grep
       for `enqueueWrite`. Four of `readFresh`'s eight call sites already run inside queued tasks
       (`:163`, `:210`, `:455`, `:645`), so queueing the read would wait on its own caller. (file)
-- [ ] `node spikes/torn-read/probe.ts` runs both arms and prints a torn count per arm over at least
+- [x] `node spikes/torn-read/probe.ts` runs both arms and prints a torn count per arm over at least
       20000 reads each. Pass is numeric and needs both halves: the control arm writing through
       `writeFile` reports **more than zero** torn reads, which is what proves the probe can see a
       tear at all, and the arm writing through `writeStory` reports **exactly zero**. At the
       measured 2.8% an unfixed writer would show roughly 560 tears over 20000 reads. Both counts,
       the read totals and the node version land in `spikes/torn-read/README.md`. (live)
-- [ ] The invalid-file detector belongs to the episode, not to a socket. `runEpisode` creates a
+- [x] The invalid-file detector belongs to the episode, not to a socket. `runEpisode` creates a
       path-keyed map, passes it to `observe()` and to the observer `ctx.restart()` builds
       (`driver.ts:359-371`), and the observer appends every `invalid` entry from every board
       snapshot into it, because `board` is last-write-wins (`observer.ts:86-87`) and an entry that
@@ -236,7 +236,7 @@ Changes:
       (`episodes.ts:454-477`), which is where that episode's gate write and watcher re-read happen.
       `runEpisode`'s post-run check list (`driver.ts:381-394`) gains a check that fails the episode
       when the map is non-empty and names the path and message it holds. (file)
-- [ ] `node harness/episode/run.ts all` reports 15/15 on **10 consecutive runs**, with the invalid
+- [x] `node harness/episode/run.ts all` reports 15/15 on **10 consecutive runs**, with the invalid
       check from the criterion above in place, and `node harness/episode/run.ts exhausted <
       /dev/null` passes on 10 consecutive runs (it halts as its last beat, `episodes.ts:284-287`, so
       a closed stdin still grades every assertion). Every count lands in the run notes. Ten clean
@@ -245,13 +245,13 @@ Changes:
       `gate-reseed-retry` and `gate-reseed-park` each contribute 10 more samples against their
       1-in-5. A single failure in any of the 20 runs leaves this unchecked, with its message
       recorded against the episode that produced it. (live)
-- [ ] With `node harness/episode/run.ts exhausted` held at its halt, the drawer shows both rounds in
+- [x] With `node harness/episode/run.ts exhausted` held at its halt, the drawer shows both rounds in
       the file-driven history box and the board shows no invalid-files banner
       (`app/components/invalid-banner.tsx`). This is what proves the watcher still observes a
       rename: the history box reads the durable record, which reached the UI through
       `watcher.on("change")` into `handleFile` (`watcher.ts:299-300`). (live)
-- [ ] `pnpm check` passes. (command)
-- [ ] `.helm/knowledge/architecture/board-storage.md` §Mutation rules states that board files are
+- [x] `pnpm check` passes. (command)
+- [x] `.helm/knowledge/architecture/board-storage.md` §Mutation rules states that board files are
       written to a dot-prefixed temp in the same directory and put in place with a single atomic
       operation, so a reader outside the write queue never sees a partial file, and that reads are
       not serialized behind the write queue. (file)
@@ -291,43 +291,47 @@ Changes:
 
 ## Run notes
 
-`pnpm check` **fails**, on drift this story did not cause: 67 TypeScript errors across 17 files in
-`src/app/components/`, all `Property 'variant'` (58) or `Property 'size'` (8) on
-`@fcalell/plugin-solid-ui` components, after the sibling `../stack` rebuilt seven component families
-mid-session. The failure reproduces at `b3d05fc` with every one of this run's changes stashed, no
-file this run touched produces an error, and `biome check` is clean on all of them. Carded as
-004-09. The check criterion is unchecked because it says the command passes and it does not.
+All eleven criteria verified at `a601ba1`, node v24.11.1.
 
-The review graded 6/11: every `(file)` criterion proved on disk, four `(live)` criteria unclear by
-the review's own rule, and `pnpm check` failed as above.
-
-The race is closed, and the probe is what shows it rather than a lower failure rate. Orchestrator's
-own run at HEAD: control arm (bare `writeFile`) 11442 torn in 20000 reads, 57.21%; product arm
-(`writeStory`) **0 torn in 20000**. Three runs by the run agent agree: control 11055 / 11038 /
-11382, product 0 / 0 / 0. A control arm that tears at 57% in the same loop is what makes the
-product's zero mean the window is gone rather than narrow.
+- verify: `pnpm check` passes, 126 files, zero errors. It failed through this story's own run on
+  drift the story did not cause, 67 `Property 'variant'` and `'size'` errors from the sibling
+  stack's rebuilt components. 004-09 cleared that, so the criterion is gradeable again.
+- verify: `writeAtomic` is the single private writer in `store.ts`, the only `writeFile` left in
+  `src/board/` sits inside it, and `create.ts` imports neither `writeFile` nor `serializeShaping`.
+  `create.ts:70` is the only caller passing `exclusive`. The third `writeShaping` caller has drifted
+  from `store.ts:502` to `:535` and still takes the clobbering rename, as do `proposals.ts:318` and
+  `:361`.
+- verify: `classify` returns `ignored` for a `.<name>.tmp` entry at all five places it can appear,
+  run against the real function rather than read: an epic-directory entry, a file in the epics root,
+  an `epic.md` entry, a story entry, and a shaping entry.
+- verify: `src/server/write-queue.ts` and `src/server/services/gate.ts` are byte-unchanged over the
+  run's own diff (`b3d05fc..c2b6b56`), and the `enqueueWrite` count across `src/` is 34 on both
+  sides.
+- verify: two shape spawns whose opening line is identical leave
+  `rework-the-notification-fan-out-so-a.md` and the same slug at `-2.md`, both with a valid
+  frontmatter fence, the second holding the second thread's seed. The spawns themselves return
+  SPAWN_FAILED because the stub plays no shape role, which happens after the file is on disk.
+- verify: `node spikes/torn-read/probe.ts` at HEAD: control (`writeFile`) 10667 torn in 20000 reads,
+  53.34%; product (`writeStory`) 0 torn in 20000. A control arm that tears on half its reads is what
+  makes the product's zero mean the window is gone rather than narrow.
+- verify: `node harness/episode/run.ts all` 15/15 on 10 consecutive runs, and
+  `run.ts exhausted < /dev/null` passing on 10 consecutive runs. Twenty for twenty, with the invalid
+  map's post-run check in place.
+- verify: with `run.ts exhausted` held at its halt, the drawer's file-driven history box shows both
+  rounds, "No failure-path criterion" and "Blast radius omits the scratch config", matching the two
+  rounds in the story file's `gate.rounds` frontmatter, and the board shows no invalid-files banner.
+  Zero console errors. The box reads `story.frontmatter.gate?.rounds` (`gate-panel.tsx:168`), so the
+  record reached the UI through the watcher after the rename replaced the file's inode.
 
 The atomic write alone did not make the suite deterministic. A second race, independent of the torn
 read, kept `one-flag`, `gate-reseed-retry` and `gate-reseed-park` failing 4 of 5 suite runs on
 "timed out waiting for the proposing session to close": `acceptFix` took its `closed()` mark after
 waiting for the proposal, so a closure arriving inside the same 50 ms poll sat below the mark and
-the wait could never finish. It reproduces on the unpatched tree. The fix moves the mark ahead of
-the proposal wait and is committed alone (`ede2c6b`) because `harness/episode/driver.ts` is in this
-story's blast radius for the invalid map and one post-run check, not for `acceptFix`; it is
-reviewable and revertible on its own.
+the wait could never finish. The fix moves the mark ahead of the proposal wait and is committed
+alone (`ede2c6b`) because `harness/episode/driver.ts` is in this story's blast radius for the
+invalid map and one post-run check, not for `acceptFix`.
 
-Episode evidence, node v24.11.1: `run.ts all` 15/15 on 10 consecutive runs plus an 11th after the
-commit split, and `run.ts exhausted < /dev/null` passing on 10 consecutive runs plus an 11th.
-Orchestrator's own three independent runs at HEAD: 15/15, 15/15, 15/15. Before the `acceptFix` fix,
-five suite runs went 15/15, 12/15, 14/15, 15/15, 14/15.
-
-- verify: with `node harness/episode/run.ts exhausted` held at its halt (stdin attached, not
-  `/dev/null`), the drawer shows both rounds in the file-driven history box and the board shows no
-  invalid-files banner. This is the one criterion nothing checked: it needs a browser against the
-  halted scratch app, and it is what proves the watcher still re-reads a file whose inode changed.
-- verify: a real `claude` shape session through the UI still dedupes to `<slug>-2` when a slug is
-  taken. The check drove the real `createShapeThread` path through the orchestrator, but the stub
-  plays only the adversary and refine roles, so the shape process died once the file was on disk.
-- verify: `pnpm dev` and a live board still write and reload cleanly. Every board write now replaces
-  the target's inode, so anything holding a board fd open across a write would serve stale content.
-  Nothing in the repo does, but the running app is where that would show.
+Two things nothing here proves, both outside the criteria: a real `claude` shape session deduping to
+`<slug>-2`, because the stub plays only the adversary and refine roles, and a long-lived board file
+descriptor served stale across a write. Every board write now replaces the target's inode, and
+nothing in the repo holds one open across a write.
