@@ -14,6 +14,7 @@ import {
 	storiesByStatus,
 } from "../lib/board-store.ts";
 import { statusFromDropId } from "../lib/dnd.ts";
+import { BoardStack, BoardStrip } from "../ui/board-surface.tsx";
 import { BoardColumn } from "./board-column.tsx";
 import { EpicLane } from "./epic-lane.tsx";
 import { StoryCardOverlay } from "./story-card.tsx";
@@ -42,54 +43,52 @@ export function BoardGrid(props: BoardGridProps) {
 	return (
 		<DragDropProvider onDragEnd={handleDragEnd}>
 			<DragDropSensors>
-				<div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-					<Show
-						when={props.epicView}
-						fallback={
-							<div class="flex h-full gap-4 overflow-x-auto p-4">
-								<For each={STATUSES}>
-									{(status) => (
-										<BoardColumn
-											status={status}
-											stories={storiesByStatus(props.stories, status)}
-											epics={props.epics}
-											onOpen={props.onOpen}
-											onRefine={props.onRefine}
-										/>
-									)}
-								</For>
-							</div>
-						}
-					>
-						<div class="flex flex-col gap-6 p-4">
-							<For each={sortedEpics(props.epics)}>
-								{(epic) => (
-									<EpicLane
-										epicId={epic.id}
-										title={epic.title}
+				<Show
+					when={props.epicView}
+					fallback={
+						<BoardStrip>
+							<For each={STATUSES}>
+								{(status) => (
+									<BoardColumn
+										status={status}
+										stories={storiesByStatus(props.stories, status)}
 										epics={props.epics}
-										stories={props.stories}
-										onOpen={props.onOpen}
-										onRefine={props.onRefine}
-										onOpenChat={props.onOpenEpicChat}
-									/>
-								)}
-							</For>
-							<For each={orphanEpicIds(props.epics, props.stories)}>
-								{(epicId) => (
-									<EpicLane
-										epicId={epicId}
-										title={epicId}
-										epics={props.epics}
-										stories={props.stories}
 										onOpen={props.onOpen}
 										onRefine={props.onRefine}
 									/>
 								)}
 							</For>
-						</div>
-					</Show>
-				</div>
+						</BoardStrip>
+					}
+				>
+					<BoardStack>
+						<For each={sortedEpics(props.epics)}>
+							{(epic) => (
+								<EpicLane
+									epicId={epic.id}
+									title={epic.title}
+									epics={props.epics}
+									stories={props.stories}
+									onOpen={props.onOpen}
+									onRefine={props.onRefine}
+									onOpenChat={props.onOpenEpicChat}
+								/>
+							)}
+						</For>
+						<For each={orphanEpicIds(props.epics, props.stories)}>
+							{(epicId) => (
+								<EpicLane
+									epicId={epicId}
+									title={epicId}
+									epics={props.epics}
+									stories={props.stories}
+									onOpen={props.onOpen}
+									onRefine={props.onRefine}
+								/>
+							)}
+						</For>
+					</BoardStack>
+				</Show>
 				<DragOverlay>
 					{(draggable) => {
 						const story = draggable

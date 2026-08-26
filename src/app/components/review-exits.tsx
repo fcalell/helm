@@ -1,5 +1,6 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Dialog } from "@fcalell/plugin-solid-ui/components/dialog";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createSignal, For, Show } from "solid-js";
@@ -48,7 +49,7 @@ export function ReviewExits(props: { story: Story }) {
 	}
 
 	return (
-		<div class="flex items-center gap-2">
+		<div class="flex items-center gap-row">
 			<Button
 				size="sm"
 				disabled={busy()}
@@ -58,7 +59,7 @@ export function ReviewExits(props: { story: Story }) {
 			</Button>
 			<Button
 				size="sm"
-				variant="secondary"
+				emphasis="secondary"
 				disabled={busy()}
 				onClick={() => setRequestOpen(true)}
 			>
@@ -66,8 +67,8 @@ export function ReviewExits(props: { story: Story }) {
 			</Button>
 			<Button
 				size="sm"
-				variant="outline"
-				class="text-destructive"
+				emphasis="secondary"
+				tone="danger"
 				disabled={busy()}
 				onClick={() => setConfirming("discard")}
 			>
@@ -93,12 +94,12 @@ export function ReviewExits(props: { story: Story }) {
 								</Dialog.Header>
 								<Dialog.Footer>
 									<Button
-										variant="secondary"
+										emphasis="secondary"
 										onClick={() => setConfirming(undefined)}
 									>
 										Cancel
 									</Button>
-									<Button variant="destructive" onClick={() => void discard()}>
+									<Button tone="danger" onClick={() => void discard()}>
 										Discard
 									</Button>
 								</Dialog.Footer>
@@ -115,7 +116,7 @@ export function ReviewExits(props: { story: Story }) {
 						</Dialog.Header>
 						<Dialog.Footer>
 							<Button
-								variant="secondary"
+								emphasis="secondary"
 								onClick={() => setConfirming(undefined)}
 							>
 								Cancel
@@ -183,7 +184,7 @@ function RequestChangesDialog(props: {
 					</Dialog.Description>
 				</Dialog.Header>
 				<form
-					class="flex flex-col gap-3"
+					class="flex flex-col gap-stack"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void props.onSubmit(comments());
@@ -191,11 +192,12 @@ function RequestChangesDialog(props: {
 				>
 					<For each={props.story.brief.criteria}>
 						{(criterion, index) => (
-							<div class="flex flex-col gap-1 text-sm">
-								<span class="text-muted-foreground">{criterion.text}</span>
+							<div class="flex flex-col gap-pair">
+								<Text variant="caption" tone="ink-3">
+									{criterion.text}
+								</Text>
 								<Textarea
 									rows={1}
-									size="sm"
 									value={perCriterion()[index()] ?? ""}
 									onInput={(event) =>
 										setPerCriterion({
@@ -209,8 +211,10 @@ function RequestChangesDialog(props: {
 							</div>
 						)}
 					</For>
-					<div class="flex flex-col gap-1 text-sm">
-						<span class="text-muted-foreground">Anything else</span>
+					<div class="flex flex-col gap-pair">
+						<Text variant="caption" tone="ink-3">
+							Anything else
+						</Text>
 						<Textarea
 							rows={3}
 							value={freeForm()}
@@ -219,13 +223,14 @@ function RequestChangesDialog(props: {
 							placeholder="Free-form change request (optional)"
 						/>
 					</div>
-					<Button
-						type="submit"
-						class="self-end"
-						disabled={props.busy || comments().length === 0}
-					>
-						Send change requests
-					</Button>
+					<div class="flex self-end">
+						<Button
+							type="submit"
+							disabled={props.busy || comments().length === 0}
+						>
+							Send change requests
+						</Button>
+					</div>
 				</form>
 			</Dialog.Content>
 		</Dialog>

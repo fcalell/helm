@@ -1,3 +1,4 @@
+import { Frame } from "@fcalell/plugin-solid-ui/components/frame";
 import { createSignal } from "solid-js";
 import "../app.css";
 import { BoardGrid } from "../components/board-grid.tsx";
@@ -66,7 +67,7 @@ export default function Home() {
 	};
 
 	return (
-		<div class="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+		<Frame>
 			<BoardHeader
 				connected={boardStore.connected}
 				epicView={epicView()}
@@ -107,6 +108,6 @@ export default function Home() {
 				onOpenChange={setNewEpicOpen}
 				onCreated={setDefineTarget}
 			/>
-		</div>
+		</Frame>
 	);
 }

@@ -1,5 +1,6 @@
 import { Show } from "solid-js";
 import { isSuperseded, type LoggedQuestion } from "../lib/session-store.ts";
+import { OneLine } from "../ui/one-line.tsx";
 
 // Inert record of an in-transcript question. The one actionable rendering is
 // the question group above the composer, so a live question renders nothing
@@ -19,13 +20,9 @@ export function QuestionWidget(props: { question: LoggedQuestion }) {
 	return (
 		<Show when={settled()}>
 			{(state) => (
-				<p
-					class="truncate text-xs text-muted-foreground"
-					title={props.question.question}
-				>
-					<span class="font-semibold">{state()}</span> ·{" "}
-					{props.question.question}
-				</p>
+				<OneLine title={props.question.question}>
+					<strong>{state()}</strong> · {props.question.question}
+				</OneLine>
 			)}
 		</Show>
 	);

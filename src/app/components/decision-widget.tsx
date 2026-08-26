@@ -1,8 +1,12 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
+import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createSignal, For, Show } from "solid-js";
 import type { PendingDecision } from "../../server/mcp/schemas.ts";
 import { resolveDecision } from "../lib/session-store.ts";
+import { Eyebrow } from "../ui/eyebrow.tsx";
+import { Prose } from "../ui/prose.tsx";
 import { AnswerChip } from "./answer-chip.tsx";
 
 // One actionable decision. Answering resolves it immediately (decisions fold
@@ -25,26 +29,26 @@ export function DecisionWidget(props: { decision: PendingDecision }) {
 	}
 
 	return (
-		<div class="flex flex-col gap-2 rounded-lg border border-primary/40 bg-muted/40 p-3">
-			<span class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-				Decision
-			</span>
-			<p class="text-sm font-semibold">{props.decision.decision}</p>
+		<Card>
+			<Eyebrow>Decision</Eyebrow>
+			<Text variant="caption" strong>
+				{props.decision.decision}
+			</Text>
 			<Show when={props.decision.context}>
 				{(context) => (
-					<p class="whitespace-pre-wrap text-sm text-muted-foreground">
+					<Prose variant="caption" tone="ink-3">
 						{context()}
-					</p>
+					</Prose>
 				)}
 			</Show>
 			<Show when={props.decision.recommendation}>
 				{(recommendation) => (
-					<p class="text-xs text-muted-foreground">
+					<Text variant="micro" tone="ink-3">
 						Recommended: {recommendation()}
-					</p>
+					</Text>
 				)}
 			</Show>
-			<div class="flex flex-wrap gap-2">
+			<div class="flex flex-wrap gap-row">
 				<Show when={props.decision.recommendation}>
 					{(recommendation) => (
 						<AnswerChip
@@ -67,14 +71,13 @@ export function DecisionWidget(props: { decision: PendingDecision }) {
 				</For>
 			</div>
 			<form
-				class="flex gap-2"
+				class="flex gap-row"
 				onSubmit={(event) => {
 					event.preventDefault();
 					void answer(freeText());
 				}}
 			>
 				<Input
-					size="sm"
 					value={freeText()}
 					onInput={(event) => setFreeText(event.currentTarget.value)}
 					placeholder="Or answer in your own words…"
@@ -83,12 +86,12 @@ export function DecisionWidget(props: { decision: PendingDecision }) {
 				<Button
 					type="submit"
 					size="sm"
-					variant="outline"
+					emphasis="secondary"
 					disabled={inFlight() || freeText().trim() === ""}
 				>
 					Send
 				</Button>
 			</form>
-		</div>
+		</Card>
 	);
 }

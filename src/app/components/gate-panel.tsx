@@ -1,7 +1,10 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
+import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
+import type { BadgeTone } from "@fcalell/ui-core/variants";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import type {
 	GateFlagStatus,
@@ -10,17 +13,17 @@ import type {
 } from "../../board/schema.ts";
 import type { GateAttempt, GateFlag } from "../../shared/gate.ts";
 import { gateFor, PHASE_LINES, resolveGateFlag } from "../lib/gate-store.ts";
+import { Eyebrow } from "../ui/eyebrow.tsx";
+import { Prose } from "../ui/prose.tsx";
 
-const FLAG_BADGES: Record<
-	GateFlagStatus,
-	{ label: string; variant: "success" | "warning" | "destructive" | "outline" }
-> = {
-	open: { label: "Open", variant: "outline" },
-	fixed: { label: "Fixed", variant: "success" },
-	contested: { label: "Contested", variant: "warning" },
-	accepted: { label: "Open question", variant: "warning" },
-	dismissed: { label: "Dismissed", variant: "destructive" },
-};
+const FLAG_BADGES: Record<GateFlagStatus, { label: string; tone: BadgeTone }> =
+	{
+		open: { label: "Open", tone: "neutral" },
+		fixed: { label: "Fixed", tone: "ok" },
+		contested: { label: "Contested", tone: "warn" },
+		accepted: { label: "Open question", tone: "warn" },
+		dismissed: { label: "Dismissed", tone: "danger" },
+	};
 
 // A contested flag: the adversary's finding plus the refine session's
 // counter-argument, resolved only by the user.
@@ -44,93 +47,87 @@ function FlagWidget(props: { storyId: string; flag: GateFlag }) {
 	}
 
 	return (
-		<div
-			class="rounded-lg border border-warning/60 bg-muted/40 p-3"
-			data-gate-flag={props.flag.title}
-		>
-			<div class="flex items-center gap-2">
-				<span class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-					Risk flag
-				</span>
-				<Badge variant="warning">Contested</Badge>
+		<Card ring="warn" data-gate-flag={props.flag.title}>
+			<div class="flex items-center gap-row">
+				<Eyebrow>Risk flag</Eyebrow>
+				<Badge tone="warn">Contested</Badge>
 			</div>
-			<p class="mt-2 text-sm font-semibold">{props.flag.title}</p>
-			<p class="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+			<Text variant="caption" strong>
+				{props.flag.title}
+			</Text>
+			<Prose variant="caption" tone="ink-3">
 				{props.flag.detail}
-			</p>
-			<p class="mt-2 whitespace-pre-wrap text-sm">
-				<Show
-					when={props.flag.argument}
-					fallback={
-						<span class="text-muted-foreground italic">
-							The refine chat left this flag unanswered.
-						</span>
-					}
-				>
-					{(argument) => <>Counter-argument: {argument()}</>}
-				</Show>
-			</p>
-			<div class="mt-2">
-				<Show
-					when={dismissing()}
-					fallback={
-						<div class="flex gap-2">
-							<Button
-								size="sm"
-								disabled={inFlight()}
-								onClick={() => void resolve({ type: "accept" })}
-							>
-								File as open question
-							</Button>
-							<Button
-								size="sm"
-								variant="outline"
-								disabled={inFlight()}
-								onClick={() => setDismissing(true)}
-							>
-								Dismiss
-							</Button>
-						</div>
-					}
-				>
-					<form
-						class="flex flex-col gap-2"
-						onSubmit={(event) => {
-							event.preventDefault();
-							if (reason().trim() === "") return;
-							void resolve({ type: "dismiss", reason: reason().trim() });
-						}}
-					>
-						<Textarea
+			</Prose>
+			<Show
+				when={props.flag.argument}
+				fallback={
+					<Prose variant="caption" tone="ink-3" italic>
+						The refine chat left this flag unanswered.
+					</Prose>
+				}
+			>
+				{(argument) => (
+					<Prose variant="caption">Counter-argument: {argument()}</Prose>
+				)}
+			</Show>
+			<Show
+				when={dismissing()}
+				fallback={
+					<div class="flex gap-row">
+						<Button
 							size="sm"
-							rows={2}
-							value={reason()}
-							onInput={(event) => setReason(event.currentTarget.value)}
-							placeholder="Why is this risk accepted?"
-							aria-label="Override reason"
-						/>
-						<div class="flex gap-2">
-							<Button
-								type="submit"
-								size="sm"
-								variant="destructive"
-								disabled={inFlight() || reason().trim() === ""}
-							>
-								Dismiss flag
-							</Button>
-							<Button
-								type="button"
-								size="sm"
-								variant="ghost"
-								onClick={() => setDismissing(false)}
-							>
-								Cancel
-							</Button>
-						</div>
-					</form>
-				</Show>
-			</div>
-		</div>
+							disabled={inFlight()}
+							onClick={() => void resolve({ type: "accept" })}
+						>
+							File as open question
+						</Button>
+						<Button
+							size="sm"
+							emphasis="secondary"
+							disabled={inFlight()}
+							onClick={() => setDismissing(true)}
+						>
+							Dismiss
+						</Button>
+					</div>
+				}
+			>
+				<form
+					class="flex flex-col gap-row"
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (reason().trim() === "") return;
+						void resolve({ type: "dismiss", reason: reason().trim() });
+					}}
+				>
+					<Textarea
+						rows={2}
+						value={reason()}
+						onInput={(event) => setReason(event.currentTarget.value)}
+						placeholder="Why is this risk accepted?"
+						aria-label="Override reason"
+					/>
+					<div class="flex gap-row">
+						<Button
+							type="submit"
+							size="sm"
+							tone="danger"
+							disabled={inFlight() || reason().trim() === ""}
+						>
+							Dismiss flag
+						</Button>
+						<Button
+							type="button"
+							size="sm"
+							emphasis="tertiary"
+							onClick={() => setDismissing(false)}
+						>
+							Cancel
+						</Button>
+					</div>
+				</form>
+			</Show>
+		</Card>
 	);
 }
 
@@ -138,21 +135,21 @@ function FlagWidget(props: { storyId: string; flag: GateFlag }) {
 // with each flag at its last known status.
 function RoundHistory(props: { rounds: GateRecordRound[] }) {
 	return (
-		<div class="flex flex-col gap-2 text-sm">
+		<div class="flex flex-col gap-row">
 			<For each={props.rounds}>
 				{(round) => (
-					<div>
-						<p class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-							Round {round.n}
-						</p>
-						<ul class="mt-1 flex flex-col gap-1">
+					<div class="flex flex-col gap-pair">
+						<Eyebrow>Round {round.n}</Eyebrow>
+						<ul class="flex flex-col gap-pair">
 							<For each={round.flags}>
 								{(flag) => (
-									<li class="flex items-center gap-2">
-										<Badge variant={FLAG_BADGES[flag.status].variant}>
+									<li class="flex items-center gap-row">
+										<Badge tone={FLAG_BADGES[flag.status].tone}>
 											{FLAG_BADGES[flag.status].label}
 										</Badge>
-										<span>{flag.title}</span>
+										<Text as="span" variant="caption">
+											{flag.title}
+										</Text>
 									</li>
 								)}
 							</For>
@@ -180,43 +177,44 @@ export function GatePanel(props: { story: Story }) {
 	const history = () => gateHistory(props.story);
 	return (
 		<Show when={attempt() !== undefined || history().length > 0}>
-			<div
-				class="flex shrink-0 flex-col gap-2 rounded-lg border p-3"
-				data-gate-phase={attempt()?.phase}
-			>
-				<Show when={attempt()}>
-					{(active) => (
-						<>
-							<Switch
-								fallback={
-									<p class="text-sm text-muted-foreground">
-										{PHASE_LINES[active().phase]}
-									</p>
-								}
-							>
-								<Match
-									when={
-										active().phase === "queued" ||
-										active().phase === "adversary"
+			<div class="flex shrink-0 flex-col">
+				<Card data-gate-phase={attempt()?.phase}>
+					<Show when={attempt()}>
+						{(active) => (
+							<>
+								<Switch
+									fallback={
+										<Text variant="caption" tone="ink-3">
+											{PHASE_LINES[active().phase]}
+										</Text>
 									}
 								>
-									<Loader text={PHASE_LINES[active().phase]} class="text-xs" />
-								</Match>
-							</Switch>
-							<For each={contested()}>
-								{(flag) => <FlagWidget storyId={props.story.id} flag={flag} />}
-							</For>
-						</>
-					)}
-				</Show>
-				<Show when={history().length > 0}>
-					<RoundHistory rounds={history()} />
-				</Show>
-				<Show when={attempt()?.phase === "exhausted"}>
-					<p class="text-xs text-muted-foreground">
-						Move the card to Ready to run another adversary pass.
-					</p>
-				</Show>
+									<Match
+										when={
+											active().phase === "queued" ||
+											active().phase === "adversary"
+										}
+									>
+										<Loader text={PHASE_LINES[active().phase]} />
+									</Match>
+								</Switch>
+								<For each={contested()}>
+									{(flag) => (
+										<FlagWidget storyId={props.story.id} flag={flag} />
+									)}
+								</For>
+							</>
+						)}
+					</Show>
+					<Show when={history().length > 0}>
+						<RoundHistory rounds={history()} />
+					</Show>
+					<Show when={attempt()?.phase === "exhausted"}>
+						<Text variant="micro" tone="ink-3">
+							Move the card to Ready to run another adversary pass.
+						</Text>
+					</Show>
+				</Card>
 			</div>
 		</Show>
 	);

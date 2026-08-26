@@ -1,8 +1,10 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
+import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
-import { createEffect, createSignal, For, Match, Show, Switch } from "solid-js";
+import { createSignal, For, Match, Show, Switch } from "solid-js";
 import { briefHash } from "../../board/hash.ts";
 import type { Run, Story } from "../../board/schema.ts";
 import { formatTokens } from "../lib/format.ts";
@@ -13,6 +15,11 @@ import {
 	steerRun,
 	stopRun,
 } from "../lib/session-store.ts";
+import { Banner } from "../ui/banner.tsx";
+import { Bubble } from "../ui/bubble.tsx";
+import { DiffLines } from "../ui/diff-grid.tsx";
+import { Disclosure } from "../ui/disclosure.tsx";
+import { Prose } from "../ui/prose.tsx";
 import { ToolCallLine, type ToolChatItem } from "./tool-call-line.tsx";
 
 interface DiffContent {
@@ -43,21 +50,9 @@ function diffContent(item: ToolChatItem): DiffContent | undefined {
 
 function MiniDiff(props: { diff: DiffContent }) {
 	return (
-		<div class="rounded-md border text-xs">
-			<div class="border-b px-2 py-1 font-mono text-muted-foreground">
-				{props.diff.path}
-			</div>
-			<pre class="max-h-48 overflow-y-auto whitespace-pre-wrap p-1 font-mono">
-				<For each={props.diff.removed}>
-					{(line) => (
-						<div class="bg-destructive/10 text-destructive">- {line}</div>
-					)}
-				</For>
-				<For each={props.diff.added}>
-					{(line) => <div class="bg-success/10 text-success">+ {line}</div>}
-				</For>
-			</pre>
-		</div>
+		<Disclosure open summary={props.diff.path}>
+			<DiffLines removed={props.diff.removed} added={props.diff.added} />
+		</Disclosure>
 	);
 }
 
@@ -84,16 +79,12 @@ function TimelineItem(props: { item: ChatItem }) {
 	return (
 		<Switch>
 			<Match when={asType(props.item, "user")}>
-				{(item) => (
-					<div class="ml-8 self-end whitespace-pre-wrap rounded-lg bg-primary/10 px-3 py-2 text-sm">
-						{item().text}
-					</div>
-				)}
+				{(item) => <Bubble>{item().text}</Bubble>}
 			</Match>
 			<Match when={asType(props.item, "assistant")}>
 				{(item) => (
 					<Show when={item().text !== ""}>
-						<div class="whitespace-pre-wrap text-sm">{item().text}</div>
+						<Prose variant="caption">{item().text}</Prose>
 					</Show>
 				)}
 			</Match>
@@ -102,10 +93,10 @@ function TimelineItem(props: { item: ChatItem }) {
 			</Match>
 			<Match when={asType(props.item, "compact")}>
 				{(item) => (
-					<p class="text-xs text-muted-foreground">
+					<Text variant="micro" tone="ink-3">
 						Context compacted ({item().trigger}) ·{" "}
 						{formatTokens(item().preTokens)} → {formatTokens(item().postTokens)}
-					</p>
+					</Text>
 				)}
 			</Match>
 		</Switch>
@@ -131,7 +122,6 @@ export function ActivityPane(props: { story: Story }) {
 
 	const [draft, setDraft] = createSignal("");
 	const [pending, setPending] = createSignal<RunAction>();
-	let timelineRef: HTMLDivElement | undefined;
 
 	async function act(action: RunAction, message?: string): Promise<void> {
 		setPending(action);
@@ -162,47 +152,38 @@ export function ActivityPane(props: { story: Story }) {
 		>
 			{(run) => {
 				const chat = () => chatFor(run().session);
-				createEffect(() => {
-					// Track everything that grows the timeline, including the
-					// streaming tail's text, then pin to the bottom.
-					const items = chat().items;
-					const last = items[items.length - 1];
-					if (last?.type === "assistant") void last.text;
-					if (last?.type === "tool") void last.done;
-					chat().busy;
-					if (timelineRef !== undefined) {
-						timelineRef.scrollTop = timelineRef.scrollHeight;
-					}
-				});
 				return (
-					<div class="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+					<div class="flex min-h-0 flex-1 flex-col gap-stack overflow-hidden">
 						<Show when={briefEdited()}>
-							<p class="shrink-0 rounded-md border border-warning bg-warning/10 px-3 py-2 text-xs">
-								The brief was edited since this run started; the change takes
-								effect on the next attempt.
-							</p>
+							<Banner>
+								<Text variant="micro" tone="warn">
+									The brief was edited since this run started; the change takes
+									effect on the next attempt.
+								</Text>
+							</Banner>
 						</Show>
-						<div
-							ref={timelineRef}
-							class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1"
-						>
-							<For each={chat().items}>
-								{(item) => <TimelineItem item={item} />}
-							</For>
-							<Show when={chat().busy}>
-								<Loader text="run in progress" class="text-xs" />
-							</Show>
-							<Show when={paused()}>
-								<p class="text-xs text-muted-foreground">Run paused</p>
-							</Show>
-						</div>
+						<ScrollArea pinToBottom>
+							<div class="flex flex-col gap-stack">
+								<For each={chat().items}>
+									{(item) => <TimelineItem item={item} />}
+								</For>
+								<Show when={chat().busy}>
+									<Loader text="run in progress" />
+								</Show>
+								<Show when={paused()}>
+									<Text variant="micro" tone="ink-3">
+										Run paused
+									</Text>
+								</Show>
+							</div>
+						</ScrollArea>
 						<Show when={openEntry() !== undefined}>
-							<div class="flex shrink-0 items-center gap-2">
+							<div class="flex shrink-0 items-center gap-row">
 								<Switch>
 									<Match when={status() === "running" && !paused()}>
 										<Button
 											size="sm"
-											variant="outline"
+											emphasis="secondary"
 											disabled={pending() !== undefined}
 											onClick={() => void act("pause")}
 										>
@@ -212,7 +193,7 @@ export function ActivityPane(props: { story: Story }) {
 									<Match when={status() === "running" && paused()}>
 										<Button
 											size="sm"
-											variant="outline"
+											emphasis="secondary"
 											disabled={pending() !== undefined}
 											onClick={() => void act("resume")}
 										>
@@ -225,7 +206,8 @@ export function ActivityPane(props: { story: Story }) {
 								>
 									<Button
 										size="sm"
-										variant="destructive"
+										emphasis="secondary"
+										tone="danger"
 										disabled={pending() !== undefined}
 										onClick={() => void act("stop")}
 									>
@@ -236,14 +218,13 @@ export function ActivityPane(props: { story: Story }) {
 						</Show>
 						<Show when={status() === "running"}>
 							<form
-								class="flex shrink-0 items-end gap-2"
+								class="flex shrink-0 items-end gap-row"
 								onSubmit={(event) => {
 									event.preventDefault();
 									steer();
 								}}
 							>
 								<Textarea
-									size="sm"
 									rows={2}
 									value={draft()}
 									onInput={(event) => setDraft(event.currentTarget.value)}

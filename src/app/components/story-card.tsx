@@ -1,8 +1,7 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
-import { Card } from "@fcalell/plugin-solid-ui/components/card";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Tooltip } from "@fcalell/plugin-solid-ui/components/tooltip";
-import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
 import { createDraggable } from "@thisbeyond/solid-dnd";
 import { createSignal, Match, Show, Switch } from "solid-js";
 import type { Epic, Story } from "../../board/schema.ts";
@@ -14,6 +13,8 @@ import {
 	resolveRunPermission,
 	startStoryRun,
 } from "../lib/session-store.ts";
+import { BoardCard } from "../ui/board-card.tsx";
+import { OneLine } from "../ui/one-line.tsx";
 import { gateBadgeLabel, gateHistory } from "./gate-panel.tsx";
 
 interface StoryCardProps {
@@ -45,35 +46,47 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 
 	return (
 		<>
-			<p class="text-sm font-semibold text-foreground">
+			<Text variant="caption" strong>
 				{props.story.brief.title || props.story.id}
-			</p>
-			<div class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-				<Badge variant="outline">{epicLabel()}</Badge>
+			</Text>
+			<div class="flex flex-wrap items-center gap-pair">
+				<Badge>{epicLabel()}</Badge>
 				<Show when={gateBadge()}>
 					{(label) => (
-						<Badge variant="warning" data-gate-badge>
+						<Badge tone="warn" data-gate-badge>
 							{label()}
 						</Badge>
 					)}
 				</Show>
 				<Show when={criteria().length > 0}>
-					<span>
+					<Text as="span" variant="micro" tone="ink-3">
 						{checkedCount() > 0
 							? `${checkedCount()}/${criteria().length} criteria`
 							: `${criteria().length} criteria`}
-					</span>
+					</Text>
 				</Show>
 				<Show when={depends().length > 0}>
 					<Tooltip>
-						<Tooltip.Trigger as="span">{`needs ${depends()[0]}`}</Tooltip.Trigger>
+						<Tooltip.Trigger as="span">
+							<Text as="span" variant="micro" tone="ink-3">
+								{`needs ${depends()[0]}`}
+							</Text>
+						</Tooltip.Trigger>
 						<Tooltip.Content>{depends().join(", ")}</Tooltip.Content>
 					</Tooltip>
 				</Show>
 				<Show when={isRefining() && openQuestions() > 0}>
-					<span>{`${openQuestions()} open questions`}</span>
+					<Text as="span" variant="micro" tone="ink-3">
+						{`${openQuestions()} open questions`}
+					</Text>
 				</Show>
-				<Show when={reviewStat()}>{(stat) => <span>{stat()}</span>}</Show>
+				<Show when={reviewStat()}>
+					{(stat) => (
+						<Text as="span" variant="micro" tone="ink-3">
+							{stat()}
+						</Text>
+					)}
+				</Show>
 			</div>
 		</>
 	);
@@ -98,26 +111,26 @@ function permissionSummary(request: PermissionRequest): string {
 function PermissionPrompt(props: { request: PermissionRequest }) {
 	return (
 		<fieldset
-			class="flex flex-col gap-1.5 rounded-md border border-warning/50 bg-muted/40 p-2"
+			class="flex flex-col gap-pair"
 			aria-label="Permission prompt"
 			onPointerDown={(event) => event.stopPropagation()}
 			onClick={(event) => event.stopPropagation()}
 			onKeyDown={(event) => event.stopPropagation()}
 		>
-			<p class="break-all font-mono text-xs text-foreground">
+			<OneLine title={permissionSummary(props.request)}>
 				{permissionSummary(props.request)}
-			</p>
-			<div class="flex gap-1.5">
+			</OneLine>
+			<div class="flex gap-pair">
 				<Button
 					size="sm"
-					variant="secondary"
+					emphasis="secondary"
 					onClick={() => void resolveRunPermission(props.request.id, true)}
 				>
 					Approve
 				</Button>
 				<Button
 					size="sm"
-					variant="outline"
+					emphasis="secondary"
 					onClick={() => void resolveRunPermission(props.request.id, false)}
 				>
 					Deny
@@ -166,7 +179,7 @@ function CardAction(props: { story: Story; onRefine: () => void }) {
 					<Match when={status() === "backlog"}>
 						<Button
 							size="sm"
-							variant="outline"
+							emphasis="secondary"
 							onClick={() => props.onRefine()}
 						>
 							Refine
@@ -175,7 +188,7 @@ function CardAction(props: { story: Story; onRefine: () => void }) {
 					<Match when={status() === "refining"}>
 						<Button
 							size="sm"
-							variant="outline"
+							emphasis="secondary"
 							onClick={() => props.onRefine()}
 						>
 							Chat
@@ -184,7 +197,7 @@ function CardAction(props: { story: Story; onRefine: () => void }) {
 					<Match when={status() === "ready"}>
 						<Button
 							size="sm"
-							variant="secondary"
+							emphasis="secondary"
 							disabled={starting() || queued()}
 							onClick={() => void run()}
 						>
@@ -205,27 +218,29 @@ export function StoryCardOverlay(props: {
 	epics: Record<string, Epic>;
 }) {
 	return (
-		<Card class="gap-2 p-3 shadow-lg">
+		<BoardCard interactive={false}>
 			<CardContents story={props.story} epics={props.epics} />
-		</Card>
+		</BoardCard>
 	);
 }
 
 export function StoryCard(props: StoryCardProps) {
 	const isRunning = () => props.story.frontmatter.status === "running";
 
-	// Card is a custom component (forwards ref/rest to its root div), so the
-	// compiler-only `use:draggable` directive form doesn't apply here; wiring
-	// the ref and activators as plain props gets the same behavior.
+	// BoardCard forwards ref and rest to its root div, so the compiler-only
+	// `use:draggable` directive form doesn't apply here; wiring the ref and
+	// activators as plain props gets the same behavior.
 	const draggable = createDraggable(props.story.id);
 
 	return (
-		<Card
+		<BoardCard
 			ref={draggable.ref}
 			{...draggable.dragActivators}
 			data-story-id={props.story.id}
 			role="button"
 			tabIndex={0}
+			running={isRunning()}
+			dragging={draggable.isActiveDraggable}
 			onClick={() => props.onOpen()}
 			onKeyDown={(event) => {
 				if (event.key !== "Enter" && event.key !== " ") return;
@@ -233,17 +248,12 @@ export function StoryCard(props: StoryCardProps) {
 				if (event.key === " ") event.preventDefault();
 				props.onOpen();
 			}}
-			class={cn(
-				"cursor-pointer gap-2 p-3 transition-shadow duration-base ease-ui",
-				isRunning() && "helm-card-pulse",
-				draggable.isActiveDraggable && "opacity-40",
-			)}
 		>
 			<CardContents story={props.story} epics={props.epics} />
 			<Show when={pendingPermission(props.story.id)}>
 				{(request) => <PermissionPrompt request={request()} />}
 			</Show>
 			<CardAction story={props.story} onRefine={props.onRefine} />
-		</Card>
+		</BoardCard>
 	);
 }

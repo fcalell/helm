@@ -2,10 +2,12 @@
 @keyframes helm-card-pulse {
 	0%,
 	100% {
-		box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-ring) 55%, transparent);
+		box-shadow: 0 0 0 0
+			color-mix(in oklch, var(--color-accent) 55%, transparent);
 	}
 	50% {
-		box-shadow: 0 0 0 4px color-mix(in oklch, var(--color-ring) 0%, transparent);
+		box-shadow: 0 0 0 4px
+			color-mix(in oklch, var(--color-accent) 0%, transparent);
 	}
 }
 

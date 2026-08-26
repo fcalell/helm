@@ -1,5 +1,7 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
+import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import {
@@ -7,6 +9,7 @@ import {
 	answerQuestion,
 	type LoggedQuestion,
 } from "../lib/session-store.ts";
+import { Eyebrow } from "../ui/eyebrow.tsx";
 import { AnswerChip } from "./answer-chip.tsx";
 
 // One question at a time: only the oldest pending question is actionable, and
@@ -41,11 +44,11 @@ export function QuestionGroup(props: { sessionId: string }) {
 	return (
 		<Show when={current()}>
 			{(question) => (
-				<div class="flex flex-col gap-2 rounded-lg border border-primary/40 bg-muted/40 p-3">
-					<span class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+				<Card>
+					<Eyebrow>
 						Question
 						<Show when={queued() > 0}>{` · ${queued()} more waiting`}</Show>
-					</span>
+					</Eyebrow>
 					<QuestionRow
 						question={question()}
 						value={draft()}
@@ -59,7 +62,7 @@ export function QuestionGroup(props: { sessionId: string }) {
 					>
 						Send answer
 					</Button>
-				</div>
+				</Card>
 			)}
 		</Show>
 	);
@@ -80,9 +83,9 @@ function QuestionRow(props: {
 	};
 
 	return (
-		<div class="flex flex-col gap-2">
-			<p class="text-sm">{props.question.question}</p>
-			<div class="flex flex-wrap gap-2">
+		<div class="flex flex-col gap-row">
+			<Text variant="caption">{props.question.question}</Text>
+			<div class="flex flex-wrap gap-row">
 				<For each={options()}>
 					{(option) => (
 						<AnswerChip
@@ -95,7 +98,6 @@ function QuestionRow(props: {
 				</For>
 			</div>
 			<Input
-				size="sm"
 				value={props.value}
 				onInput={(event) => props.onAnswer(event.currentTarget.value)}
 				placeholder="Or answer in your own words…"

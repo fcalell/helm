@@ -1,5 +1,8 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createSignal, For, Show } from "solid-js";
+import { Banner } from "../ui/banner.tsx";
+import { CodeBlock } from "../ui/code-block.tsx";
 
 interface InvalidBannerProps {
 	invalid: Record<string, string>;
@@ -11,11 +14,13 @@ export function InvalidBanner(props: InvalidBannerProps) {
 
 	return (
 		<Show when={entries().length > 0}>
-			<div class="border-b border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
-				<div class="flex items-center justify-between">
-					<span>{`${entries().length} invalid board files`}</span>
+			<Banner>
+				<div class="flex items-center justify-between gap-row">
+					<Text variant="caption" tone="warn">
+						{`${entries().length} invalid board files`}
+					</Text>
 					<Button
-						variant="ghost"
+						emphasis="tertiary"
 						size="sm"
 						onClick={() => setExpanded((value) => !value)}
 					>
@@ -23,17 +28,17 @@ export function InvalidBanner(props: InvalidBannerProps) {
 					</Button>
 				</div>
 				<Show when={expanded()}>
-					<ul class="mt-2 flex flex-col gap-1 font-mono text-xs text-muted-foreground">
+					<CodeBlock cap="sm">
 						<For each={entries()}>
 							{([path, message]) => (
-								<li>
+								<div>
 									{path}: {message}
-								</li>
+								</div>
 							)}
 						</For>
-					</ul>
+					</CodeBlock>
 				</Show>
-			</div>
+			</Banner>
 		</Show>
 	);
 }

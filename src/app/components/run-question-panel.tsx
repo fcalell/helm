@@ -1,8 +1,12 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
+import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createSignal, For } from "solid-js";
 import type { RunQuestion } from "../../board/schema.ts";
 import { answerRunQuestion } from "../lib/session-store.ts";
+import { Eyebrow } from "../ui/eyebrow.tsx";
+import { AnswerChip } from "./answer-chip.tsx";
 
 // The needs-input quick-reply form, fed from the open run entry's question
 // in frontmatter (so it survives restarts); answering resumes the run.
@@ -34,41 +38,32 @@ export function RunQuestionPanel(props: {
 	}
 
 	return (
-		<div class="flex flex-col gap-2 rounded-lg border border-primary/40 bg-muted/40 p-3">
-			<span class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-				Run needs input
-			</span>
-			<p class="text-sm">{props.question.text}</p>
-			<p class="text-xs text-muted-foreground">
+		<Card>
+			<Eyebrow>Run needs input</Eyebrow>
+			<Text variant="caption">{props.question.text}</Text>
+			<Text variant="micro" tone="ink-3">
 				Recommended: {props.question.recommendation}
-			</p>
-			<div class="flex flex-wrap gap-2">
+			</Text>
+			<div class="flex flex-wrap gap-row">
 				<For each={chips()}>
 					{(option) => (
-						<Button
-							size="sm"
-							variant={
-								option === props.question.recommendation
-									? "secondary"
-									: "outline"
-							}
+						<AnswerChip
+							label={option}
+							selected={option === props.question.recommendation}
 							disabled={inFlight()}
 							onClick={() => void answer(option)}
-						>
-							{option}
-						</Button>
+						/>
 					)}
 				</For>
 			</div>
 			<form
-				class="flex gap-2"
+				class="flex gap-row"
 				onSubmit={(event) => {
 					event.preventDefault();
 					void answer(freeText());
 				}}
 			>
 				<Input
-					size="sm"
 					value={freeText()}
 					onInput={(event) => setFreeText(event.currentTarget.value)}
 					placeholder="Or answer in your own words…"
@@ -77,12 +72,12 @@ export function RunQuestionPanel(props: {
 				<Button
 					type="submit"
 					size="sm"
-					variant="outline"
+					emphasis="secondary"
 					disabled={inFlight() || freeText().trim() === ""}
 				>
 					Send
 				</Button>
 			</form>
-		</div>
+		</Card>
 	);
 }

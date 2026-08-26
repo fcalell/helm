@@ -1,10 +1,20 @@
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
-import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
+import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createResource, For, Show } from "solid-js";
 import { parseBrief } from "../../board/markdown.ts";
 import { RUN_NOTES_SECTION, type Story } from "../../board/schema.ts";
 import { api } from "../lib/api.ts";
+import { CodeBlock } from "../ui/code-block.tsx";
+import {
+	DiffCell,
+	DiffGrid,
+	DiffHunkHeader,
+	DiffLineNo,
+} from "../ui/diff-grid.tsx";
+import { Disclosure } from "../ui/disclosure.tsx";
+import { Eyebrow } from "../ui/eyebrow.tsx";
 import { ChecklistSection } from "./card-drawer.tsx";
 
 type ReviewData = Awaited<ReturnType<typeof api.review.get>>;
@@ -43,53 +53,30 @@ function hunkRows(lines: DiffLine[]): Row[] {
 	return rows;
 }
 
-function LineNo(props: { n: number | undefined }) {
-	return (
-		<span class="select-none px-1.5 text-right text-muted-foreground/70">
-			{props.n ?? ""}
-		</span>
-	);
-}
-
 function SideBySide(props: { file: DiffFile }) {
 	return (
-		<div class="grid grid-cols-[auto_1fr_auto_1fr] font-mono text-xs">
+		<DiffGrid>
 			<For each={props.file.hunks}>
 				{(hunk) => (
 					<>
-						<div class="col-span-full bg-muted/40 px-2 py-0.5 text-muted-foreground">
-							{hunk.header}
-						</div>
+						<DiffHunkHeader>{hunk.header}</DiffHunkHeader>
 						<For each={hunkRows(hunk.lines)}>
 							{(row) =>
 								row.kind === "context" ? (
 									<>
-										<LineNo n={row.line.oldLine} />
-										<div class="col-span-3 whitespace-pre-wrap px-1.5">
-											{row.line.text}
-										</div>
+										<DiffLineNo n={row.line.oldLine} />
+										<DiffCell span>{row.line.text}</DiffCell>
 									</>
 								) : (
 									<>
-										<LineNo n={row.old?.oldLine} />
-										<div
-											class={cn(
-												"whitespace-pre-wrap px-1.5",
-												row.old !== undefined &&
-													"bg-destructive/10 text-destructive",
-											)}
-										>
+										<DiffLineNo n={row.old?.oldLine} />
+										<DiffCell kind={row.old !== undefined ? "del" : undefined}>
 											{row.old?.text}
-										</div>
-										<LineNo n={row.new?.newLine} />
-										<div
-											class={cn(
-												"whitespace-pre-wrap px-1.5",
-												row.new !== undefined && "bg-success/10 text-success",
-											)}
-										>
+										</DiffCell>
+										<DiffLineNo n={row.new?.newLine} />
+										<DiffCell kind={row.new !== undefined ? "add" : undefined}>
 											{row.new?.text}
-										</div>
+										</DiffCell>
 									</>
 								)
 							}
@@ -97,7 +84,7 @@ function SideBySide(props: { file: DiffFile }) {
 					</>
 				)}
 			</For>
-		</div>
+		</DiffGrid>
 	);
 }
 
@@ -107,24 +94,28 @@ function FileSection(props: { file: DiffFile }) {
 			? `${props.file.oldPath} → ${props.file.path}`
 			: props.file.path;
 	return (
-		<details class="rounded-md border" open>
-			<summary class="cursor-pointer px-2 py-1.5 font-mono text-xs">
-				{label()} · {props.file.status} · +{props.file.additions} −
-				{props.file.deletions}
-			</summary>
+		<Disclosure
+			open
+			summary={
+				<>
+					{label()} · {props.file.status} · +{props.file.additions} −
+					{props.file.deletions}
+				</>
+			}
+		>
 			<Show
 				when={!props.file.binary}
 				fallback={
-					<p class="border-t px-2 py-1.5 text-xs text-muted-foreground">
+					<Text variant="micro" tone="ink-3">
 						Binary or unparsed file
-					</p>
+					</Text>
 				}
 			>
-				<div class="overflow-x-auto border-t">
+				<ScrollArea axis="x">
 					<SideBySide file={props.file} />
-				</div>
+				</ScrollArea>
 			</Show>
-		</details>
+		</Disclosure>
 	);
 }
 
@@ -145,35 +136,48 @@ function Verification(props: { story: Story; check: ReviewData["check"] }) {
 			.map((line) => line.slice(2))
 			.filter((note) => /^verify:/i.test(note));
 	return (
-		<div class="flex flex-col gap-2">
+		<div class="flex flex-col gap-row">
 			<Show
 				when={notes().length > 0}
-				fallback={<p class="text-muted-foreground">No run notes</p>}
+				fallback={
+					<Text variant="caption" tone="ink-3">
+						No run notes
+					</Text>
+				}
 			>
-				<ul class="flex list-disc flex-col gap-1 pl-5">
-					<For each={notes()}>{(note) => <li>{note}</li>}</For>
+				<ul class="flex flex-col gap-pair">
+					<For each={notes()}>
+						{(note) => (
+							<li>
+								<Text as="span" variant="caption">
+									{note}
+								</Text>
+							</li>
+						)}
+					</For>
 				</ul>
 			</Show>
 			<Show
 				when={props.check}
 				fallback={
-					<p class="text-muted-foreground">No check command configured</p>
+					<Text variant="caption" tone="ink-3">
+						No check command configured
+					</Text>
 				}
 			>
 				{(check) => (
-					<details class="rounded-md border">
-						<summary
-							class={cn(
-								"cursor-pointer px-2 py-1.5 text-xs",
-								check().exitCode === 0 ? "text-success" : "text-destructive",
-							)}
-						>
-							{checkVerdict(check())} · {check().command}
-						</summary>
-						<pre class="max-h-64 overflow-auto whitespace-pre-wrap border-t p-2 font-mono text-xs">
+					<Disclosure
+						tone={check().exitCode === 0 ? "ok" : "danger"}
+						summary={
+							<>
+								{checkVerdict(check())} · {check().command}
+							</>
+						}
+					>
+						<CodeBlock cap="md">
 							{check().output.trim() === "" ? "(no output)" : check().output}
-						</pre>
-					</details>
+						</CodeBlock>
+					</Disclosure>
 				)}
 			</Show>
 		</div>
@@ -191,7 +195,7 @@ export function DiffPane(props: { story: Story }) {
 			fallback={
 				<Show
 					when={review.error !== undefined}
-					fallback={<Loader text="loading the diff" class="text-xs" />}
+					fallback={<Loader text="loading the diff" />}
 				>
 					<EmptyState
 						title="Diff"
@@ -201,32 +205,26 @@ export function DiffPane(props: { story: Story }) {
 			}
 		>
 			{(data) => (
-				<div class="flex flex-col gap-4 text-sm">
-					<div>
-						<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-							Acceptance criteria
-						</h3>
+				<div class="flex flex-col gap-section">
+					<div class="flex flex-col gap-row">
+						<Eyebrow>Acceptance criteria</Eyebrow>
 						<ChecklistSection
 							items={parseBrief(data().briefBody).criteria}
 							warn={false}
 						/>
 					</div>
-					<div>
-						<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-							Verification
-						</h3>
-						<div class="mt-2">
-							<Verification story={props.story} check={data().check} />
-						</div>
+					<div class="flex flex-col gap-row">
+						<Eyebrow>Verification</Eyebrow>
+						<Verification story={props.story} check={data().check} />
 					</div>
-					<div class="flex flex-col gap-2">
-						<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-							Changes
-						</h3>
+					<div class="flex flex-col gap-row">
+						<Eyebrow>Changes</Eyebrow>
 						<Show
 							when={data().files.length > 0}
 							fallback={
-								<p class="text-muted-foreground">No changes against main</p>
+								<Text variant="caption" tone="ink-3">
+									No changes against main
+								</Text>
 							}
 						>
 							<For each={data().files}>

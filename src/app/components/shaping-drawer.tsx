@@ -3,13 +3,15 @@ import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Checkbox } from "@fcalell/plugin-solid-ui/components/checkbox";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
-import { Sheet } from "@fcalell/plugin-solid-ui/components/sheet";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import type { DecisionItem, ShapingThread } from "../../board/schema.ts";
 import { api } from "../lib/api.ts";
 import { boardStore } from "../lib/board-store.ts";
 import { pendingDecisionFor, researchStateFor } from "../lib/session-store.ts";
+import { Drawer, DrawerHeader, DrawerTitle } from "../ui/drawer.tsx";
+import { Struck } from "../ui/struck.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { ExpandToggle } from "./expand-toggle.tsx";
 
@@ -54,39 +56,44 @@ function OpenDecision(props: { slug: string; decision: DecisionItem }) {
 	const widget = () => pendingDecisionFor(props.slug, props.decision.text);
 
 	return (
-		<li class="flex flex-col gap-1.5">
-			<div class="flex items-start gap-2">
+		<li class="flex flex-col gap-pair">
+			<div class="flex flex-wrap items-start gap-row">
 				<Checkbox checked={false} disabled aria-label="Open decision" />
-				<span class="text-sm">{props.decision.text}</span>
+				<Text as="span" variant="caption">
+					{props.decision.text}
+				</Text>
 				<Show when={props.decision.settledBy === "research"}>
-					<Switch fallback={<Badge variant="outline">research</Badge>}>
+					<Switch fallback={<Badge>research</Badge>}>
 						<Match when={research()?.status === "pending"}>
-							<Badge variant="secondary">researching…</Badge>
+							<Badge tone="interactive">researching…</Badge>
 						</Match>
 						<Match when={research()?.status === "failed"}>
-							<Badge variant="destructive">research failed</Badge>
+							<Badge tone="danger">research failed</Badge>
 						</Match>
 					</Switch>
 				</Show>
 			</div>
 			<Show when={research()?.error}>
-				{(error) => <p class="ml-6 text-xs text-destructive">{error()}</p>}
+				{(error) => (
+					<Text variant="micro" tone="danger">
+						{error()}
+					</Text>
+				)}
 			</Show>
 			<Show when={widget()}>
-				<Badge variant="secondary" class="ml-6 self-start">
-					answer in chat
-				</Badge>
+				<div class="flex self-start">
+					<Badge tone="interactive">answer in chat</Badge>
+				</div>
 			</Show>
 			<Show when={widget() === undefined && research()?.status !== "pending"}>
 				<form
-					class="ml-6 flex gap-2"
+					class="flex gap-row"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void resolve();
 					}}
 				>
 					<Input
-						size="sm"
 						value={answer()}
 						onInput={(event) => setAnswer(event.currentTarget.value)}
 						placeholder="Settle it…"
@@ -95,7 +102,7 @@ function OpenDecision(props: { slug: string; decision: DecisionItem }) {
 					<Button
 						type="submit"
 						size="sm"
-						variant="outline"
+						emphasis="secondary"
 						disabled={inFlight() || answer().trim() === ""}
 					>
 						Resolve
@@ -110,19 +117,21 @@ function DecisionsChecklist(props: { thread: ShapingThread }) {
 	return (
 		<Show
 			when={props.thread.decisions.length > 0}
-			fallback={<p>No decisions raised yet.</p>}
+			fallback={
+				<Text variant="caption" tone="ink-3">
+					No decisions raised yet.
+				</Text>
+			}
 		>
-			<ul class="flex flex-col gap-2">
+			<ul class="flex flex-col gap-row">
 				<For each={props.thread.decisions}>
 					{(decision) => (
 						<Show
 							when={!decision.checked}
 							fallback={
-								<li class="flex items-start gap-2">
+								<li class="flex items-start gap-row">
 									<Checkbox checked disabled aria-label="Resolved decision" />
-									<span class="text-sm text-muted-foreground line-through">
-										{decision.text}
-									</span>
+									<Struck>{decision.text}</Struck>
 								</li>
 							}
 						>
@@ -154,55 +163,50 @@ export function ShapingDrawer(props: ShapingDrawerProps) {
 	const [expanded, setExpanded] = createSignal(false);
 
 	return (
-		<Sheet
+		<Drawer
 			open={props.target !== null}
+			expanded={expanded()}
 			onOpenChange={(open) => {
 				if (!open) setExpanded(false);
 				props.onOpenChange(open);
 			}}
 		>
-			<Sheet.Content
-				position="right"
-				size={expanded() ? "full" : "xl"}
-				class="flex flex-col overflow-hidden"
+			<DrawerHeader>
+				<DrawerTitle>{thread()?.title ?? "Shaping"}</DrawerTitle>
+				<Badge>Shaping</Badge>
+				<ExpandToggle
+					expanded={expanded()}
+					onToggle={() => setExpanded((value) => !value)}
+				/>
+			</DrawerHeader>
+			<Show
+				when={sessionId()}
+				fallback={
+					<EmptyState
+						title="Shaping chat"
+						description="No shape session is attached to this thread."
+					/>
+				}
 			>
-				<Sheet.Header class="shrink-0">
-					<div class="flex items-center gap-2">
-						<Sheet.Title>{thread()?.title ?? "Shaping"}</Sheet.Title>
-						<Badge>Shaping</Badge>
-						<ExpandToggle
-							expanded={expanded()}
-							onToggle={() => setExpanded((value) => !value)}
-						/>
-					</div>
-				</Sheet.Header>
-				<div class="mt-4 min-h-0 flex-1">
-					<Show
-						when={sessionId()}
-						fallback={
-							<EmptyState
-								title="Shaping chat"
-								description="No shape session is attached to this thread."
-							/>
-						}
-					>
-						{(id) => (
-							<ChatPane
-								sessionId={id()}
-								artifactTitle="Decisions"
-								artifact={
-									<Show
-										when={thread()}
-										fallback={<p>Waiting for the thread file…</p>}
-									>
-										{(loaded) => <DecisionsChecklist thread={loaded()} />}
-									</Show>
+				{(id) => (
+					<ChatPane
+						sessionId={id()}
+						artifactTitle="Decisions"
+						artifact={
+							<Show
+								when={thread()}
+								fallback={
+									<Text variant="caption" tone="ink-3">
+										Waiting for the thread file…
+									</Text>
 								}
-							/>
-						)}
-					</Show>
-				</div>
-			</Sheet.Content>
-		</Sheet>
+							>
+								{(loaded) => <DecisionsChecklist thread={loaded()} />}
+							</Show>
+						}
+					/>
+				)}
+			</Show>
+		</Drawer>
 	);
 }

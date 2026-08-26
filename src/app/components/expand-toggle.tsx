@@ -1,5 +1,5 @@
-import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Show } from "solid-js";
+import { IconButton } from "../ui/icon-button.tsx";
 
 // The drawer enlarge affordance. The app pulls in no icon library (the stack's
 // lucide-solid is not in Helm's own resolution), so the maximize/minimize
@@ -10,17 +10,14 @@ export function ExpandToggle(props: {
 	onToggle: () => void;
 }) {
 	return (
-		<Button
-			size="icon"
-			variant="ghost"
-			class="ml-auto size-8"
-			aria-label={props.expanded ? "Shrink" : "Enlarge"}
+		<IconButton
+			label={props.expanded ? "Shrink" : "Enlarge"}
 			onClick={() => props.onToggle()}
 		>
 			<Show when={props.expanded} fallback={<MaximizeIcon />}>
 				<MinimizeIcon />
 			</Show>
-		</Button>
+		</IconButton>
 	);
 }
 

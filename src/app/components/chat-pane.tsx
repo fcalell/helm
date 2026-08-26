@@ -1,5 +1,6 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
+import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import {
 	createEffect,
@@ -21,6 +22,10 @@ import {
 	sessionStore,
 	unanchoredProposals,
 } from "../lib/session-store.ts";
+import { ArtifactPanel } from "../ui/artifact-panel.tsx";
+import { Bubble } from "../ui/bubble.tsx";
+import { CommandList, CommandRow } from "../ui/command-list.tsx";
+import { Prose } from "../ui/prose.tsx";
 import { DecisionWidget } from "./decision-widget.tsx";
 import { ProposalWidget } from "./proposal-widget.tsx";
 import { QuestionGroup } from "./question-group.tsx";
@@ -98,16 +103,12 @@ function TranscriptItem(props: { item: ChatItem }) {
 	return (
 		<Switch>
 			<Match when={asType(props.item, "user")}>
-				{(item) => (
-					<div class="ml-8 self-end whitespace-pre-wrap rounded-lg bg-primary/10 px-3 py-2 text-sm">
-						{item().text}
-					</div>
-				)}
+				{(item) => <Bubble>{item().text}</Bubble>}
 			</Match>
 			<Match when={asType(props.item, "assistant")}>
 				{(item) => (
 					<Show when={item().text !== ""}>
-						<div class="whitespace-pre-wrap text-sm">{item().text}</div>
+						<Prose variant="caption">{item().text}</Prose>
 					</Show>
 				)}
 			</Match>
@@ -135,25 +136,10 @@ export function ChatPane(props: ChatPaneProps) {
 	const deferred = () =>
 		pendingDecisions(props.sessionId).length > 0 ||
 		activeQuestions(props.sessionId).length > 0;
-	let transcriptRef: HTMLDivElement | undefined;
 
 	createEffect(() => {
 		const sessionId = props.sessionId;
 		if (chatFor(sessionId).items.length === 0) void hydrateChat(sessionId);
-	});
-
-	createEffect(() => {
-		// Track everything that grows the transcript — including the streaming
-		// tail's text, which mutates without changing the item count — then pin
-		// to the bottom.
-		const items = chat().items;
-		const last = items[items.length - 1];
-		if (last?.type === "assistant") void last.text;
-		if (last?.type === "tool") void last.done;
-		chat().busy;
-		if (transcriptRef !== undefined) {
-			transcriptRef.scrollTop = transcriptRef.scrollHeight;
-		}
 	});
 
 	function send(): void {
@@ -171,60 +157,48 @@ export function ChatPane(props: ChatPaneProps) {
 	}
 
 	return (
-		<div class="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
-			<div class="max-h-[45%] shrink-0 overflow-y-auto rounded-lg border bg-card p-3">
-				<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-					{props.artifactTitle ?? "Artifact"}
-				</h3>
-				<div class="mt-1 text-sm text-muted-foreground">
-					{props.artifact ?? <p>Nothing under construction yet.</p>}
+		<div class="flex min-h-0 flex-1 flex-col gap-stack overflow-hidden">
+			<ArtifactPanel title={props.artifactTitle ?? "Artifact"}>
+				{props.artifact ?? <p>Nothing under construction yet.</p>}
+			</ArtifactPanel>
+			<ScrollArea pinToBottom>
+				<div class="flex flex-col gap-stack">
+					<For each={chat().items}>
+						{(item) => <TranscriptItem item={item} />}
+					</For>
+					<For each={unanchoredProposals(props.sessionId, chat().items)}>
+						{(proposal) => <ProposalWidget proposal={proposal} />}
+					</For>
+					<For each={pendingDecisions(props.sessionId)}>
+						{(decision) => <DecisionWidget decision={decision} />}
+					</For>
+					<QuestionGroup sessionId={props.sessionId} />
+					<Show when={chat().busy}>
+						<Loader text="assistant is working" />
+					</Show>
 				</div>
-			</div>
-			<div
-				ref={transcriptRef}
-				class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1"
-			>
-				<For each={chat().items}>
-					{(item) => <TranscriptItem item={item} />}
-				</For>
-				<For each={unanchoredProposals(props.sessionId, chat().items)}>
-					{(proposal) => <ProposalWidget proposal={proposal} />}
-				</For>
-				<For each={pendingDecisions(props.sessionId)}>
-					{(decision) => <DecisionWidget decision={decision} />}
-				</For>
-				<QuestionGroup sessionId={props.sessionId} />
-				<Show when={chat().busy}>
-					<Loader text="assistant is working" class="text-xs" />
-				</Show>
-			</div>
+			</ScrollArea>
 			<Show when={matches().length > 0}>
-				<div class="shrink-0 rounded-md border bg-popover p-1">
+				<CommandList>
 					<For each={matches()}>
 						{(command) => (
-							<button
-								type="button"
-								class="flex w-full cursor-pointer items-baseline gap-2 rounded px-2 py-1 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-								onClick={() => sendCommand(command)}
-							>
-								<span class="font-mono">{command.name}</span>
-								<span class="text-xs text-muted-foreground">
-									{command.hint}
-								</span>
-							</button>
+							<CommandRow
+								name={command.name}
+								hint={command.hint}
+								onSelect={() => sendCommand(command)}
+							/>
 						)}
 					</For>
-				</div>
+				</CommandList>
 			</Show>
 			<form
-				class="flex shrink-0 items-end gap-2"
+				class="flex shrink-0 items-end gap-row"
 				onSubmit={(event) => {
 					event.preventDefault();
 					send();
 				}}
 			>
 				<Textarea
-					size="sm"
 					rows={2}
 					value={draft()}
 					disabled={deferred()}

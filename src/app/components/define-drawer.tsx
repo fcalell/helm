@@ -1,12 +1,13 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
-import { Sheet } from "@fcalell/plugin-solid-ui/components/sheet";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createSignal, For, Show } from "solid-js";
 import {
 	boardStore,
 	STATUS_LABELS,
 	sortedStories,
 } from "../lib/board-store.ts";
+import { Drawer, DrawerHeader, DrawerTitle } from "../ui/drawer.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { ExpandToggle } from "./expand-toggle.tsx";
 
@@ -34,71 +35,66 @@ export function DefineDrawer(props: DefineDrawerProps) {
 	const [expanded, setExpanded] = createSignal(false);
 
 	return (
-		<Sheet
+		<Drawer
 			open={props.target !== null}
+			expanded={expanded()}
 			onOpenChange={(open) => {
 				if (!open) setExpanded(false);
 				props.onOpenChange(open);
 			}}
 		>
-			<Sheet.Content
-				position="right"
-				size={expanded() ? "full" : "xl"}
-				class="flex flex-col overflow-hidden"
+			<DrawerHeader>
+				<DrawerTitle>
+					{props.target?.epicId} · {epic()?.title ?? "New epic"}
+				</DrawerTitle>
+				<Badge>Define</Badge>
+				<ExpandToggle
+					expanded={expanded()}
+					onToggle={() => setExpanded((value) => !value)}
+				/>
+			</DrawerHeader>
+			<Show
+				when={sessionId()}
+				fallback={
+					<EmptyState
+						title="Define chat"
+						description="No define session is attached to this epic."
+					/>
+				}
 			>
-				<Sheet.Header class="shrink-0">
-					<div class="flex items-center gap-2">
-						<Sheet.Title>
-							{props.target?.epicId} · {epic()?.title ?? "New epic"}
-						</Sheet.Title>
-						<Badge>Define</Badge>
-						<ExpandToggle
-							expanded={expanded()}
-							onToggle={() => setExpanded((value) => !value)}
-						/>
-					</div>
-				</Sheet.Header>
-				<div class="mt-4 min-h-0 flex-1">
-					<Show
-						when={sessionId()}
-						fallback={
-							<EmptyState
-								title="Define chat"
-								description="No define session is attached to this epic."
-							/>
-						}
-					>
-						{(id) => (
-							<ChatPane
-								sessionId={id()}
-								artifactTitle="Stories"
-								artifact={
-									<Show
-										when={stories().length > 0}
-										fallback={<p>No stories yet; accepted ones land here.</p>}
-									>
-										<ul class="flex flex-col gap-1">
-											<For each={stories()}>
-												{(story) => (
-													<li class="flex items-center gap-2 text-sm">
-														<span class="font-mono text-xs text-muted-foreground">
-															{story.id}
-														</span>
-														<span>{story.brief.title || story.id}</span>
-														<Badge variant="outline">
-															{STATUS_LABELS[story.frontmatter.status]}
-														</Badge>
-													</li>
-												)}
-											</For>
-										</ul>
-									</Show>
+				{(id) => (
+					<ChatPane
+						sessionId={id()}
+						artifactTitle="Stories"
+						artifact={
+							<Show
+								when={stories().length > 0}
+								fallback={
+									<Text variant="caption" tone="ink-3">
+										No stories yet; accepted ones land here.
+									</Text>
 								}
-							/>
-						)}
-					</Show>
-				</div>
-			</Sheet.Content>
-		</Sheet>
+							>
+								<ul class="flex flex-col gap-pair">
+									<For each={stories()}>
+										{(story) => (
+											<li class="flex items-center gap-row">
+												<Text as="span" variant="micro" tone="ink-3" mono>
+													{story.id}
+												</Text>
+												<Text as="span" variant="caption">
+													{story.brief.title || story.id}
+												</Text>
+												<Badge>{STATUS_LABELS[story.frontmatter.status]}</Badge>
+											</li>
+										)}
+									</For>
+								</ul>
+							</Show>
+						}
+					/>
+				)}
+			</Show>
+		</Drawer>
 	);
 }

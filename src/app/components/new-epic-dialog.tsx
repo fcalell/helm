@@ -57,7 +57,7 @@ export function NewEpicDialog(props: NewEpicDialogProps) {
 					</Dialog.Description>
 				</Dialog.Header>
 				<form
-					class="flex flex-col gap-3"
+					class="flex flex-col gap-stack"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void create();
@@ -76,15 +76,16 @@ export function NewEpicDialog(props: NewEpicDialogProps) {
 						placeholder="What is this epic about?"
 						aria-label="Rough description"
 					/>
-					<Button
-						type="submit"
-						class="self-end"
-						disabled={
-							creating() || title().trim() === "" || rough().trim() === ""
-						}
-					>
-						{creating() ? "Creating…" : "Create epic & start chat"}
-					</Button>
+					<div class="flex self-end">
+						<Button
+							type="submit"
+							disabled={
+								creating() || title().trim() === "" || rough().trim() === ""
+							}
+						>
+							{creating() ? "Creating…" : "Create epic & start chat"}
+						</Button>
+					</div>
 				</form>
 			</Dialog.Content>
 		</Dialog>

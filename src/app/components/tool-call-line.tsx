@@ -1,7 +1,8 @@
-import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
-import { createSignal, Show } from "solid-js";
+import { Show } from "solid-js";
 import { MCP_SERVER_NAME } from "../../sessions/kinds.ts";
 import type { ChatItem } from "../lib/session-store.ts";
+import { CodeBlock } from "../ui/code-block.tsx";
+import { Disclosure } from "../ui/disclosure.tsx";
 
 const BOARD_TOOL_PREFIX = `mcp__${MCP_SERVER_NAME}__`;
 
@@ -17,43 +18,28 @@ function summarizeInput(input: unknown): string {
 }
 
 export function ToolCallLine(props: { item: ToolChatItem }) {
-	const [expanded, setExpanded] = createSignal(false);
 	const name = () => props.item.name.replace(BOARD_TOOL_PREFIX, "");
 	return (
-		<div class="rounded-md border border-transparent text-xs">
-			<button
-				type="button"
-				class={cn(
-					"flex w-full cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 text-left font-mono text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-					props.item.isError && "text-destructive",
-				)}
-				onClick={() => setExpanded((value) => !value)}
-			>
-				<span class="select-none">{expanded() ? "▾" : "▸"}</span>
-				<span class="truncate">
+		<Disclosure
+			bordered={false}
+			tone={props.item.isError ? "danger" : "ink-3"}
+			summary={
+				<>
 					{name()}({summarizeInput(props.item.input)})
 					{props.item.done ? "" : " …"}
-				</span>
-			</button>
-			<Show when={expanded()}>
-				<div class="ml-4 mt-1 flex flex-col gap-1 border-l pl-2">
-					<pre class="overflow-x-auto whitespace-pre-wrap font-mono text-xs text-muted-foreground">
-						{JSON.stringify(props.item.input ?? {}, null, 2)}
-					</pre>
-					<Show when={props.item.result}>
-						{(result) => (
-							<pre
-								class={cn(
-									"max-h-48 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-muted-foreground",
-									props.item.isError && "text-destructive",
-								)}
-							>
-								{result()}
-							</pre>
-						)}
-					</Show>
-				</div>
-			</Show>
-		</div>
+				</>
+			}
+		>
+			<div class="flex flex-col gap-pair">
+				<CodeBlock>{JSON.stringify(props.item.input ?? {}, null, 2)}</CodeBlock>
+				<Show when={props.item.result}>
+					{(result) => (
+						<CodeBlock cap="sm" tone={props.item.isError ? "danger" : "ink-3"}>
+							{result()}
+						</CodeBlock>
+					)}
+				</Show>
+			</div>
+		</Disclosure>
 	);
 }

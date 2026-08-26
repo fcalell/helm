@@ -5,16 +5,18 @@ import {
 	DropdownMenu,
 	type MenuItem,
 } from "@fcalell/plugin-solid-ui/components/dropdown-menu";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { Tooltip } from "@fcalell/plugin-solid-ui/components/tooltip";
-import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
 import { createResource, createSignal, Show } from "solid-js";
 import { api } from "../lib/api.ts";
 import { boardStore, sortedShaping } from "../lib/board-store.ts";
 import { formatTokens } from "../lib/format.ts";
 import { meterStore } from "../lib/meter-store.ts";
 import { dequeueRun, spawnShapeSession } from "../lib/session-store.ts";
+import { AppBar } from "../ui/app-bar.tsx";
+import { StatusDot } from "../ui/status-dot.tsx";
 import type { ShapingTarget } from "./shaping-drawer.tsx";
 
 interface BoardHeaderProps {
@@ -76,7 +78,7 @@ function ShapeEntry(props: {
 		<>
 			<DropdownMenu
 				trigger={
-					<Button size="sm" variant="outline">
+					<Button size="sm" emphasis="secondary">
 						Shape
 					</Button>
 				}
@@ -91,7 +93,7 @@ function ShapeEntry(props: {
 						</Dialog.Description>
 					</Dialog.Header>
 					<form
-						class="flex flex-col gap-3"
+						class="flex flex-col gap-stack"
 						onSubmit={(event) => {
 							event.preventDefault();
 							void start();
@@ -104,13 +106,14 @@ function ShapeEntry(props: {
 							placeholder="What should this feature or roadmap slice achieve?"
 							aria-label="Rough goal"
 						/>
-						<Button
-							type="submit"
-							class="self-end"
-							disabled={spawning() || goal().trim() === ""}
-						>
-							{spawning() ? "Starting…" : "Start shaping"}
-						</Button>
+						<div class="flex self-end">
+							<Button
+								type="submit"
+								disabled={spawning() || goal().trim() === ""}
+							>
+								{spawning() ? "Starting…" : "Start shaping"}
+							</Button>
+						</div>
 					</form>
 				</Dialog.Content>
 			</Dialog>
@@ -164,15 +167,15 @@ function QueueStatus() {
 	return (
 		<Show
 			when={items().length > 0}
-			fallback={<span class="text-xs text-muted-foreground">{label()}</span>}
+			fallback={
+				<Text as="span" variant="micro" tone="ink-3">
+					{label()}
+				</Text>
+			}
 		>
 			<DropdownMenu
 				trigger={
-					<Button
-						size="sm"
-						variant="ghost"
-						class="text-xs text-muted-foreground"
-					>
+					<Button size="sm" emphasis="tertiary">
 						{label()}
 					</Button>
 				}
@@ -183,7 +186,7 @@ function QueueStatus() {
 }
 
 // The rate-limit meter: lower-bound token sums with the 5-hour window's reset
-// clock; a non-`allowed` status renders destructive (display only).
+// clock; a non-`allowed` status renders in the danger tone (display only).
 function RateMeter() {
 	const fiveHour = () =>
 		meterStore.snapshot?.windows.find(
@@ -205,14 +208,10 @@ function RateMeter() {
 	};
 	return (
 		<Tooltip>
-			<Tooltip.Trigger
-				as="span"
-				class={cn(
-					"text-xs",
-					limited() ? "text-destructive" : "text-muted-foreground",
-				)}
-			>
-				{text()}
+			<Tooltip.Trigger as="span">
+				<Text as="span" variant="micro" tone={limited() ? "danger" : "ink-3"}>
+					{text()}
+				</Text>
 			</Tooltip.Trigger>
 			<Tooltip.Content>
 				{limited()
@@ -227,28 +226,30 @@ export function BoardHeader(props: BoardHeaderProps) {
 	const [repo] = createResource(() => api.repo.get());
 
 	return (
-		<header class="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
-			<div class="flex items-center gap-3">
-				<span class="text-lg font-bold tracking-tight text-foreground">
+		<AppBar>
+			<div class="flex items-center gap-stack">
+				<Text as="span" variant="h3">
 					Helm
-				</span>
+				</Text>
 				<Show when={repo()}>
 					{(info) => (
-						<div class="flex items-center gap-2">
-							<Badge variant="secondary">{info().name}</Badge>
-							<span class="text-sm text-muted-foreground">{info().branch}</span>
+						<div class="flex items-center gap-row">
+							<Badge>{info().name}</Badge>
+							<Text as="span" variant="caption" tone="ink-3">
+								{info().branch}
+							</Text>
 						</div>
 					)}
 				</Show>
 			</div>
-			<div class="flex items-center gap-4">
+			<div class="flex items-center gap-gutter">
 				<ShapeEntry
 					onOpenShaping={props.onOpenShaping}
 					onNewEpic={props.onNewEpic}
 				/>
 				<Button
 					size="sm"
-					variant={props.epicView ? "secondary" : "outline"}
+					emphasis={props.epicView ? "primary" : "secondary"}
 					aria-pressed={props.epicView}
 					onClick={() => props.onToggleEpicView()}
 				>
@@ -257,18 +258,14 @@ export function BoardHeader(props: BoardHeaderProps) {
 				<QueueStatus />
 				<RateMeter />
 				<Tooltip>
-					<Tooltip.Trigger
-						as="div"
-						class={cn(
-							"size-2.5 rounded-full",
-							props.connected ? "bg-success" : "bg-destructive",
-						)}
-					/>
+					<Tooltip.Trigger as="span">
+						<StatusDot ok={props.connected} />
+					</Tooltip.Trigger>
 					<Tooltip.Content>
 						{props.connected ? "Live" : "Reconnecting"}
 					</Tooltip.Content>
 				</Tooltip>
 			</div>
-		</header>
+		</AppBar>
 	);
 }

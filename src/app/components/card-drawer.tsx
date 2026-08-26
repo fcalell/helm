@@ -3,8 +3,8 @@ import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Checkbox } from "@fcalell/plugin-solid-ui/components/checkbox";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
-import { Sheet } from "@fcalell/plugin-solid-ui/components/sheet";
-import { Tabs } from "@fcalell/plugin-solid-ui/components/tabs";
+import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import {
 	BRIEF_SECTIONS,
@@ -16,6 +16,10 @@ import {
 import { boardStore, moveStory, STATUS_LABELS } from "../lib/board-store.ts";
 import { weakCriterion } from "../lib/criteria.ts";
 import { refineSpawnFor, setStoryPreset } from "../lib/session-store.ts";
+import { Drawer, DrawerHeader, DrawerTitle } from "../ui/drawer.tsx";
+import { DrawerTabs } from "../ui/drawer-tabs.tsx";
+import { Eyebrow } from "../ui/eyebrow.tsx";
+import { Prose } from "../ui/prose.tsx";
 import { ActivityPane } from "./activity-pane.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { DiffPane } from "./diff-pane.tsx";
@@ -47,24 +51,30 @@ export function ChecklistSection(props: {
 	return (
 		<Show
 			when={props.items.length > 0}
-			fallback={<p class="mt-1 text-muted-foreground">None yet</p>}
+			fallback={
+				<Text variant="caption" tone="ink-3">
+					None yet
+				</Text>
+			}
 		>
-			<ul class="mt-2 flex flex-col gap-2">
+			<ul class="flex flex-col gap-row">
 				<For each={props.items}>
 					{(item) => {
 						const weak = () =>
 							props.warn ? weakCriterion(item.text) : undefined;
 						return (
-							<li class="flex items-start gap-2">
+							<li class="flex items-start gap-row">
 								<Checkbox checked={item.checked} disabled label={item.text} />
 								<Show when={weak()}>
 									{(phrase) => (
-										<span
-											class="cursor-help text-warning"
+										<Text
+											as="span"
+											variant="caption"
+											tone="warn"
 											title={`Not measurable: "${phrase()}" — name the observable behavior instead`}
 										>
 											⚠
-										</span>
+										</Text>
 									)}
 								</Show>
 							</li>
@@ -78,18 +88,16 @@ export function ChecklistSection(props: {
 
 export function BriefView(props: { story: Story }) {
 	return (
-		<div class="flex flex-col gap-4 text-sm">
+		<div class="flex flex-col gap-section">
 			<For each={BRIEF_SECTIONS}>
 				{(section) => (
-					<div>
-						<h3 class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-							{section}
-						</h3>
+					<div class="flex flex-col gap-row">
+						<Eyebrow>{section}</Eyebrow>
 						<Switch
 							fallback={
-								<p class="mt-1 whitespace-pre-wrap text-foreground">
+								<Prose variant="caption">
 									{props.story.brief.sections[section]?.trim() || "Not set"}
-								</p>
+								</Prose>
 							}
 						>
 							<Match when={section === "Acceptance criteria"}>
@@ -119,34 +127,32 @@ function ChatTab(props: { story: Story }) {
 		refineSpawnFor(props.story.id)?.sessionId ??
 		epic()?.frontmatter.sessions.define;
 	return (
-		<div class="flex h-full min-h-0 flex-col gap-3">
+		<div class="flex min-h-0 flex-1 flex-col gap-stack">
 			<GatePanel story={props.story} />
-			<div class="min-h-0 flex-1">
-				<Show
-					when={sessionId()}
-					fallback={
-						<Show
-							when={refineSpawnFor(props.story.id)}
-							fallback={
-								<EmptyState
-									title="Chat"
-									description="Press r on a Backlog card to start refining"
-								/>
-							}
-						>
-							<Loader text="starting the refine chat" class="text-xs" />
-						</Show>
-					}
-				>
-					{(id) => (
-						<ChatPane
-							sessionId={id()}
-							artifactTitle="Brief"
-							artifact={<BriefView story={props.story} />}
-						/>
-					)}
-				</Show>
-			</div>
+			<Show
+				when={sessionId()}
+				fallback={
+					<Show
+						when={refineSpawnFor(props.story.id)}
+						fallback={
+							<EmptyState
+								title="Chat"
+								description="Press r on a Backlog card to start refining"
+							/>
+						}
+					>
+						<Loader text="starting the refine chat" />
+					</Show>
+				}
+			>
+				{(id) => (
+					<ChatPane
+						sessionId={id()}
+						artifactTitle="Brief"
+						artifact={<BriefView story={props.story} />}
+					/>
+				)}
+			</Show>
 		</div>
 	);
 }
@@ -162,12 +168,12 @@ const PRESET_LABELS = {
 function PresetSelector(props: { story: Story }) {
 	const active = () => props.story.frontmatter.preset ?? "guarded";
 	return (
-		<fieldset class="flex items-center gap-1" aria-label="Permission preset">
+		<fieldset class="flex items-center gap-pair" aria-label="Permission preset">
 			<For each={PRESETS}>
 				{(preset) => (
 					<Button
 						size="sm"
-						variant={active() === preset ? "secondary" : "ghost"}
+						emphasis={active() === preset ? "primary" : "tertiary"}
 						onClick={() => void setStoryPreset(props.story.id, preset)}
 					>
 						{PRESET_LABELS[preset]}
@@ -188,8 +194,9 @@ function openRunQuestion(story: Story) {
 export function CardDrawer(props: CardDrawerProps) {
 	const [expanded, setExpanded] = createSignal(false);
 	return (
-		<Sheet
+		<Drawer
 			open={props.open}
+			expanded={expanded()}
 			onOpenChange={(open) => {
 				if (!open) setExpanded(false);
 				props.onOpenChange(open);
@@ -197,37 +204,29 @@ export function CardDrawer(props: CardDrawerProps) {
 		>
 			<Show when={props.story} keyed>
 				{(story) => (
-					<Sheet.Content
-						position="right"
-						size={expanded() ? "full" : "xl"}
-						// The tab contents own their scrolling (contentClass below), so
-						// the sheet body clips instead of adding a second scrollbar.
-						class="flex flex-col overflow-hidden"
-					>
-						<Sheet.Header class="shrink-0">
-							<div class="flex items-center gap-2">
-								<Sheet.Title>
-									{story.id} · {story.brief.title || story.id}
-								</Sheet.Title>
-								<Badge>{STATUS_LABELS[story.frontmatter.status]}</Badge>
-								<Show when={story.frontmatter.status === "refining"}>
-									<Button
-										size="sm"
-										variant="outline"
-										onClick={() => moveStory(story.id, "ready")}
-									>
-										Move to Ready
-									</Button>
-								</Show>
-								<PresetSelector story={story} />
-								<ExpandToggle
-									expanded={expanded()}
-									onToggle={() => setExpanded((value) => !value)}
-								/>
-							</div>
-						</Sheet.Header>
+					<>
+						<DrawerHeader>
+							<DrawerTitle>
+								{story.id} · {story.brief.title || story.id}
+							</DrawerTitle>
+							<Badge>{STATUS_LABELS[story.frontmatter.status]}</Badge>
+							<Show when={story.frontmatter.status === "refining"}>
+								<Button
+									size="sm"
+									emphasis="secondary"
+									onClick={() => moveStory(story.id, "ready")}
+								>
+									Move to Ready
+								</Button>
+							</Show>
+							<PresetSelector story={story} />
+							<ExpandToggle
+								expanded={expanded()}
+								onToggle={() => setExpanded((value) => !value)}
+							/>
+						</DrawerHeader>
 						<Show when={story.frontmatter.status === "review"}>
-							<div class="mt-4 shrink-0">
+							<div class="flex shrink-0">
 								<ReviewExits story={story} />
 							</div>
 						</Show>
@@ -239,22 +238,23 @@ export function CardDrawer(props: CardDrawerProps) {
 							}
 						>
 							{(question) => (
-								<div class="mt-4 shrink-0">
+								<div class="flex shrink-0 flex-col">
 									<RunQuestionPanel storyId={story.id} question={question()} />
 								</div>
 							)}
 						</Show>
-						<Tabs
+						<DrawerTabs
 							value={props.tab ?? defaultTab(story.frontmatter.status)}
 							onValueChange={props.onTabChange}
-							class="mt-4 flex min-h-0 flex-1 flex-col"
-							listClass="shrink-0"
-							contentClass="mt-4 min-h-0 flex-1 overflow-y-auto"
 							tabs={[
 								{
 									value: "brief",
 									label: "Brief",
-									content: <BriefView story={story} />,
+									content: (
+										<ScrollArea>
+											<BriefView story={story} />
+										</ScrollArea>
+									),
 								},
 								{
 									value: "chat",
@@ -279,7 +279,9 @@ export function CardDrawer(props: CardDrawerProps) {
 												/>
 											}
 										>
-											<DiffPane story={story} />
+											<ScrollArea>
+												<DiffPane story={story} />
+											</ScrollArea>
 										</Show>
 									),
 								},
@@ -295,9 +297,9 @@ export function CardDrawer(props: CardDrawerProps) {
 								},
 							]}
 						/>
-					</Sheet.Content>
+					</>
 				)}
 			</Show>
-		</Sheet>
+		</Drawer>
 	);
 }

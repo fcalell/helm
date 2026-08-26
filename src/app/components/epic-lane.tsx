@@ -1,5 +1,7 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
+import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { For, Show } from "solid-js";
 import type { Epic, Story } from "../../board/schema.ts";
 import { STATUSES } from "../../board/schema.ts";
@@ -21,15 +23,17 @@ export function EpicLane(props: EpicLaneProps) {
 	const progress = () => epicProgress(props.epicId, props.stories);
 
 	return (
-		<section class="flex flex-col gap-2">
-			<div class="flex items-center gap-2">
-				<h2 class="text-sm font-semibold text-foreground">{props.title}</h2>
-				<Badge variant="secondary">{`${progress().done}/${progress().total}`}</Badge>
+		<section class="flex flex-col gap-row">
+			<div class="flex items-center gap-row">
+				<Text as="h2" variant="rowtitle">
+					{props.title}
+				</Text>
+				<Badge>{`${progress().done}/${progress().total}`}</Badge>
 				<Show when={props.onOpenChat}>
 					{(open) => (
 						<Button
 							size="sm"
-							variant="ghost"
+							emphasis="tertiary"
 							onClick={() => open()(props.epicId)}
 						>
 							Chat
@@ -37,23 +41,25 @@ export function EpicLane(props: EpicLaneProps) {
 					)}
 				</Show>
 			</div>
-			<div class="flex gap-4 overflow-x-auto pb-2">
-				<For each={STATUSES}>
-					{(status) => (
-						<BoardColumn
-							status={status}
-							stories={storiesByStatus(props.stories, status).filter(
-								(story) => story.epicId === props.epicId,
-							)}
-							epics={props.epics}
-							onOpen={props.onOpen}
-							onRefine={props.onRefine}
-							heightClass="h-80"
-							laneId={props.epicId}
-						/>
-					)}
-				</For>
-			</div>
+			<ScrollArea axis="x">
+				<div class="flex gap-gutter">
+					<For each={STATUSES}>
+						{(status) => (
+							<BoardColumn
+								status={status}
+								stories={storiesByStatus(props.stories, status).filter(
+									(story) => story.epicId === props.epicId,
+								)}
+								epics={props.epics}
+								onOpen={props.onOpen}
+								onRefine={props.onRefine}
+								height="lane"
+								laneId={props.epicId}
+							/>
+						)}
+					</For>
+				</div>
+			</ScrollArea>
 		</section>
 	);
 }

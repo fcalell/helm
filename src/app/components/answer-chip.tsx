@@ -1,8 +1,8 @@
-import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import type { JSX } from "solid-js";
+import { Chip } from "../ui/chip.tsx";
 
 // A quick-reply chip that never overflows its container: the label wraps and
-// the button grows vertically instead of clipping. Used by the question group
+// the control grows vertically instead of clipping. Used by the question group
 // and the decision widget; a recommendation renders as a "Use recommendation"
 // chip, never as a full-sentence label.
 export function AnswerChip(props: {
@@ -13,14 +13,13 @@ export function AnswerChip(props: {
 	children?: JSX.Element;
 }) {
 	return (
-		<Button
-			size="sm"
-			variant={props.selected ? "secondary" : "outline"}
-			class="h-auto min-w-0 max-w-full whitespace-normal text-left"
+		<Chip
+			label={props.label}
+			selected={props.selected}
 			disabled={props.disabled}
-			onClick={() => props.onClick()}
+			onClick={props.onClick}
 		>
-			{props.children ?? props.label}
-		</Button>
+			{props.children}
+		</Chip>
 	);
 }
