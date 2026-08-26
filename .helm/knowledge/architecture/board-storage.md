@@ -203,9 +203,11 @@ than a card.
   `update_card` tool, never by editing files. It never touches acceptance-criteria checkboxes
   (those belong to review, [review](../product/features/review.md) §Self-grading) or status;
   status flows through run events.
-- **Hand edits stay legal** (files are the truth) but the watcher validates them: malformed
-  frontmatter or an illegal status transition is surfaced in the UI and never acted on (no run
-  spawns from a hand-typed `running`).
+- **Hand edits stay legal** (files are the truth) and are never acted on (no run spawns from a
+  hand-typed `running`), but validation depends on what the watcher saw. Malformed frontmatter is
+  caught at any time (§Classification's invalid banner). An illegal status transition draws a
+  toast only when the watcher held the previous status in memory; an edit made while the
+  orchestrator is down loads as plain state, unvalidated.
 - **Deletion is the terminal move.** Dropping a story, archiving a finished epic, or clearing a
   spent shaping thread deletes the file or folder after an explicit confirmation; git history is
   the archive, so no archive directory and no `dropped` status exist.
