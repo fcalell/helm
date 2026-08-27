@@ -9,6 +9,7 @@ import {
 } from "../stub-claude/stub.ts";
 import {
 	acceptFix,
+	acceptProposal,
 	assert,
 	type Episode,
 	type EpisodeContext,
@@ -1284,6 +1285,179 @@ const reseedPark: Episode = {
 	},
 };
 
+// Every checklist item here wraps, so the mode tag lands on a continuation
+// line and the gate only passes once the reader folds them in.
+const WRAPPED_BODY = [
+	"# Wrapped fixture",
+	"",
+	"## Goal",
+	"",
+	"Give an episode a brief whose checklist items wrap the way the repo's own",
+	"briefs wrap.",
+	"",
+	"## Approach",
+	"",
+	"Hold every section the ready gate checks, and no gate verdict.",
+	"",
+	"## Blast radius",
+	"",
+	"The scratch repo only.",
+	"",
+	"## Acceptance criteria",
+	"",
+	"- [ ] The story reaches Ready with a recorded gate verdict, and its text",
+	"      folds across both of these lines (file)",
+	"- [ ] A second criterion wraps the same way and keeps a mode of its own",
+	"      (command)",
+	"",
+	"## Out of scope",
+	"",
+	"Everything the episode does not drive.",
+	"",
+	"## Open questions",
+	"",
+	"- [x] Does a blank line end an item?",
+	"",
+	"      This indented line follows a blank one.",
+	"- [x] Does an unindented line end an item?",
+	"unindented text",
+	"- [x] Does a nested item end its parent?",
+	"  - [x] A nested child.",
+	"",
+].join("\n");
+
+const WRAPPED_CRITERIA = [
+	"The story reaches Ready with a recorded gate verdict, and its text folds across both of these lines",
+	"A second criterion wraps the same way and keeps a mode of its own",
+];
+
+const WRAPPED_QUESTION =
+	"Does the tool match an open question whose text runs past one line, and past a second one too?";
+
+const WRAPPED_ANSWER = "It does, once the reader folds the continuations in.";
+
+const QUESTION_BODY = [
+	"# Wrapped question fixture",
+	"",
+	"## Goal",
+	"",
+	"Give an episode an open question whose text wraps across three lines.",
+	"",
+	"## Approach",
+	"",
+	"Leave the question open, so the board tool has something to resolve.",
+	"",
+	"## Blast radius",
+	"",
+	"The scratch repo only.",
+	"",
+	"## Acceptance criteria",
+	"",
+	"- [ ] The question is checked off and its answer folded (file)",
+	"",
+	"## Out of scope",
+	"",
+	"Everything the episode does not drive.",
+	"",
+	"## Open questions",
+	"",
+	"- [ ] Does the tool match an open question whose text runs past one line,",
+	"      and past a second one",
+	"      too?",
+	"",
+].join("\n");
+
+const wrappedBrief: Episode = {
+	name: "wrapped-brief",
+	summary: "a brief whose criteria wrap keeps their modes and passes the gate",
+	fixture: { body: WRAPPED_BODY },
+	scripts: { "refine-1": SILENT_REFINE, "adversary-1": SILENT_ADVERSARY },
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "adversary", ordinal: 1, exit: 0 },
+	],
+	rounds: 1,
+	run: async (ctx) => {
+		await spawnRefineChat(ctx);
+		const criteria = findStory(ctx).brief.criteria;
+		assert(
+			criteria.length === WRAPPED_CRITERIA.length,
+			`${criteria.length} criteria parsed, expected ${WRAPPED_CRITERIA.length}`,
+		);
+		for (const [at, text] of WRAPPED_CRITERIA.entries()) {
+			assert(
+				criteria[at]?.text === text,
+				`criterion ${at + 1} parsed as "${criteria[at]?.text}"`,
+			);
+		}
+		assert(
+			criteria[0]?.mode === "file" && criteria[1]?.mode === "command",
+			"a wrapped criterion lost the mode tag on its continuation line",
+		);
+		const questions = findStory(ctx).brief.openQuestions;
+		assert(
+			questions.length === 4,
+			`${questions.length} open questions parsed, expected 4`,
+		);
+		assert(
+			questions[0]?.text === "Does a blank line end an item?" &&
+				questions[1]?.text === "Does an unindented line end an item?" &&
+				questions[2]?.text === "Does a nested item end its parent?" &&
+				questions[3]?.text === "A nested child.",
+			"a blank line, an unindented line or a nested item folded into its parent",
+		);
+		await moveToReady(ctx);
+		await waitForReady(ctx);
+	},
+};
+
+const wrappedQuestion: Episode = {
+	name: "wrapped-question",
+	summary: "resolve_question checks off an open question whose text wraps",
+	fixture: { body: QUESTION_BODY },
+	scripts: {
+		"refine-1": {
+			role: "refine",
+			steps: [
+				{
+					t: "call",
+					tool: "resolve_question",
+					payload: { question: WRAPPED_QUESTION, answer: WRAPPED_ANSWER },
+				},
+			],
+		},
+	},
+	spawns: [{ role: "refine", ordinal: 1, exit: 0 }],
+	rounds: 0,
+	run: async (ctx) => {
+		await ctx.rpc("session/spawn", {
+			kind: "refine",
+			storyId: ctx.storyId,
+			prompt: "Resolve the open question.",
+		});
+		await acceptProposal(
+			ctx,
+			"the resolve_question proposal",
+			(proposal) => proposal.tool === "resolve_question",
+		);
+		const question = await ctx.obs.waitFor(
+			"the wrapped open question to read back checked",
+			() => {
+				const first = findStory(ctx).brief.openQuestions[0];
+				return first?.checked === true ? first : undefined;
+			},
+		);
+		assert(
+			question.text === WRAPPED_QUESTION,
+			`the open question parsed as "${question.text}"`,
+		);
+		assert(
+			ctx.body().includes(`- ${WRAPPED_QUESTION}: ${WRAPPED_ANSWER}`),
+			"the answer was never folded under Approach",
+		);
+	},
+};
+
 export const EPISODES: readonly Episode[] = [
 	flagless,
 	oneFlag,
@@ -1304,4 +1478,6 @@ export const EPISODES: readonly Episode[] = [
 	reseedRetry,
 	reseedNotOnRecord,
 	reseedPark,
+	wrappedBrief,
+	wrappedQuestion,
 ];

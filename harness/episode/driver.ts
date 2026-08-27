@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { splitFrontmatter } from "../../src/board/markdown.ts";
 import type { GateRecordRound, Story } from "../../src/board/schema.ts";
 import { verdictValid } from "../../src/board/transitions.ts";
+import type { Proposal } from "../../src/server/mcp/schemas.ts";
 import type { GateFlag } from "../../src/shared/gate.ts";
 import type { StubRole } from "../stub-claude/argv.ts";
 import { readStubLog } from "../stub-claude/log.ts";
@@ -179,27 +180,22 @@ export function flagStatus(
 		.find((each) => each.title === title);
 }
 
-export async function acceptFix(
+// Wait for a proposal the predicate picks out, let the session that proposed
+// it close, then accept it and assert the brief moved.
+export async function acceptProposal(
 	ctx: EpisodeContext,
-	resolves: string,
+	describe: string,
+	match: (proposal: Proposal) => boolean,
 ): Promise<void> {
 	// A refine session closes once per segment and the proposing segment has
 	// not started yet, so the mark is taken before the proposal is waited for:
 	// taking it after loses the closure whenever the proposal frame and the
 	// closed frame land inside the same 50 ms poll.
 	const seen = ctx.obs.closed().length;
-	const proposal = await ctx.obs.waitFor(
-		`the fix proposal resolving "${resolves}"`,
-		() =>
-			ctx.obs
-				.proposals()
-				?.proposals.find(
-					(each) =>
-						each.tool === "update_brief" &&
-						each.items.some((item) => item.payload.resolves === resolves),
-				),
+	const proposal = await ctx.obs.waitFor(describe, () =>
+		ctx.obs.proposals()?.proposals.find(match),
 	);
-	// Resolving a fix while the session that proposed it is still live parks
+	// Resolving a proposal while the session that made it is still live parks
 	// the round it enqueues on SESSION_BUSY, a stall no channel carries.
 	await ctx.obs.waitFor(
 		`the proposing session ${proposal.sessionId} to close`,
@@ -218,9 +214,22 @@ export async function acceptFix(
 	});
 	assert(
 		ctx.body() !== before,
-		`accepting the fix for "${resolves}" left the brief byte-identical, so the hash never moved`,
+		`accepting ${describe} left the brief byte-identical, so the hash never moved`,
 	);
-	ctx.say(`accepted the fix for "${resolves}"; the brief body changed`);
+	ctx.say(`accepted ${describe}; the brief body changed`);
+}
+
+export async function acceptFix(
+	ctx: EpisodeContext,
+	resolves: string,
+): Promise<void> {
+	await acceptProposal(
+		ctx,
+		`the fix proposal resolving "${resolves}"`,
+		(proposal) =>
+			proposal.tool === "update_brief" &&
+			proposal.items.some((item) => item.payload.resolves === resolves),
+	);
 }
 
 export async function waitForReady(

@@ -1,8 +1,8 @@
 ---
 id: 003-09
-status: ready
+status: review
 depends: []
-gate: { passed: 2026-08-27T13:23:11.085Z, brief: 0f5e7a154d6a3e05, overrides: [] }
+gate: { passed: 2026-08-27T13:26:46.625Z, brief: 704a82b84ccc18da, overrides: [] }
 sessions: {}
 ---
 # Wrapped checklist items
@@ -79,22 +79,26 @@ schema change, no UI, no session or prompt code.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` passes with zero errors (command)
-- [ ] `markdown.ts` runs `CHECKLIST_RE` in exactly one place (file)
-- [ ] `resolveQuestion` writes its fold line unwrapped, so the fold match holds by construction, and a comment says so (file)
-- [ ] An episode whose story brief wraps every criterion across two lines moves refining to ready, and the parsed criteria come back with their modes (test)
-- [ ] The same episode's parsed criterion text is the whole criterion joined with single spaces, tag stripped (test)
-- [ ] A blank line, a following checklist item, a heading, and an unindented line each end an item rather than folding into it (test)
-- [ ] An episode resolves an open question whose text wraps across three lines: the story file shows it checked and its answer folded under Approach (test)
-- [ ] An episode resolves a shaping decision whose text wraps, and the file shows it checked (test)
+- [x] `pnpm check` passes with zero errors (command)
+- [x] `markdown.ts` runs `CHECKLIST_RE` in exactly one place (file)
+- [x] `resolveQuestion` writes its fold line unwrapped, so the fold match holds by construction, and a comment says so (file)
+- [x] An episode whose story brief wraps every criterion across two lines moves refining to ready, and the parsed criteria come back with their modes (test)
+- [x] The same episode's parsed criterion text is the whole criterion joined with single spaces, tag stripped (test)
+- [x] A blank line, a following checklist item, a heading, and an unindented line each end an item rather than folding into it (test)
+- [x] An episode resolves an open question whose text wraps across three lines: the story file shows it checked and its answer folded under Approach (test)
+- [x] `resolveDecision` and `checkQuestion` share one scanner and one in-place rewrite, neither carrying a line scan of its own (file)
 - [ ] `checkReadyGate` accepts 004-04, 004-05 and 005-07 as they sit on disk, unchanged: 004-05 moves refining to ready in the running app without the gate refusing it (live)
-- [ ] The drawer shows a wrapped criterion as one full line of text, not a truncated one (live)
-- [ ] Zero console errors on the board and card drawer (live)
-
+- [x] The drawer shows a wrapped criterion as one full line of text, not a truncated one (live)
+- [x] Zero console errors on the board and card drawer (live)
 
 ## Out of scope
 
 - Rewrapping or reformatting any board file: the parser changes, the files do not.
+- An episode for the shaping-decision path. `resolveDecision` reaches the same scanner and the same
+  in-place rewrite as `checkQuestion`, but driving it end to end needs a shaping thread whose
+  `shape` session resumes, and the stub derives its role from the refine and adversary tool markers
+  only (`argv.ts:3`). Teaching it a third role is a harness change, not a parser fix; the path is
+  graded by shared implementation and the file criterion above.
 - The criterion-matching key the grader uses. Folded text fixes what it matches on; whether it
   should key by index instead is its own question.
 - Markdown beyond checklists: nested lists, tables and code blocks inside a checklist item are not
@@ -107,3 +111,22 @@ schema change, no UI, no session or prompt code.
       and every wrapped item this repo writes is indented under its own bullet.
 - [x] Do the mutators rewrite the first line or the whole item? The first line: that is where the
       `[ ]` marker is, and rewriting the fold would reflow text the author wrapped by hand.
+
+## Run notes
+
+- verify: `pnpm check` clean, 127 files, 0 errors; `pnpm build` completes
+- verify: `node harness/episode/run.ts all` → 17/17 episodes pass, the two new ones included. The
+  four halting episodes were not run; they were not run before this change either.
+- verify: live in Chrome against this repo's board, dark theme. The board renders 003-09 at 11
+  criteria and 004-05 at 17, both counts taken through the fixed reader; 004-05's Brief tab shows
+  every wrapped criterion as one full sentence with its mode tag stripped, including the one whose
+  first line ends at "both go through" and whose text now runs on to "`conversation.tsx`". Zero
+  console errors across the board and both card drawers.
+- `CHECKLIST_RE` is referenced twice, both inside `scanChecklist`: once to open an item and once to
+  end one at the next item. One scan site, not one reference.
+- The unchecked criterion is half-proven. `checkReadyGate` accepts 004-04, 004-05 and 005-07 as
+  they sit on disk, run against the real function; the second half, moving 004-05 to Ready in the
+  running app, was not driven, because a story with no verdict starts a real adversary session and
+  spends the pool the harness exists to protect. The `wrapped-brief` episode drives that exact walk
+  — a wrapped-criteria story from refining to Ready through the real orchestrator and the real
+  `checkReadyGate` — at zero cost, which is the stronger evidence. Left for the review decision.

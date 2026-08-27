@@ -42,16 +42,71 @@ export function splitFrontmatter(raw: string): SplitFile | undefined {
 
 const HEADING_RE = /^(#{1,2})\s+(.*)$/;
 
-export function parseChecklist(text: string): ChecklistItem[] {
-	const items: ChecklistItem[] = [];
-	for (const line of text.split("\n")) {
-		const match = CHECKLIST_RE.exec(line);
-		const mark = match?.[1];
-		const label = match?.[2];
-		if (mark === undefined || label === undefined) continue;
-		items.push({ text: label.trim(), checked: mark !== " " });
+// A line that continues the checklist item above it: indented and non-blank.
+// A blank line, an unindented line, a heading, or another checklist item ends
+// the item instead.
+const CONTINUATION_RE = /^\s+\S/;
+
+// A scanned checklist item: its mark, its text with continuation lines folded
+// in, and the index of the line carrying the `[ ]` marker.
+interface ScannedItem {
+	mark: string;
+	text: string;
+	line: number;
+}
+
+// The one place `CHECKLIST_RE` runs. Wrapping is the norm in a board file (the
+// repo wraps prose at 100 columns), so an item's text is only complete once
+// its continuation lines are folded in: the reader, the mode tag's `$` anchor,
+// and every match-by-text mutator all depend on this.
+function scanChecklist(
+	lines: readonly string[],
+	start = 0,
+	end = lines.length,
+): ScannedItem[] {
+	const items: ScannedItem[] = [];
+	for (let i = start; i < end; i++) {
+		const match = CHECKLIST_RE.exec(lines[i] ?? "");
+		if (match === null) continue;
+		const parts = [match[2] ?? ""];
+		let next = i + 1;
+		while (next < end) {
+			const line = lines[next] ?? "";
+			if (!CONTINUATION_RE.test(line) || CHECKLIST_RE.test(line)) break;
+			parts.push(line.trim());
+			next += 1;
+		}
+		items.push({
+			mark: match[1] ?? " ",
+			text: parts.join(" ").trim(),
+			line: i,
+		});
+		i = next - 1;
 	}
 	return items;
+}
+
+// The line range of a `## <name>` section, its heading excluded; the section
+// ends at the next heading of either level.
+function sectionRange(
+	lines: readonly string[],
+	name: string,
+): { start: number; end: number } | undefined {
+	let start: number | undefined;
+	for (let i = 0; i < lines.length; i++) {
+		const heading = HEADING_RE.exec(lines[i] ?? "");
+		if (heading === null) continue;
+		if (start !== undefined) return { start, end: i };
+		if (heading[1] === "##" && heading[2]?.trim() === name) start = i + 1;
+	}
+	return start === undefined ? undefined : { start, end: lines.length };
+}
+
+export function parseChecklist(text: string): ChecklistItem[] {
+	return scanChecklist(text.split("\n")).map((item) => ({
+		text: item.text,
+		checked: item.mark !== " ",
+	}));
 }
 
 // A criterion's trailing verification-mode tag; `text` holds the tag-stripped
@@ -287,29 +342,17 @@ export function resolveDecision(
 ): string | undefined {
 	const target = normalizeDecision(decision);
 	const lines = body.split("\n");
-	let inSection = false;
-	let matched: string | undefined;
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i] ?? "";
-		const heading = HEADING_RE.exec(line);
-		if (heading !== null) {
-			inSection =
-				heading[1] === "##" && heading[2]?.trim() === SHAPING_DECISIONS;
-			continue;
-		}
-		if (!inSection) continue;
-		const match = CHECKLIST_RE.exec(line);
-		if (match?.[1] !== " ") continue;
-		if (normalizeDecision(match[2] ?? "") !== target) continue;
-		lines[i] = line.replace("[ ]", "[x]");
-		matched = normalizeDecision(match[2] ?? "");
-		break;
-	}
-	if (matched === undefined) return undefined;
+	const range = sectionRange(lines, SHAPING_DECISIONS);
+	if (range === undefined) return undefined;
+	const item = scanChecklist(lines, range.start, range.end).find(
+		(each) => each.mark === " " && normalizeDecision(each.text) === target,
+	);
+	if (item === undefined) return undefined;
+	lines[item.line] = (lines[item.line] ?? "").replace("[ ]", "[x]");
 	return appendToSection(
 		lines.join("\n"),
 		SHAPING_NOTES,
-		`- ${matched}: ${answer.trim()}`,
+		`- ${normalizeDecision(item.text)}: ${answer.trim()}`,
 	);
 }
 
@@ -335,32 +378,17 @@ export function buildEpicBody(
 // Fold lines under Approach (`- <question>: <answer>`, written by
 // resolveQuestion) whose question is a checked Open questions item.
 function questionFolds(body: string): string[] {
-	const checked: string[] = [];
-	const folds: string[] = [];
-	let section = "";
-	for (const line of body.split("\n")) {
-		const heading = HEADING_RE.exec(line);
-		if (heading !== null) {
-			section = heading[1] === "##" ? (heading[2]?.trim() ?? "") : "";
-			continue;
-		}
-		if (section !== "Open questions") continue;
-		const match = CHECKLIST_RE.exec(line);
-		if (match?.[1] === "x") checked.push((match[2] ?? "").trim());
-	}
+	const lines = body.split("\n");
+	const questions = sectionRange(lines, "Open questions");
+	const approach = sectionRange(lines, "Approach");
+	if (questions === undefined || approach === undefined) return [];
+	const checked = scanChecklist(lines, questions.start, questions.end)
+		.filter((item) => item.mark !== " ")
+		.map((item) => item.text);
 	if (checked.length === 0) return [];
-	section = "";
-	for (const line of body.split("\n")) {
-		const heading = HEADING_RE.exec(line);
-		if (heading !== null) {
-			section = heading[1] === "##" ? (heading[2]?.trim() ?? "") : "";
-			continue;
-		}
-		if (section !== "Approach") continue;
-		if (checked.some((question) => line.startsWith(`- ${question}:`)))
-			folds.push(line);
-	}
-	return folds;
+	return lines
+		.slice(approach.start, approach.end)
+		.filter((line) => checked.some((q) => line.startsWith(`- ${q}:`)));
 }
 
 // Replace the `## <section>` block (up to the next `## ` heading or EOF). A
@@ -427,28 +455,21 @@ export function appendOpenQuestion(body: string, question: string): string {
 // undefined when no unchecked item matches the text exactly.
 function checkQuestion(body: string, question: string): string | undefined {
 	const lines = body.split("\n");
+	const range = sectionRange(lines, "Open questions");
+	if (range === undefined) return undefined;
 	const target = question.trim();
-	let inSection = false;
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i] ?? "";
-		const heading = HEADING_RE.exec(line);
-		if (heading !== null) {
-			inSection =
-				heading[1] === "##" && heading[2]?.trim() === "Open questions";
-			continue;
-		}
-		if (!inSection) continue;
-		const match = CHECKLIST_RE.exec(line);
-		if (match?.[1] === " " && match[2]?.trim() === target) {
-			lines[i] = line.replace("[ ]", "[x]");
-			return lines.join("\n");
-		}
-	}
-	return undefined;
+	const item = scanChecklist(lines, range.start, range.end).find(
+		(each) => each.mark === " " && each.text === target,
+	);
+	if (item === undefined) return undefined;
+	lines[item.line] = (lines[item.line] ?? "").replace("[ ]", "[x]");
+	return lines.join("\n");
 }
 
 // Check the matching open question off and fold the answer into the Approach
-// section; undefined when no unchecked question matches the text exactly.
+// section; undefined when no unchecked question matches the text exactly. The
+// fold line is written unwrapped, which is what keeps `questionFolds` able to
+// match it against the folded question text.
 export function resolveQuestion(
 	body: string,
 	question: string,

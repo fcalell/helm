@@ -130,7 +130,7 @@ harness code.
 - [ ] No dead space sits below the last item once the turn closes (live)
 - [ ] The docked panel keeps the fill-and-scroll layout with a real transcript at both its minimum
       and maximum width: intrinsic artifact panel, scrolling transcript, composer pinned below
-      (live) — carried from 004-04, which had no transcript to grade it against
+      — carried from 004-04, which had no transcript to grade it against (live)
 - [ ] Zero console errors across a chat surface and a run timeline (live)
 
 ## Out of scope

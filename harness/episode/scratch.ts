@@ -25,12 +25,15 @@ export interface StoryFixture {
 	id: string;
 	status?: Status;
 	gate?: GateFixture;
+	// The brief body, when the episode needs one the default does not cover.
+	body?: string;
 }
 
 export interface ScratchOptions {
-	// The default story's status and gate block.
+	// The default story's status, gate block and brief body.
 	status?: Status;
 	gate?: GateFixture;
+	body?: string;
 	// Stories beyond the default one.
 	stories?: StoryFixture[];
 }
@@ -95,7 +98,12 @@ export function setupScratch(
 	const epicDir = join(repo, ".helm/board/epics/001-harness");
 	const storyPath = storyFilePath(epicDir, STORY_ID);
 	const fixtures: StoryFixture[] = [
-		{ id: STORY_ID, status: options.status, gate: options.gate },
+		{
+			id: STORY_ID,
+			status: options.status,
+			gate: options.gate,
+			body: options.body,
+		},
 		...(options.stories ?? []),
 	];
 	const storyPaths: Record<string, string> = {};
@@ -126,7 +134,7 @@ export function setupScratch(
 					sessions: {},
 					runs: [],
 				}),
-				STORY_BODY,
+				fixture.body ?? STORY_BODY,
 			),
 		);
 	}
