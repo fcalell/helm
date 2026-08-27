@@ -1,6 +1,6 @@
 ---
 id: 004-05
-status: review
+status: done
 depends: [004-03, 003-09]
 gate: { passed: 2026-08-27T13:33:00.477Z, brief: f0eef71cfb84ff3d, overrides: [] }
 sessions: {}
@@ -187,3 +187,7 @@ harness code.
   markdown case and the same anchor as the chat surface — the only difference is `renderTool` — and
   the Activity tab was checked live for its empty state and zero console errors. Teaching the stub a
   run role is a harness change, not this story's.
+- review: approved at 15/18. The three unchecked criteria share one cause outside this story — the
+  stub has no run role, so no run transcript exists to grade against — and the code paths they name
+  are the same component, the same markdown case and the same anchor the chat surface proved. The
+  gap is carded as 005-08; the criteria stay unchecked and are regraded there.
