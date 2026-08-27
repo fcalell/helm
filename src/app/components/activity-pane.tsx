@@ -1,25 +1,16 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
-import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
-import { createSignal, For, Match, Show, Switch } from "solid-js";
+import { createSignal, Match, Show, Switch } from "solid-js";
 import { briefHash } from "../../board/hash.ts";
 import type { Run, Story } from "../../board/schema.ts";
-import { formatTokens } from "../lib/format.ts";
-import {
-	type ChatItem,
-	chatFor,
-	pauseRun,
-	steerRun,
-	stopRun,
-} from "../lib/session-store.ts";
+import { chatFor, pauseRun, steerRun, stopRun } from "../lib/session-store.ts";
 import { Banner } from "../ui/banner.tsx";
-import { Bubble } from "../ui/bubble.tsx";
 import { DiffLines } from "../ui/diff-grid.tsx";
 import { Disclosure } from "../ui/disclosure.tsx";
-import { Prose } from "../ui/prose.tsx";
+import { Conversation } from "./conversation.tsx";
 import { ToolCallLine, type ToolChatItem } from "./tool-call-line.tsx";
 
 interface DiffContent {
@@ -65,41 +56,6 @@ function ToolActivity(props: { item: ToolChatItem }) {
 		<Show when={diff()} fallback={<ToolCallLine item={props.item} />}>
 			{(content) => <MiniDiff diff={content()} />}
 		</Show>
-	);
-}
-
-function asType<T extends ChatItem["type"]>(
-	item: ChatItem,
-	type: T,
-): Extract<ChatItem, { type: T }> | false {
-	return item.type === type ? (item as Extract<ChatItem, { type: T }>) : false;
-}
-
-function TimelineItem(props: { item: ChatItem }) {
-	return (
-		<Switch>
-			<Match when={asType(props.item, "user")}>
-				{(item) => <Bubble>{item().text}</Bubble>}
-			</Match>
-			<Match when={asType(props.item, "assistant")}>
-				{(item) => (
-					<Show when={item().text !== ""}>
-						<Prose variant="caption">{item().text}</Prose>
-					</Show>
-				)}
-			</Match>
-			<Match when={asType(props.item, "tool")}>
-				{(item) => <ToolActivity item={item()} />}
-			</Match>
-			<Match when={asType(props.item, "compact")}>
-				{(item) => (
-					<Text variant="micro" tone="ink-3">
-						Context compacted ({item().trigger}) ·{" "}
-						{formatTokens(item().preTokens)} → {formatTokens(item().postTokens)}
-					</Text>
-				)}
-			</Match>
-		</Switch>
 	);
 }
 
@@ -151,7 +107,6 @@ export function ActivityPane(props: { story: Story }) {
 			fallback={<EmptyState title="Activity" description="No runs yet" />}
 		>
 			{(run) => {
-				const chat = () => chatFor(run().session);
 				return (
 					<div class="flex min-h-0 flex-1 flex-col gap-stack overflow-hidden">
 						<Show when={briefEdited()}>
@@ -162,21 +117,19 @@ export function ActivityPane(props: { story: Story }) {
 								</Text>
 							</Banner>
 						</Show>
-						<ScrollArea pinToBottom>
-							<div class="flex flex-col gap-stack">
-								<For each={chat().items}>
-									{(item) => <TimelineItem item={item} />}
-								</For>
-								<Show when={chat().busy}>
-									<Loader text="run in progress" />
-								</Show>
-								<Show when={paused()}>
-									<Text variant="micro" tone="ink-3">
-										Run paused
-									</Text>
-								</Show>
-							</div>
-						</ScrollArea>
+						<Conversation
+							sessionId={run().session}
+							renderTool={(item) => <ToolActivity item={item} />}
+						>
+							<Show when={chatFor(run().session).busy}>
+								<Loader text="run in progress" />
+							</Show>
+							<Show when={paused()}>
+								<Text variant="micro" tone="ink-3">
+									Run paused
+								</Text>
+							</Show>
+						</Conversation>
 						<Show when={openEntry() !== undefined}>
 							<div class="flex shrink-0 items-center gap-row">
 								<Switch>

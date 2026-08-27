@@ -14,7 +14,7 @@ import type {
 import type { GateAttempt, GateFlag } from "../../shared/gate.ts";
 import { gateFor, PHASE_LINES, resolveGateFlag } from "../lib/gate-store.ts";
 import { Eyebrow } from "../ui/eyebrow.tsx";
-import { Prose } from "../ui/prose.tsx";
+import { PlainText } from "../ui/plain-text.tsx";
 
 const FLAG_BADGES: Record<GateFlagStatus, { label: string; tone: BadgeTone }> =
 	{
@@ -55,19 +55,21 @@ function FlagWidget(props: { storyId: string; flag: GateFlag }) {
 			<Text variant="caption" strong>
 				{props.flag.title}
 			</Text>
-			<Prose variant="caption" tone="ink-3">
+			<PlainText variant="caption" tone="ink-3">
 				{props.flag.detail}
-			</Prose>
+			</PlainText>
 			<Show
 				when={props.flag.argument}
 				fallback={
-					<Prose variant="caption" tone="ink-3" italic>
+					<PlainText variant="caption" tone="ink-3" italic>
 						The refine chat left this flag unanswered.
-					</Prose>
+					</PlainText>
 				}
 			>
 				{(argument) => (
-					<Prose variant="caption">Counter-argument: {argument()}</Prose>
+					<PlainText variant="caption">
+						Counter-argument: {argument()}
+					</PlainText>
 				)}
 			</Show>
 			<Show

@@ -1,6 +1,5 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
-import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import {
 	createEffect,
@@ -23,9 +22,8 @@ import {
 	unanchoredProposals,
 } from "../lib/session-store.ts";
 import { ArtifactPanel } from "../ui/artifact-panel.tsx";
-import { Bubble } from "../ui/bubble.tsx";
 import { CommandList, CommandRow } from "../ui/command-list.tsx";
-import { Prose } from "../ui/prose.tsx";
+import { Conversation } from "./conversation.tsx";
 import { DecisionWidget } from "./decision-widget.tsx";
 import { ProposalWidget } from "./proposal-widget.tsx";
 import { QuestionGroup } from "./question-group.tsx";
@@ -92,33 +90,6 @@ function ToolItem(props: { item: Extract<ChatItem, { type: "tool" }> }) {
 	);
 }
 
-function asType<T extends ChatItem["type"]>(
-	item: ChatItem,
-	type: T,
-): Extract<ChatItem, { type: T }> | false {
-	return item.type === type ? (item as Extract<ChatItem, { type: T }>) : false;
-}
-
-function TranscriptItem(props: { item: ChatItem }) {
-	return (
-		<Switch>
-			<Match when={asType(props.item, "user")}>
-				{(item) => <Bubble>{item().text}</Bubble>}
-			</Match>
-			<Match when={asType(props.item, "assistant")}>
-				{(item) => (
-					<Show when={item().text !== ""}>
-						<Prose variant="caption">{item().text}</Prose>
-					</Show>
-				)}
-			</Match>
-			<Match when={asType(props.item, "tool")}>
-				{(item) => <ToolItem item={item()} />}
-			</Match>
-		</Switch>
-	);
-}
-
 export interface ChatPaneProps {
 	sessionId: string;
 	// The artifact-under-construction slot the chat stories fill.
@@ -161,23 +132,21 @@ export function ChatPane(props: ChatPaneProps) {
 			<ArtifactPanel title={props.artifactTitle ?? "Artifact"}>
 				{props.artifact ?? <p>Nothing under construction yet.</p>}
 			</ArtifactPanel>
-			<ScrollArea pinToBottom>
-				<div class="flex flex-col gap-stack">
-					<For each={chat().items}>
-						{(item) => <TranscriptItem item={item} />}
-					</For>
-					<For each={unanchoredProposals(props.sessionId, chat().items)}>
-						{(proposal) => <ProposalWidget proposal={proposal} />}
-					</For>
-					<For each={pendingDecisions(props.sessionId)}>
-						{(decision) => <DecisionWidget decision={decision} />}
-					</For>
-					<QuestionGroup sessionId={props.sessionId} />
-					<Show when={chat().busy}>
-						<Loader text="assistant is working" />
-					</Show>
-				</div>
-			</ScrollArea>
+			<Conversation
+				sessionId={props.sessionId}
+				renderTool={(item) => <ToolItem item={item} />}
+			>
+				<For each={unanchoredProposals(props.sessionId, chat().items)}>
+					{(proposal) => <ProposalWidget proposal={proposal} />}
+				</For>
+				<For each={pendingDecisions(props.sessionId)}>
+					{(decision) => <DecisionWidget decision={decision} />}
+				</For>
+				<QuestionGroup sessionId={props.sessionId} />
+				<Show when={chat().busy}>
+					<Loader text="assistant is working" />
+				</Show>
+			</Conversation>
 			<Show when={matches().length > 0}>
 				<CommandList>
 					<For each={matches()}>

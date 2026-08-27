@@ -19,7 +19,7 @@ import { refineSpawnFor, setStoryPreset } from "../lib/session-store.ts";
 import { ChatDrawer, ChatDrawerTitle } from "../ui/chat-drawer.tsx";
 import { DrawerTabs } from "../ui/drawer-tabs.tsx";
 import { Eyebrow } from "../ui/eyebrow.tsx";
-import { Prose } from "../ui/prose.tsx";
+import { PlainText } from "../ui/plain-text.tsx";
 import { ActivityPane } from "./activity-pane.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { DiffPane } from "./diff-pane.tsx";
@@ -93,9 +93,9 @@ export function BriefView(props: { story: Story }) {
 						<Eyebrow>{section}</Eyebrow>
 						<Switch
 							fallback={
-								<Prose variant="caption">
+								<PlainText variant="caption">
 									{props.story.brief.sections[section]?.trim() || "Not set"}
-								</Prose>
+								</PlainText>
 							}
 						>
 							<Match when={section === "Acceptance criteria"}>

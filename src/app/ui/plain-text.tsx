@@ -1,10 +1,11 @@
 import { cn } from "@fcalell/plugin-solid-ui/lib/cn";
 import type { JSX } from "solid-js";
 
-// Author-entered text, rendered with its newlines intact. `Text` is the role
-// primitive but closes `class`, and `whitespace-pre-wrap` is not a type role,
-// so the pre-wrap paragraph is Helm's. Everything a run, a brief section, or
-// a chat turn writes flows through here.
+// Author-entered text, rendered with its newlines intact and never as
+// markdown. `Text` is the role primitive but closes `class`, and
+// `whitespace-pre-wrap` is not a type role, so the pre-wrap paragraph is
+// Helm's. A brief section, a gate flag and a proposal body flow through here;
+// a transcript turn goes through the canon's `Prose` instead.
 const VARIANTS = {
 	micro: "text-micro",
 	caption: "text-caption",
@@ -20,7 +21,7 @@ const TONES = {
 	warn: "text-warn",
 } as const;
 
-export function Prose(props: {
+export function PlainText(props: {
 	variant?: keyof typeof VARIANTS;
 	tone?: keyof typeof TONES;
 	italic?: boolean;

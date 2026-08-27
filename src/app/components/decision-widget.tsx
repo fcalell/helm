@@ -6,7 +6,7 @@ import { createSignal, For, Show } from "solid-js";
 import type { PendingDecision } from "../../server/mcp/schemas.ts";
 import { resolveDecision } from "../lib/session-store.ts";
 import { Eyebrow } from "../ui/eyebrow.tsx";
-import { Prose } from "../ui/prose.tsx";
+import { PlainText } from "../ui/plain-text.tsx";
 import { AnswerChip } from "./answer-chip.tsx";
 
 // One actionable decision. Answering resolves it immediately (decisions fold
@@ -36,9 +36,9 @@ export function DecisionWidget(props: { decision: PendingDecision }) {
 			</Text>
 			<Show when={props.decision.context}>
 				{(context) => (
-					<Prose variant="caption" tone="ink-3">
+					<PlainText variant="caption" tone="ink-3">
 						{context()}
-					</Prose>
+					</PlainText>
 				)}
 			</Show>
 			<Show when={props.decision.recommendation}>

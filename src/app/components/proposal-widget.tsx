@@ -20,7 +20,7 @@ import {
 } from "../lib/session-store.ts";
 import { CodeBlock } from "../ui/code-block.tsx";
 import { Eyebrow } from "../ui/eyebrow.tsx";
-import { Prose } from "../ui/prose.tsx";
+import { PlainText } from "../ui/plain-text.tsx";
 
 const TOOL_LABELS: Record<Proposal["tool"], string> = {
 	propose_epics: "Proposed epics",
@@ -103,7 +103,7 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 									{(flag) => <Badge tone="warn">resolves: {flag()}</Badge>}
 								</Show>
 							</div>
-							<Prose variant="caption">{draft.content}</Prose>
+							<PlainText variant="caption">{draft.content}</PlainText>
 						</div>
 					);
 				})()}
@@ -116,9 +116,9 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 							<Text variant="caption" strong>
 								{draft.question}
 							</Text>
-							<Prose variant="caption" tone="ink-3">
+							<PlainText variant="caption" tone="ink-3">
 								{draft.answer}
-							</Prose>
+							</PlainText>
 						</div>
 					);
 				})()}

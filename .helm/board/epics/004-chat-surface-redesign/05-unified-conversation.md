@@ -1,6 +1,6 @@
 ---
 id: 004-05
-status: ready
+status: review
 depends: [004-03, 003-09]
 gate: { passed: 2026-08-27T13:33:00.477Z, brief: f0eef71cfb84ff3d, overrides: [] }
 sessions: {}
@@ -103,35 +103,35 @@ harness code.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` passes with zero errors (command)
-- [ ] `pnpm build` completes and the geometry gate reports zero violations over `src/` (command)
-- [ ] Exactly one `asType` helper and exactly one transcript item switch exist under `src/app/`
+- [x] `pnpm check` passes with zero errors (command)
+- [x] `pnpm build` completes and the geometry gate reports zero violations over `src/` (command)
+- [x] Exactly one `asType` helper and exactly one transcript item switch exist under `src/app/`
       (file)
-- [ ] Neither `chat-pane.tsx` nor `activity-pane.tsx` renders a `ScrollArea` of its own: both go
+- [x] Neither `chat-pane.tsx` nor `activity-pane.tsx` renders a `ScrollArea` of its own: both go
       through `conversation.tsx` (file)
-- [ ] `git diff` touches no file under `../stack` (command)
+- [x] `git diff` touches no file under `../stack` (command)
 - [ ] A `compact` boundary emitted into a chat session renders its line in the chat surface, and
       the same boundary still renders in the run timeline (live)
 - [ ] Assistant text containing a list, a fenced code block, `**bold**` and a link renders as
       markdown in both a chat surface and the run timeline (live)
-- [ ] A reply streamed in prefixes renders every prefix without a console error and settles to the
+- [x] A reply streamed in prefixes renders every prefix without a console error and settles to the
       final markdown when the turn closes (live)
-- [ ] Raw HTML in assistant text renders escaped, and a `javascript:` link renders without an href
+- [x] Raw HTML in assistant text renders escaped, and a `javascript:` link renders without an href
       (live)
-- [ ] Sending a message scrolls that user message to the top of the pane and the reply streams into
+- [x] Sending a message scrolls that user message to the top of the pane and the reply streams into
       the space below it without the pane jumping (live)
 - [ ] Steering a run anchors the steer message the same way (live)
-- [ ] The scroll-to-bottom control appears only while the pane is scrolled off its bottom, and
+- [x] The scroll-to-bottom control appears only while the pane is scrolled off its bottom, and
       clicking it returns the pane to the bottom and hides the control (live)
-- [ ] The control stays hidden while a spacer is present but the pane is at its end: a spacer alone
+- [x] The control stays hidden while a spacer is present but the pane is at its end: a spacer alone
       never reads as unpinned (live)
-- [ ] A pane already at the bottom still follows new content, and a reader scrolled up mid-stream
+- [x] A pane already at the bottom still follows new content, and a reader scrolled up mid-stream
       is never yanked down (live)
-- [ ] No dead space sits below the last item once the turn closes (live)
-- [ ] The docked panel keeps the fill-and-scroll layout with a real transcript at both its minimum
+- [x] No dead space sits below the last item once the turn closes (live)
+- [x] The docked panel keeps the fill-and-scroll layout with a real transcript at both its minimum
       and maximum width: intrinsic artifact panel, scrolling transcript, composer pinned below
       — carried from 004-04, which had no transcript to grade it against (live)
-- [ ] Zero console errors across a chat surface and a run timeline (live)
+- [x] Zero console errors across a chat surface and a run timeline (live)
 
 ## Out of scope
 
@@ -152,3 +152,38 @@ harness code.
       top edge, and an offset would be a number with no reason behind it.
 - [x] Does the anchor fire on every send, or only from a pinned pane? Every send. The reader wrote
       the message; a conditional anchor makes one action behave two ways invisibly.
+
+## Run notes
+
+- verify: `pnpm check` clean, 127 files, 0 errors; `pnpm build` completes with the geometry gate
+  pre-step, 0 violations
+- verify: one `asType` and one item switch under `src/app/`, both in `conversation.tsx`; neither
+  pane names `ScrollArea`; `git diff` in `../stack` is empty
+- verify: `node harness/episode/run.ts all` → 17/17
+- verify: live in Chrome against a stub-driven scratch board, dark theme. A sent message anchors to
+  the top of the pane and the reply streams into the space below without the pane moving; the
+  markdown renders as a list with real emphasis, a fenced block, one `<a href="https://example.com">`
+  and no anchor at all for the `javascript:` link, with `<b>not bold</b>` escaped to text; the
+  compaction boundary renders its line in the chat surface; the tool call renders as a disclosure
+  line; the control appears only off the end, returns the pane and hides; a paragraph appended while
+  the reader sat scrolled up moved nothing, and one appended while the reader sat at the bottom was
+  followed; the turn's close collapsed the spacer with the last item flush at the bottom; and the
+  panel keeps its intrinsic artifact panel, scrolling transcript and pinned composer at both 240px
+  and 75vw. Zero console errors throughout.
+- `conversation-live` is the halting episode that stands this up: it streams a markdown reply in
+  prefixes, emits a compaction boundary and a tool call, and then holds twice so an operator can
+  park the pane scrolled up and at the bottom and watch what the next append does.
+- Two flaws the live pass caught, both fixed. A spacer of exactly one pane height leaves the end of
+  the content inside the canon's 40px pin threshold, so the first delta pinned the pane back and the
+  anchor never held; the spacer now carries that margin on top. And a zero-height sentinel has a
+  zero-area intersection rectangle, which never reports as intersecting, so the control stayed up at
+  the very end; the sentinel is a line tall.
+- The spacer is `calc(100% + 40px)` rather than a measured height: the transcript's own element is
+  the content, not the pane, so measuring it gave a near-zero spacer on an empty transcript. The
+  percentage resolves against the scroll pane without reaching into the canon's DOM.
+- Three criteria are unchecked, all for one reason: they need a run transcript, and a run session
+  reaches the stub with no scripted role (`argv.ts:3` knows refine and adversary only), so the run
+  timeline cannot be driven at zero pool cost. It renders through the same `Conversation`, the same
+  markdown case and the same anchor as the chat surface — the only difference is `renderTool` — and
+  the Activity tab was checked live for its empty state and zero console errors. Teaching the stub a
+  run role is a harness change, not this story's.

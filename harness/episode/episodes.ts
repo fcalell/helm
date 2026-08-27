@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { splitFrontmatter } from "../../src/board/markdown.ts";
 import { readStubLog } from "../stub-claude/log.ts";
-import type { StubScript } from "../stub-claude/script.ts";
+import type { StubScript, StubStep } from "../stub-claude/script.ts";
 import {
 	NO_SCRIPT_EXIT,
 	TOOL_FAILURE_EXIT,
@@ -1458,6 +1458,159 @@ const wrappedQuestion: Episode = {
 	},
 };
 
+// A markdown reply carrying every construct the transcript renders: a list,
+// emphasis, a safe link, an unsafe one, raw markup, and a fenced block.
+const MARKDOWN_REPLY = [
+	"Here is what the run found:",
+	"",
+	"- a **bold** claim",
+	"- a [link](https://example.com) and a [bad one](javascript:alert(1))",
+	"- raw markup: <b>not bold</b>",
+	"",
+	"```ts",
+	"const folded = scanChecklist(lines);",
+	"```",
+	"",
+	"That is the whole reply.",
+].join("\n");
+
+// Split so the pane sees the reply as growing prefixes, one of which cuts a
+// fence open.
+const REPLY_CHUNKS = [
+	MARKDOWN_REPLY.slice(0, 40),
+	MARKDOWN_REPLY.slice(40, 150),
+	MARKDOWN_REPLY.slice(150),
+];
+
+const CONVERSATION_HOLD = "conversation-live-hold";
+const CONVERSATION_HOLD_TWO = "conversation-live-hold-2";
+
+// A paragraph appended after each hold, so an operator can park the pane and
+// watch what the next append does to it.
+function appended(text: string): StubStep {
+	return {
+		t: "emit",
+		event: {
+			type: "stream_event",
+			event: {
+				type: "content_block_delta",
+				index: 0,
+				delta: { type: "text_delta", text: `\n\n${text}` },
+			},
+		},
+	};
+}
+
+const conversationLive: Episode = {
+	name: "conversation-live",
+	summary: "a transcript carrying markdown, a tool call and a compaction",
+	halts: true,
+	scripts: {
+		"refine-1": SILENT_REFINE,
+		"refine-2": {
+			role: "refine",
+			steps: [
+				{
+					t: "emit",
+					event: {
+						type: "stream_event",
+						event: {
+							type: "content_block_start",
+							index: 0,
+							content_block: { type: "text", text: "" },
+						},
+					},
+				},
+				...REPLY_CHUNKS.map((text) => ({
+					t: "emit" as const,
+					event: {
+						type: "stream_event",
+						event: {
+							type: "content_block_delta",
+							index: 0,
+							delta: { type: "text_delta", text },
+						},
+					},
+				})),
+				{
+					t: "emit",
+					event: {
+						type: "system",
+						subtype: "compact_boundary",
+						compact_metadata: {
+							trigger: "auto",
+							pre_tokens: 148000,
+							post_tokens: 32000,
+						},
+					},
+				},
+				{
+					t: "emit",
+					event: {
+						type: "assistant",
+						message: {
+							content: [
+								{
+									type: "tool_use",
+									id: "toolu_live_1",
+									name: "Read",
+									input: { file_path: "src/board/markdown.ts" },
+								},
+							],
+						},
+					},
+				},
+				{
+					t: "emit",
+					event: {
+						type: "user",
+						message: {
+							content: [
+								{
+									type: "tool_result",
+									tool_use_id: "toolu_live_1",
+									content: "export function parseChecklist(...)",
+								},
+							],
+						},
+					},
+				},
+				{ t: "wait", sentinel: CONVERSATION_HOLD, timeoutMs: OPERATOR_WAIT_MS },
+				appended("A paragraph appended while the reader sat scrolled up."),
+				{
+					t: "wait",
+					sentinel: CONVERSATION_HOLD_TWO,
+					timeoutMs: OPERATOR_WAIT_MS,
+				},
+				appended("A paragraph appended while the reader sat at the bottom."),
+			],
+		},
+	},
+	spawns: [
+		{ role: "refine", ordinal: 1, exit: 0 },
+		{ role: "refine", ordinal: 2, exit: 0 },
+	],
+	rounds: 0,
+	run: async (ctx) => {
+		const live = await spawnRefineChat(ctx);
+		ctx.say(`refine chat ${live} is open and idle`);
+		await ctx.halt(
+			"open the drawer's chat for this story and send a message: the reply streams in as markdown with a compaction boundary and a tool call, the sent message anchors to the top of the pane, and the scroll-to-bottom control appears once you scroll away from the end. Then scroll up into the history and press Enter",
+		);
+		releaseSentinel(ctx.scratch, CONVERSATION_HOLD);
+		await ctx.halt(
+			"a paragraph was appended while you sat scrolled up: the pane stayed where it was. Now scroll to the bottom and press Enter",
+		);
+		releaseSentinel(ctx.scratch, CONVERSATION_HOLD_TWO);
+		await ctx.halt(
+			"a second paragraph was appended while you sat at the bottom: the pane followed it",
+		);
+		await ctx.obs.waitFor("the held turn to close", () =>
+			ctx.obs.closed().find((each) => each.sessionId === live),
+		);
+	},
+};
+
 export const EPISODES: readonly Episode[] = [
 	flagless,
 	oneFlag,
@@ -1480,4 +1633,5 @@ export const EPISODES: readonly Episode[] = [
 	reseedPark,
 	wrappedBrief,
 	wrappedQuestion,
+	conversationLive,
 ];
