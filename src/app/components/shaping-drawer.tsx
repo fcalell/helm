@@ -10,10 +10,9 @@ import type { DecisionItem, ShapingThread } from "../../board/schema.ts";
 import { api } from "../lib/api.ts";
 import { boardStore } from "../lib/board-store.ts";
 import { pendingDecisionFor, researchStateFor } from "../lib/session-store.ts";
-import { Drawer, DrawerHeader, DrawerTitle } from "../ui/drawer.tsx";
+import { ChatDrawer, ChatDrawerTitle } from "../ui/chat-drawer.tsx";
 import { Struck } from "../ui/struck.tsx";
 import { ChatPane } from "./chat-pane.tsx";
-import { ExpandToggle } from "./expand-toggle.tsx";
 
 // The drawer target right after a fresh spawn carries only the session id;
 // the thread (and its slug) appears with the watcher's next snapshot.
@@ -145,40 +144,31 @@ function DecisionsChecklist(props: { thread: ShapingThread }) {
 }
 
 export interface ShapingDrawerProps {
-	target: ShapingTarget | null;
-	onOpenChange: (open: boolean) => void;
+	target: ShapingTarget;
+	onClose: () => void;
 }
 
 export function ShapingDrawer(props: ShapingDrawerProps) {
 	const thread = (): ShapingThread | undefined => {
 		const target = props.target;
-		if (target === null) return undefined;
 		if (target.slug !== undefined) return boardStore.shaping[target.slug];
 		return Object.values(boardStore.shaping).find(
 			(each) => each.frontmatter.sessions.shape === target.sessionId,
 		);
 	};
 	const sessionId = () =>
-		props.target?.sessionId ?? thread()?.frontmatter.sessions.shape;
-	const [expanded, setExpanded] = createSignal(false);
+		props.target.sessionId ?? thread()?.frontmatter.sessions.shape;
 
 	return (
-		<Drawer
-			open={props.target !== null}
-			expanded={expanded()}
-			onOpenChange={(open) => {
-				if (!open) setExpanded(false);
-				props.onOpenChange(open);
-			}}
+		<ChatDrawer
+			onClose={props.onClose}
+			title={
+				<>
+					<ChatDrawerTitle>{thread()?.title ?? "Shaping"}</ChatDrawerTitle>
+					<Badge>Shaping</Badge>
+				</>
+			}
 		>
-			<DrawerHeader>
-				<DrawerTitle>{thread()?.title ?? "Shaping"}</DrawerTitle>
-				<Badge>Shaping</Badge>
-				<ExpandToggle
-					expanded={expanded()}
-					onToggle={() => setExpanded((value) => !value)}
-				/>
-			</DrawerHeader>
 			<Show
 				when={sessionId()}
 				fallback={
@@ -207,6 +197,6 @@ export function ShapingDrawer(props: ShapingDrawerProps) {
 					/>
 				)}
 			</Show>
-		</Drawer>
+		</ChatDrawer>
 	);
 }

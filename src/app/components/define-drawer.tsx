@@ -1,15 +1,14 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
-import { createSignal, For, Show } from "solid-js";
+import { For, Show } from "solid-js";
 import {
 	boardStore,
 	STATUS_LABELS,
 	sortedStories,
 } from "../lib/board-store.ts";
-import { Drawer, DrawerHeader, DrawerTitle } from "../ui/drawer.tsx";
+import { ChatDrawer, ChatDrawerTitle } from "../ui/chat-drawer.tsx";
 import { ChatPane } from "./chat-pane.tsx";
-import { ExpandToggle } from "./expand-toggle.tsx";
 
 export interface DefineTarget {
 	epicId: string;
@@ -17,42 +16,33 @@ export interface DefineTarget {
 }
 
 export interface DefineDrawerProps {
-	target: DefineTarget | null;
-	onOpenChange: (open: boolean) => void;
+	target: DefineTarget;
+	onClose: () => void;
 }
 
 export function DefineDrawer(props: DefineDrawerProps) {
-	const epic = () =>
-		props.target === null ? undefined : boardStore.epics[props.target.epicId];
+	const epic = () => boardStore.epics[props.target.epicId];
 	const sessionId = () =>
-		props.target?.sessionId ?? epic()?.frontmatter.sessions.define;
+		props.target.sessionId ?? epic()?.frontmatter.sessions.define;
 	const stories = () =>
 		sortedStories(
 			Object.values(boardStore.stories).filter(
-				(story) => story.epicId === props.target?.epicId,
+				(story) => story.epicId === props.target.epicId,
 			),
 		);
-	const [expanded, setExpanded] = createSignal(false);
 
 	return (
-		<Drawer
-			open={props.target !== null}
-			expanded={expanded()}
-			onOpenChange={(open) => {
-				if (!open) setExpanded(false);
-				props.onOpenChange(open);
-			}}
+		<ChatDrawer
+			onClose={props.onClose}
+			title={
+				<>
+					<ChatDrawerTitle>
+						{props.target.epicId} · {epic()?.title ?? "New epic"}
+					</ChatDrawerTitle>
+					<Badge>Define</Badge>
+				</>
+			}
 		>
-			<DrawerHeader>
-				<DrawerTitle>
-					{props.target?.epicId} · {epic()?.title ?? "New epic"}
-				</DrawerTitle>
-				<Badge>Define</Badge>
-				<ExpandToggle
-					expanded={expanded()}
-					onToggle={() => setExpanded((value) => !value)}
-				/>
-			</DrawerHeader>
 			<Show
 				when={sessionId()}
 				fallback={
@@ -95,6 +85,6 @@ export function DefineDrawer(props: DefineDrawerProps) {
 					/>
 				)}
 			</Show>
-		</Drawer>
+		</ChatDrawer>
 	);
 }

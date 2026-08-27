@@ -63,8 +63,13 @@ begins.
 
 ## Screen layout
 
-One screen: board + a right-hand **drawer**, never a page navigation away. Selecting a card opens
-the drawer on tabs **Brief | Chat | Activity | Diff | History**; the default tab follows status
+One screen: board + a right-hand **drawer**, never a page navigation away. The drawer is a docked
+panel in the board's layout flow, not an overlay: drag-resizable up to 75vw with the width
+persisted across reloads, an Expand toggle in its chrome row jumping between that width and the
+75vw max, and the board scrolling on in the remaining width beside it. One chat surface is open
+at a time; selecting another replaces it, and close and expand sit together in the chrome row.
+Selecting a card opens the drawer on tabs **Brief | Chat | Activity | Diff | History**; the
+default tab follows status
 (Refining → Chat, Running → Activity, Review → Diff). Repo-level surfaces sit beside the board,
 reached from the header rather than a card drawer: the shaping chat (§Shaping) and
 a **rules & knowledge surface** for viewing, chat-curating, and lightly editing the repo's

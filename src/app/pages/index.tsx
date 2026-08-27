@@ -1,5 +1,5 @@
 import { Frame } from "@fcalell/plugin-solid-ui/components/frame";
-import { createSignal } from "solid-js";
+import { createSignal, Match, Switch } from "solid-js";
 import "../app.css";
 import { BoardGrid } from "../components/board-grid.tsx";
 import { BoardHeader } from "../components/board-header.tsx";
@@ -19,19 +19,17 @@ import { connectGate } from "../lib/gate-store.ts";
 import { connectMeter } from "../lib/meter-store.ts";
 import { connectSessions, spawnRefineSession } from "../lib/session-store.ts";
 
+// The docked chat panel is a single region, so the page holds one selection:
+// opening any chat surface replaces whichever one is showing.
+type ChatSelection =
+	| { kind: "story"; storyId: string }
+	| { kind: "shaping"; target: ShapingTarget }
+	| { kind: "define"; target: DefineTarget };
+
 export default function Home() {
-	const [selectedStoryId, setSelectedStoryId] = createSignal<string | null>(
-		null,
-	);
-	const [drawerOpen, setDrawerOpen] = createSignal(false);
+	const [selection, setSelection] = createSignal<ChatSelection | null>(null);
 	const [drawerTab, setDrawerTab] = createSignal<string>();
 	const [epicView, setEpicView] = createSignal(false);
-	const [shapingTarget, setShapingTarget] = createSignal<ShapingTarget | null>(
-		null,
-	);
-	const [defineTarget, setDefineTarget] = createSignal<DefineTarget | null>(
-		null,
-	);
 	const [newEpicOpen, setNewEpicOpen] = createSignal(false);
 
 	connectBoard();
@@ -40,9 +38,8 @@ export default function Home() {
 	connectMeter();
 
 	function openStory(id: string): void {
-		setSelectedStoryId(id);
 		setDrawerTab(undefined);
-		setDrawerOpen(true);
+		setSelection({ kind: "story", storyId: id });
 	}
 
 	function refineStory(id: string): void {
@@ -50,9 +47,8 @@ export default function Home() {
 		if (!story) return;
 		const status = story.frontmatter.status;
 		if (status !== "backlog" && status !== "refining") return;
-		setSelectedStoryId(id);
 		setDrawerTab("chat");
-		setDrawerOpen(true);
+		setSelection({ kind: "story", storyId: id });
 		if (
 			status === "backlog" &&
 			story.frontmatter.sessions.refine === undefined
@@ -61,9 +57,17 @@ export default function Home() {
 		}
 	}
 
-	const selectedStory = () => {
-		const id = selectedStoryId();
-		return id ? boardStore.stories[id] : undefined;
+	const storySelection = () => {
+		const active = selection();
+		return active?.kind === "story" ? active : undefined;
+	};
+	const shapingSelection = () => {
+		const active = selection();
+		return active?.kind === "shaping" ? active : undefined;
+	};
+	const defineSelection = () => {
+		const active = selection();
+		return active?.kind === "define" ? active : undefined;
 	};
 
 	return (
@@ -73,40 +77,53 @@ export default function Home() {
 				epicView={epicView()}
 				onToggleEpicView={() => setEpicView((value) => !value)}
 				onNewEpic={() => setNewEpicOpen(true)}
-				onOpenShaping={setShapingTarget}
+				onOpenShaping={(target) => setSelection({ kind: "shaping", target })}
 			/>
 			<InvalidBanner invalid={boardStore.invalid} />
-			<BoardGrid
-				epics={boardStore.epics}
-				stories={boardStore.stories}
-				epicView={epicView()}
-				onOpen={openStory}
-				onRefine={refineStory}
-				onOpenEpicChat={(epicId) => setDefineTarget({ epicId })}
-			/>
-			<CardDrawer
-				story={selectedStory()}
-				open={drawerOpen()}
-				onOpenChange={setDrawerOpen}
-				tab={drawerTab()}
-				onTabChange={setDrawerTab}
-			/>
-			<ShapingDrawer
-				target={shapingTarget()}
-				onOpenChange={(open) => {
-					if (!open) setShapingTarget(null);
-				}}
-			/>
-			<DefineDrawer
-				target={defineTarget()}
-				onOpenChange={(open) => {
-					if (!open) setDefineTarget(null);
-				}}
-			/>
+			<div class="flex min-h-0 flex-1 overflow-hidden">
+				<BoardGrid
+					epics={boardStore.epics}
+					stories={boardStore.stories}
+					epicView={epicView()}
+					onOpen={openStory}
+					onRefine={refineStory}
+					onOpenEpicChat={(epicId) =>
+						setSelection({ kind: "define", target: { epicId } })
+					}
+				/>
+				<Switch>
+					<Match when={storySelection()}>
+						{(active) => (
+							<CardDrawer
+								story={boardStore.stories[active().storyId]}
+								onClose={() => setSelection(null)}
+								tab={drawerTab()}
+								onTabChange={setDrawerTab}
+							/>
+						)}
+					</Match>
+					<Match when={shapingSelection()}>
+						{(active) => (
+							<ShapingDrawer
+								target={active().target}
+								onClose={() => setSelection(null)}
+							/>
+						)}
+					</Match>
+					<Match when={defineSelection()}>
+						{(active) => (
+							<DefineDrawer
+								target={active().target}
+								onClose={() => setSelection(null)}
+							/>
+						)}
+					</Match>
+				</Switch>
+			</div>
 			<NewEpicDialog
 				open={newEpicOpen()}
 				onOpenChange={setNewEpicOpen}
-				onCreated={setDefineTarget}
+				onCreated={(target) => setSelection({ kind: "define", target })}
 			/>
 		</Frame>
 	);

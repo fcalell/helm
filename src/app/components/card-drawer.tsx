@@ -5,7 +5,7 @@ import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
 import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
-import { createSignal, For, Match, Show, Switch } from "solid-js";
+import { For, Match, Show, Switch } from "solid-js";
 import {
 	BRIEF_SECTIONS,
 	type ChecklistItem,
@@ -16,22 +16,20 @@ import {
 import { boardStore, moveStory, STATUS_LABELS } from "../lib/board-store.ts";
 import { weakCriterion } from "../lib/criteria.ts";
 import { refineSpawnFor, setStoryPreset } from "../lib/session-store.ts";
-import { Drawer, DrawerHeader, DrawerTitle } from "../ui/drawer.tsx";
+import { ChatDrawer, ChatDrawerTitle } from "../ui/chat-drawer.tsx";
 import { DrawerTabs } from "../ui/drawer-tabs.tsx";
 import { Eyebrow } from "../ui/eyebrow.tsx";
 import { Prose } from "../ui/prose.tsx";
 import { ActivityPane } from "./activity-pane.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { DiffPane } from "./diff-pane.tsx";
-import { ExpandToggle } from "./expand-toggle.tsx";
 import { GatePanel } from "./gate-panel.tsx";
 import { ReviewExits } from "./review-exits.tsx";
 import { RunQuestionPanel } from "./run-question-panel.tsx";
 
 interface CardDrawerProps {
 	story: Story | undefined;
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
+	onClose: () => void;
 	tab?: string;
 	onTabChange: (tab: string) => void;
 }
@@ -192,114 +190,103 @@ function openRunQuestion(story: Story) {
 }
 
 export function CardDrawer(props: CardDrawerProps) {
-	const [expanded, setExpanded] = createSignal(false);
 	return (
-		<Drawer
-			open={props.open}
-			expanded={expanded()}
-			onOpenChange={(open) => {
-				if (!open) setExpanded(false);
-				props.onOpenChange(open);
-			}}
-		>
-			<Show when={props.story} keyed>
-				{(story) => (
-					<>
-						<DrawerHeader>
-							<DrawerTitle>
+		<Show when={props.story} keyed>
+			{(story) => (
+				<ChatDrawer
+					onClose={props.onClose}
+					title={
+						<>
+							<ChatDrawerTitle>
 								{story.id} · {story.brief.title || story.id}
-							</DrawerTitle>
+							</ChatDrawerTitle>
 							<Badge>{STATUS_LABELS[story.frontmatter.status]}</Badge>
-							<Show when={story.frontmatter.status === "refining"}>
-								<Button
-									size="sm"
-									emphasis="secondary"
-									onClick={() => moveStory(story.id, "ready")}
-								>
-									Move to Ready
-								</Button>
-							</Show>
-							<PresetSelector story={story} />
-							<ExpandToggle
-								expanded={expanded()}
-								onToggle={() => setExpanded((value) => !value)}
-							/>
-						</DrawerHeader>
-						<Show when={story.frontmatter.status === "review"}>
-							<div class="flex shrink-0">
-								<ReviewExits story={story} />
+						</>
+					}
+				>
+					<div class="flex shrink-0 flex-wrap items-center gap-row">
+						<Show when={story.frontmatter.status === "refining"}>
+							<Button
+								size="sm"
+								emphasis="secondary"
+								onClick={() => moveStory(story.id, "ready")}
+							>
+								Move to Ready
+							</Button>
+						</Show>
+						<PresetSelector story={story} />
+					</div>
+					<Show when={story.frontmatter.status === "review"}>
+						<div class="flex shrink-0">
+							<ReviewExits story={story} />
+						</div>
+					</Show>
+					<Show
+						when={
+							story.frontmatter.status === "needs-input"
+								? openRunQuestion(story)
+								: undefined
+						}
+					>
+						{(question) => (
+							<div class="flex shrink-0 flex-col">
+								<RunQuestionPanel storyId={story.id} question={question()} />
 							</div>
-						</Show>
-						<Show
-							when={
-								story.frontmatter.status === "needs-input"
-									? openRunQuestion(story)
-									: undefined
-							}
-						>
-							{(question) => (
-								<div class="flex shrink-0 flex-col">
-									<RunQuestionPanel storyId={story.id} question={question()} />
-								</div>
-							)}
-						</Show>
-						<DrawerTabs
-							value={props.tab ?? defaultTab(story.frontmatter.status)}
-							onValueChange={props.onTabChange}
-							tabs={[
-								{
-									value: "brief",
-									label: "Brief",
-									content: (
+						)}
+					</Show>
+					<DrawerTabs
+						value={props.tab ?? defaultTab(story.frontmatter.status)}
+						onValueChange={props.onTabChange}
+						tabs={[
+							{
+								value: "brief",
+								label: "Brief",
+								content: (
+									<ScrollArea>
+										<BriefView story={story} />
+									</ScrollArea>
+								),
+							},
+							{
+								value: "chat",
+								label: "Chat",
+								content: <ChatTab story={story} />,
+							},
+							{
+								value: "activity",
+								label: "Activity",
+								content: <ActivityPane story={story} />,
+							},
+							{
+								value: "diff",
+								label: "Diff",
+								content: (
+									<Show
+										when={story.frontmatter.status === "review"}
+										fallback={
+											<EmptyState
+												title="Diff"
+												description="Arrives with review"
+											/>
+										}
+									>
 										<ScrollArea>
-											<BriefView story={story} />
+											<DiffPane story={story} />
 										</ScrollArea>
-									),
-								},
-								{
-									value: "chat",
-									label: "Chat",
-									content: <ChatTab story={story} />,
-								},
-								{
-									value: "activity",
-									label: "Activity",
-									content: <ActivityPane story={story} />,
-								},
-								{
-									value: "diff",
-									label: "Diff",
-									content: (
-										<Show
-											when={story.frontmatter.status === "review"}
-											fallback={
-												<EmptyState
-													title="Diff"
-													description="Arrives with review"
-												/>
-											}
-										>
-											<ScrollArea>
-												<DiffPane story={story} />
-											</ScrollArea>
-										</Show>
-									),
-								},
-								{
-									value: "history",
-									label: "History",
-									content: (
-										<EmptyState
-											title="History"
-											description="Arrives with runs"
-										/>
-									),
-								},
-							]}
-						/>
-					</>
-				)}
-			</Show>
-		</Drawer>
+									</Show>
+								),
+							},
+							{
+								value: "history",
+								label: "History",
+								content: (
+									<EmptyState title="History" description="Arrives with runs" />
+								),
+							},
+						]}
+					/>
+				</ChatDrawer>
+			)}
+		</Show>
 	);
 }
