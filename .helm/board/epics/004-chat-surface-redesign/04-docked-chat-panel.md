@@ -1,6 +1,6 @@
 ---
 id: 004-04
-status: review
+status: done
 depends: [ 004-03 ]
 gate: { passed: 2026-08-27T10:54:02.330Z, brief: d5a5500390604da5, overrides: [] }
 sessions: {}
@@ -157,3 +157,8 @@ orchestrator, board, session, or harness code.
 - The card reached review from blocked, as 004-09 did: the work ran directly on master with no
   run record, and the daemon parks a running story it did not spawn. The exit to done is legal
   from review.
+- review: approved at 11/12. The one unchecked criterion needs a live transcript, which this board
+  cannot produce: it is carried into 004-05, whose brief owns `ChatPane` and must grade the panel's
+  fill-and-scroll at both extremes with a real conversation in it.
+- review: the 240px tab-row clipping is real and unowned by any card. 004-06 takes it, as the story
+  that already opens the shared widget and chrome primitives.
