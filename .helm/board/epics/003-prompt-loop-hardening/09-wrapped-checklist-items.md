@@ -1,6 +1,6 @@
 ---
 id: 003-09
-status: review
+status: done
 depends: []
 gate: { passed: 2026-08-27T13:26:46.625Z, brief: 704a82b84ccc18da, overrides: [] }
 sessions: {}
@@ -130,3 +130,6 @@ schema change, no UI, no session or prompt code.
   spends the pool the harness exists to protect. The `wrapped-brief` episode drives that exact walk
   — a wrapped-criteria story from refining to Ready through the real orchestrator and the real
   `checkReadyGate` — at zero cost, which is the stronger evidence. Left for the review decision.
+- review: approved at 10/11. The unchecked criterion asked for a walk that costs pool tokens to
+  prove and is already proven for free by `wrapped-brief`; it stays unchecked because the walk it
+  names was not driven, and the story exits on the evidence that replaces it.

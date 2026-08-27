@@ -1,8 +1,8 @@
 ---
 id: 004-05
-status: refining
+status: ready
 depends: [004-03, 003-09]
-gate: { rounds: [{ n: 1, flags: [{ title: "The stack extension is unnecessary", status: fixed }, { title: "Spacer and sentinel are one concern and fight over what pinned means", status: fixed }, { title: "A half-streamed fence never crashes marked, so the criterion grades nothing", status: fixed }, { title: "A compact boundary in a chat surface is unreachable as written", status: fixed }] }] }
+gate: { passed: 2026-08-27T13:33:00.477Z, brief: f0eef71cfb84ff3d, overrides: [] }
 sessions: {}
 ---
 # Unified conversation
