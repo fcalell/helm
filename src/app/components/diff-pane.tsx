@@ -15,7 +15,7 @@ import {
 } from "../ui/diff-grid.tsx";
 import { Disclosure } from "../ui/disclosure.tsx";
 import { Eyebrow } from "../ui/eyebrow.tsx";
-import { ChecklistSection } from "./card-drawer.tsx";
+import { ChecklistSection } from "./brief-view.tsx";
 
 type ReviewData = Awaited<ReturnType<typeof api.review.get>>;
 type DiffFile = ReviewData["files"][number];

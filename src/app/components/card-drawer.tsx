@@ -1,26 +1,16 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
-import { Checkbox } from "@fcalell/plugin-solid-ui/components/checkbox";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
 import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
-import { Text } from "@fcalell/plugin-solid-ui/components/text";
-import { For, Match, Show, Switch } from "solid-js";
-import {
-	BRIEF_SECTIONS,
-	type ChecklistItem,
-	PRESETS,
-	type Status,
-	type Story,
-} from "../../board/schema.ts";
+import { For, Show } from "solid-js";
+import { PRESETS, type Status, type Story } from "../../board/schema.ts";
 import { boardStore, moveStory, STATUS_LABELS } from "../lib/board-store.ts";
-import { weakCriterion } from "../lib/criteria.ts";
 import { refineSpawnFor, setStoryPreset } from "../lib/session-store.ts";
 import { ChatDrawer, ChatDrawerTitle } from "../ui/chat-drawer.tsx";
 import { DrawerTabs } from "../ui/drawer-tabs.tsx";
-import { Eyebrow } from "../ui/eyebrow.tsx";
-import { PlainText } from "../ui/plain-text.tsx";
 import { ActivityPane } from "./activity-pane.tsx";
+import { BriefView } from "./brief-view.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { DiffPane } from "./diff-pane.tsx";
 import { GatePanel } from "./gate-panel.tsx";
@@ -39,80 +29,6 @@ function defaultTab(status: Status): string {
 	if (status === "running") return "activity";
 	if (status === "review") return "diff";
 	return "brief";
-}
-
-export function ChecklistSection(props: {
-	items: ChecklistItem[];
-	// Weak-phrasing warnings apply to the criteria checklist alone.
-	warn: boolean;
-}) {
-	return (
-		<Show
-			when={props.items.length > 0}
-			fallback={
-				<Text variant="caption" tone="ink-3">
-					None yet
-				</Text>
-			}
-		>
-			<ul class="flex flex-col gap-row">
-				<For each={props.items}>
-					{(item) => {
-						const weak = () =>
-							props.warn ? weakCriterion(item.text) : undefined;
-						return (
-							<li class="flex items-start gap-row">
-								<Checkbox checked={item.checked} disabled label={item.text} />
-								<Show when={weak()}>
-									{(phrase) => (
-										<Text
-											as="span"
-											variant="caption"
-											tone="warn"
-											title={`Not measurable: "${phrase()}" — name the observable behavior instead`}
-										>
-											⚠
-										</Text>
-									)}
-								</Show>
-							</li>
-						);
-					}}
-				</For>
-			</ul>
-		</Show>
-	);
-}
-
-export function BriefView(props: { story: Story }) {
-	return (
-		<div class="flex flex-col gap-section">
-			<For each={BRIEF_SECTIONS}>
-				{(section) => (
-					<div class="flex flex-col gap-row">
-						<Eyebrow>{section}</Eyebrow>
-						<Switch
-							fallback={
-								<PlainText variant="caption">
-									{props.story.brief.sections[section]?.trim() || "Not set"}
-								</PlainText>
-							}
-						>
-							<Match when={section === "Acceptance criteria"}>
-								<ChecklistSection items={props.story.brief.criteria} warn />
-							</Match>
-							<Match when={section === "Open questions"}>
-								<ChecklistSection
-									items={props.story.brief.openQuestions}
-									warn={false}
-								/>
-							</Match>
-						</Switch>
-					</div>
-				)}
-			</For>
-		</div>
-	);
 }
 
 function ChatTab(props: { story: Story }) {

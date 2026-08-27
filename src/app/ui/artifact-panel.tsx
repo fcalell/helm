@@ -1,4 +1,5 @@
 import type { JSX } from "solid-js";
+import { Eyebrow } from "./eyebrow.tsx";
 
 // The artifact-under-construction box above a chat transcript. A capped pane
 // carrying product look is consumer territory by the canon's own rule: it
@@ -7,9 +8,7 @@ import type { JSX } from "solid-js";
 export function ArtifactPanel(props: { title: string; children: JSX.Element }) {
 	return (
 		<div class="flex max-h-[45%] shrink-0 flex-col gap-pair overflow-y-auto rounded-xl border border-edge bg-surface p-card">
-			<span class="font-bold text-ink-3 text-micro uppercase tracking-widest">
-				{props.title}
-			</span>
+			<Eyebrow>{props.title}</Eyebrow>
 			<div class="text-caption text-ink-3">{props.children}</div>
 		</div>
 	);
