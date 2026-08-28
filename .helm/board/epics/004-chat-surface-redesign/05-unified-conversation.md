@@ -110,9 +110,9 @@ harness code.
 - [x] Neither `chat-pane.tsx` nor `activity-pane.tsx` renders a `ScrollArea` of its own: both go
       through `conversation.tsx` (file)
 - [x] `git diff` touches no file under `../stack` (command)
-- [ ] A `compact` boundary emitted into a chat session renders its line in the chat surface, and
+- [x] A `compact` boundary emitted into a chat session renders its line in the chat surface, and
       the same boundary still renders in the run timeline (live)
-- [ ] Assistant text containing a list, a fenced code block, `**bold**` and a link renders as
+- [x] Assistant text containing a list, a fenced code block, `**bold**` and a link renders as
       markdown in both a chat surface and the run timeline (live)
 - [x] A reply streamed in prefixes renders every prefix without a console error and settles to the
       final markdown when the turn closes (live)
@@ -120,7 +120,7 @@ harness code.
       (live)
 - [x] Sending a message scrolls that user message to the top of the pane and the reply streams into
       the space below it without the pane jumping (live)
-- [ ] Steering a run anchors the steer message the same way (live)
+- [x] Steering a run anchors the steer message the same way (live)
 - [x] The scroll-to-bottom control appears only while the pane is scrolled off its bottom, and
       clicking it returns the pane to the bottom and hides the control (live)
 - [x] The control stays hidden while a spacer is present but the pane is at its end: a spacer alone
@@ -187,6 +187,11 @@ harness code.
   markdown case and the same anchor as the chat surface — the only difference is `renderTool` — and
   the Activity tab was checked live for its empty state and zero console errors. Teaching the stub a
   run role is a harness change, not this story's.
+- Regraded at 18/18 under 005-08, which taught the stub the run kind. The `run-live` episode holds
+  a run open with a markdown reply, a compaction boundary and an Edit in its timeline, then takes a
+  steer: the markdown renders with real emphasis, a fenced block and one live link, the boundary
+  renders its line, the Edit renders its MiniDiff, and the steer message anchors at the top of the
+  pane with the resumed segment streaming below it. Zero console errors throughout.
 - review: approved at 15/18. The three unchecked criteria share one cause outside this story — the
   stub has no run role, so no run transcript exists to grade against — and the code paths they name
   are the same component, the same markdown case and the same anchor the chat surface proved. The

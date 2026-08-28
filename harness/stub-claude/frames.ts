@@ -35,6 +35,22 @@ export function initFrame(
 	};
 }
 
+// A resumed turn's prompt, echoed the way the CLI echoes what it received.
+// Only a resume: a fresh spawn's prompt already reaches the pane through the
+// client's own seed (`src/app/lib/session-store.ts:498-506`), which has no
+// dedupe against a frame arriving after it.
+export function promptFrame(
+	sessionId: string,
+	prompt: string,
+): Record<string, unknown> {
+	return {
+		type: "user",
+		session_id: sessionId,
+		uuid: randomUUID(),
+		message: { role: "user", content: [{ type: "text", text: prompt }] },
+	};
+}
+
 // Zero usage and cost everywhere: the stub authors its own numbers, so the
 // meter must never read as evidence of spend. The keys stay the recording's.
 const ZERO_USAGE = {

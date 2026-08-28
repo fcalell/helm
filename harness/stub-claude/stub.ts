@@ -4,7 +4,7 @@ import { isAbsolute, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { kindOf, mcpUrlOf, type ParsedArgv, parseArgv } from "./argv.ts";
 import { connectToolClient, type ToolClient } from "./client.ts";
-import { initFrame, resultFrame } from "./frames.ts";
+import { initFrame, promptFrame, resultFrame } from "./frames.ts";
 import { appendStubLog } from "./log.ts";
 import { type ClaimResult, claimScript } from "./script.ts";
 
@@ -97,6 +97,9 @@ export async function main(argv: readonly string[]): Promise<void> {
 
 	const sessionId = parsed.resume ?? randomUUID();
 	emit(initFrame(sessionId, parsed));
+	if (parsed.resume !== undefined && parsed.prompt !== undefined) {
+		emit(promptFrame(sessionId, parsed.prompt));
+	}
 
 	if (claim === undefined) {
 		emit(

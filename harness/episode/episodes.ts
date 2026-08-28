@@ -1854,6 +1854,8 @@ const runClose: Episode = {
 	},
 };
 
+const RUN_OPEN = "run-live-open";
+const RUN_STEERED = "run-live-steered";
 const RUN_HOLD = "run-live-hold";
 
 const runLive: Episode = {
@@ -1866,6 +1868,9 @@ const runLive: Episode = {
 		"run-1": {
 			kind: "run",
 			steps: [
+				// A stub run writes no CLI transcript, so nothing rehydrates: the
+				// frames have to arrive while the operator is already watching.
+				{ t: "wait", sentinel: RUN_OPEN, timeoutMs: OPERATOR_WAIT_MS },
 				{
 					t: "emit",
 					event: {
@@ -1926,11 +1931,19 @@ const runLive: Episode = {
 				{ t: "wait", sentinel: RUN_HOLD, timeoutMs: OPERATOR_WAIT_MS },
 			],
 		},
-		"run-2": { kind: "run", steps: [RUN_NOTE] },
+		// The resumed segment holds too: a segment that ends at once closes the
+		// run to review before the steer message has been seen in a live pane.
+		"run-2": {
+			kind: "run",
+			steps: [
+				{ t: "wait", sentinel: RUN_STEERED, timeoutMs: OPERATOR_WAIT_MS },
+				RUN_NOTE,
+			],
+		},
 		"review-1": GRADING,
 	},
 	spawns: [
-		{ kind: "run", ordinal: 1, exit: 0 },
+		{ kind: "run", ordinal: 1, exit: null },
 		{ kind: "run", ordinal: 2, exit: 0 },
 		{ kind: "review", ordinal: 1, exit: 0 },
 	],
@@ -1944,10 +1957,24 @@ const runLive: Episode = {
 				: undefined,
 		);
 		await ctx.halt(
-			`open ${ctx.storyId} and its Activity tab: the reply renders as markdown, the compaction boundary shows its line, and the Edit renders its diff. Then steer the run from the box below the timeline and press Enter`,
+			`open ${ctx.storyId} and its Activity tab, then press Enter to stream the turn into it`,
+		);
+		releaseSentinel(ctx.scratch, RUN_OPEN);
+		await ctx.halt(
+			"the reply renders as markdown, the compaction boundary shows its line, and the Edit renders its diff. Now steer the run from the box below the timeline and press Enter",
+		);
+		await ctx.halt(
+			"the steer message anchored at the top of the timeline with the resumed segment streaming below it. Press Enter to close the run",
+		);
+		releaseSentinel(ctx.scratch, RUN_STEERED);
+		await ctx.obs.waitFor(`story ${ctx.storyId} to close into review`, () =>
+			ctx.obs.board()?.stories.find((each) => each.id === ctx.storyId)
+				?.frontmatter.status === "review"
+				? "review"
+				: undefined,
 		);
 		ctx.say(
-			"the steer killed the held segment and resumed the run; the steer message anchors at the top of the timeline",
+			"the steer killed the held segment and resumed the run to its close",
 		);
 	},
 };

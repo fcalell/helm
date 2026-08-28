@@ -1,6 +1,6 @@
 ---
 id: 005-08
-status: refining
+status: review
 depends: [005-05]
 sessions: {}
 ---
@@ -86,39 +86,39 @@ criteria this regrades. No `src/` change, no stack change.
 
 ## Acceptance criteria
 
-- [ ] `pnpm check` passes with zero errors (command)
-- [ ] No hand-written kind-to-tool table remains under `harness/`: `kindOf` derives its lookup from
+- [x] `pnpm check` passes with zero errors (command)
+- [x] No hand-written kind-to-tool table remains under `harness/`: `kindOf` derives its lookup from
       `KIND_REGISTRY`, and neither `StubRole` nor a `role` field survives in the stub, its script
       schema, or any episode fixture (file)
-- [ ] The lookup throws at module load when two registry rows share a board-tool set, named at its
+- [x] The lookup throws at module load when two registry rows share a board-tool set, named at its
       construction in `argv.ts` (file)
-- [ ] `kindOf` maps each of the eight spawnable kinds to itself:
+- [x] `kindOf` maps each of the eight spawnable kinds to itself:
       `node --experimental-strip-types harness/stub-claude/kinds-check.ts` prints eight matching
       lines and exits 0 (command)
-- [ ] `node harness/episode/run.ts all` passes, with every episode that passed at `59d490e` still
+- [x] `node harness/episode/run.ts all` passes, with every episode that passed at `59d490e` still
       present and still passing (command)
-- [ ] The `define-cards` episode's define spawn claims `define-1.json`, its `propose_stories` call
+- [x] The `define-cards` episode's define spawn claims `define-1.json`, its `propose_stories` call
       lands, and accepting the three drafts writes three story files into the scratch board (file)
-- [ ] The `shape-decision` episode's shape spawn claims `shape-1.json`, its `raise_decision` call
+- [x] The `shape-decision` episode's shape spawn claims `shape-1.json`, its `raise_decision` call
       writes the item into the thread's Decisions checklist, and resolving the decision resumes the
       same session id (file)
-- [ ] The `run-close` episode's run spawn claims `run-1.json` and closes the story to review on its
+- [x] The `run-close` episode's run spawn claims `run-1.json` and closes the story to review on its
       result frame with no Stop-hook POST, recording the review outcome in the story's `runs` entry
       (file)
-- [ ] No spawn in the four new episodes exits `NO_SCRIPT_EXIT`, and the stub log records the derived
+- [x] No spawn in the four new episodes exits `NO_SCRIPT_EXIT`, and the stub log records the derived
       kind for every one of them (file)
-- [ ] A `compact` boundary emitted into a chat session renders its line in the chat surface, and the
+- [x] A `compact` boundary emitted into a chat session renders its line in the chat surface, and the
       same boundary renders in the run timeline: 004-05's criterion, ungraded there for want of a
       run transcript (live)
-- [ ] Assistant text containing a list, a fenced code block, `**bold**` and a link renders as
+- [x] Assistant text containing a list, a fenced code block, `**bold**` and a link renders as
       markdown in the run timeline as well as in a chat surface: 004-05's criterion (live)
-- [ ] Steering a run held open by `run-live` anchors the steer message at the top of the pane, the
+- [x] Steering a run held open by `run-live` anchors the steer message at the top of the pane, the
       way a sent chat message does: 004-05's criterion (live)
-- [ ] Zero console errors across the board, a chat surface and the run timeline while `run-live`
+- [x] Zero console errors across the board, a chat surface and the run timeline while `run-live`
       holds (live)
-- [ ] `claude-integration.md` §Verifying without burning the pool names the kind, not a role, and
+- [x] `claude-integration.md` §Verifying without burning the pool names the kind, not a role, and
       describes the derivation from the kind's board tools (file)
-- [ ] 004-05's three criteria are checked in its story file, with a run note saying `run-live`
+- [x] 004-05's three criteria are checked in its story file, with a run note saying `run-live`
       graded them (file)
 
 ## Out of scope
@@ -135,6 +135,31 @@ criteria this regrades. No `src/` change, no stack change.
 - 004-07's acceptance feedback, which waits on the `define` kind this story delivers.
 - The `roleOf` name surviving as an alias. The rename is the change; a compatibility shim would keep
   the synonym the glossary forbids.
+
+## Run notes
+
+- verify: `pnpm check` clean, 129 files, 0 errors
+- verify: `node --experimental-strip-types harness/stub-claude/kinds-check.ts` prints eight `ok`
+  lines plus `conflict not spawnable`, exit 0
+- verify: `node harness/episode/run.ts all` → 20/20, the 17 that passed at `59d490e` plus
+  `define-cards`, `shape-decision` and `run-close`
+- verify: `node harness/episode/run.ts run-live` passes with an operator driving it, and the four
+  live criteria were graded in Chrome against it (dark theme, zero console errors)
+- The run kind needed two things beyond recognition, both found live. A stub run writes no CLI
+  transcript, so nothing rehydrates and frames emitted before the operator opens the pane are
+  simply lost: `run-live` holds on a sentinel first and streams into a pane that is already
+  watching. And the stub never echoed its prompt, which the chat surfaces never noticed because
+  they seed their own; a steer goes through `run.steer` with no local echo, so the steer message
+  reached no pane at all. The stub now emits the CLI's user frame for a resumed turn.
+- A steered segment is killed, not exited, so it writes no completion line to the spawn log. A
+  spawn declaration takes `exit: null` for that.
+- Run worktrees live at `~/.helm/worktrees/<repo basename>` and a review close keeps its worktree
+  for the diff, so every run episode collided with the last one's leftovers. The scratch repo
+  directory carries the episode name now, and `setupScratch` clears that worktree directory the
+  way it clears the scratch root.
+- The Diff tab answered `503` twice while `run-live` tore its worktree down. That is 002-09's
+  carded defect (the pane keeps rendering "loading the diff" on a rejection), reached from a new
+  direction, not a regression here.
 
 ## Open questions
 

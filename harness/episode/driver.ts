@@ -22,7 +22,9 @@ const PORT = Number(process.env.HELM_HARNESS_PORT ?? 8797);
 export interface SpawnDeclaration {
 	kind: SessionKind;
 	ordinal: number;
-	exit: number;
+	// `null` for a spawn the orchestrator kills: the stub dies on the signal
+	// with its `finish` unreached, so the log carries no completion entry.
+	exit: number | null;
 	// False when the spawn is expected to find no script for its ordinal.
 	claims?: boolean;
 }
@@ -361,6 +363,13 @@ function verifySpawnLog(episode: Episode, scratch: Scratch): void {
 			`${label}: claimed ${String(start.script)}, expected ${String(expected)}${start.failure === undefined ? "" : ` (${start.failure})`}`,
 		);
 		const exit = exits.find((entry) => entry.pid === start.pid);
+		if (declared.exit === null) {
+			assert(
+				exit === undefined,
+				`${label}: declared killed but logged exit ${String(exit?.code)}`,
+			);
+			continue;
+		}
 		assert(exit !== undefined, `${label} logged no completion entry`);
 		assert(
 			exit.code === declared.exit,
