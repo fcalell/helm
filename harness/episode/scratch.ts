@@ -1,8 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { z } from "@fcalell/plugin-api/schema";
+import { briefHash } from "../../src/board/hash.ts";
 import { serializeStory } from "../../src/board/markdown.ts";
 import {
 	type gateSchema,
@@ -78,6 +80,15 @@ const STORY_BODY = [
 	"",
 ].join("\n");
 
+// A story a run can start from: Ready, with a verdict whose hash matches the
+// body above, so `validateStart` sees the gate as current.
+export const READY_GATE: GateFixture = {
+	passed: "2026-01-01T00:00:00.000Z",
+	brief: briefHash(STORY_BODY),
+	overrides: [],
+	rounds: [],
+};
+
 function git(repo: string, ...args: string[]): void {
 	execFileSync("git", ["-C", repo, ...args], { stdio: "ignore" });
 }
@@ -94,7 +105,11 @@ export function setupScratch(
 	options: ScratchOptions = {},
 ): Scratch {
 	const root = join(HARNESS_ROOT, name);
-	const repo = join(root, "repo");
+	// The repo directory carries the episode name because `worktreesDir` keys
+	// on its basename (`src/server/worktrees.ts:25-27`): a shared name would
+	// put every episode's run worktrees in one directory, and a review close
+	// keeps its worktree, so the next episode would collide with it.
+	const repo = join(root, name);
 	const epicDir = join(repo, ".helm/board/epics/001-harness");
 	const storyPath = storyFilePath(epicDir, STORY_ID);
 	const fixtures: StoryFixture[] = [
@@ -109,6 +124,10 @@ export function setupScratch(
 	const storyPaths: Record<string, string> = {};
 
 	rmSync(root, { recursive: true, force: true });
+	rmSync(join(homedir(), ".helm", "worktrees", name), {
+		recursive: true,
+		force: true,
+	});
 	mkdirSync(epicDir, { recursive: true });
 	execFileSync("git", ["init", "-q", "-b", "master", repo], {
 		stdio: "ignore",

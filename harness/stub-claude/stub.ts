@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { mcpUrlOf, type ParsedArgv, parseArgv, roleOf } from "./argv.ts";
+import { kindOf, mcpUrlOf, type ParsedArgv, parseArgv } from "./argv.ts";
 import { connectToolClient, type ToolClient } from "./client.ts";
 import { initFrame, resultFrame } from "./frames.ts";
 import { appendStubLog } from "./log.ts";
@@ -44,14 +44,14 @@ function emit(frame: Record<string, unknown>): void {
 }
 
 function claimFor(dir: string, parsed: ParsedArgv): ClaimResult {
-	const role = roleOf(parsed.allowedTools);
-	if (role === undefined) {
+	const kind = kindOf(parsed.allowedTools);
+	if (kind === undefined) {
 		return {
 			ok: false,
-			reason: `no scripted role on --allowedTools: ${parsed.allowedTools.join(",")}`,
+			reason: `no session kind on --allowedTools: ${parsed.allowedTools.join(",")}`,
 		};
 	}
-	return claimScript(dir, role);
+	return claimScript(dir, kind);
 }
 
 export async function main(argv: readonly string[]): Promise<void> {
@@ -78,7 +78,7 @@ export async function main(argv: readonly string[]): Promise<void> {
 		t: "start",
 		at: new Date().toISOString(),
 		pid,
-		role: roleOf(parsed.allowedTools) ?? null,
+		kind: kindOf(parsed.allowedTools) ?? null,
 		script: claim?.ok === true ? claim.name : null,
 		...(claim?.ok === false ? { failure: claim.reason } : {}),
 		env: {

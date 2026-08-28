@@ -1,16 +1,33 @@
 import { z } from "@fcalell/plugin-api/schema";
-
-export const stubRoleSchema = z.enum(["adversary", "refine"]);
-export type StubRole = z.infer<typeof stubRoleSchema>;
+import {
+	KIND_REGISTRY,
+	MCP_SERVER_NAME,
+	type SessionKind,
+	sessionKindSchema,
+} from "../../src/sessions/kinds.ts";
 
 // Nothing on the command line names the session kind: the MCP token is a bare
 // uuid and the kind lives server-side. The kind's board tools do ride
-// `--allowedTools` (`src/sessions/runner.ts:132-136`), and these two are
-// unique to their row (`src/sessions/kinds.ts:207-211`, `:224`).
-const ROLE_MARKERS = {
-	adversary: "mcp__helm__flag_risk",
-	refine: "mcp__helm__update_brief",
-} as const satisfies Record<StubRole, string>;
+// `--allowedTools` (`src/sessions/runner.ts:132-136`), and the set of them is
+// distinct for every spawnable kind, so the set is the identity.
+function boardToolKey(names: readonly string[]): string {
+	return [...new Set(names)].sort().join(",");
+}
+
+const KIND_BY_BOARD_TOOLS = new Map<string, SessionKind>();
+for (const [kind, row] of Object.entries(KIND_REGISTRY)) {
+	if (row.boardTools === undefined) continue;
+	const key = boardToolKey(row.boardTools);
+	const clash = KIND_BY_BOARD_TOOLS.get(key);
+	if (clash !== undefined) {
+		throw new Error(
+			`session kinds ${clash} and ${kind} share the board tools [${key}]; the stub cannot tell their spawns apart`,
+		);
+	}
+	KIND_BY_BOARD_TOOLS.set(key, sessionKindSchema.parse(kind));
+}
+
+const MCP_PREFIX = `mcp__${MCP_SERVER_NAME}__`;
 
 export const parsedArgvSchema = z.object({
 	prompt: z.string().optional(),
@@ -117,11 +134,15 @@ export function parseArgv(argv: readonly string[]): ParsedArgv {
 	return parsed;
 }
 
-export function roleOf(allowedTools: readonly string[]): StubRole | undefined {
-	for (const [role, marker] of Object.entries(ROLE_MARKERS)) {
-		if (allowedTools.includes(marker)) return stubRoleSchema.parse(role);
-	}
-	return undefined;
+// Every spawn carries an MCP url (`src/server/services/sessions.ts:330`), so a
+// kind with no board tools reads as an empty set rather than as a missing one.
+export function kindOf(
+	allowedTools: readonly string[],
+): SessionKind | undefined {
+	const boardTools = allowedTools
+		.filter((tool) => tool.startsWith(MCP_PREFIX))
+		.map((tool) => tool.slice(MCP_PREFIX.length));
+	return KIND_BY_BOARD_TOOLS.get(boardToolKey(boardTools));
 }
 
 const mcpConfigSchema = z.object({

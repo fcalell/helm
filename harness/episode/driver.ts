@@ -4,8 +4,8 @@ import { splitFrontmatter } from "../../src/board/markdown.ts";
 import type { GateRecordRound, Story } from "../../src/board/schema.ts";
 import { verdictValid } from "../../src/board/transitions.ts";
 import type { Proposal } from "../../src/server/mcp/schemas.ts";
+import type { SessionKind } from "../../src/sessions/kinds.ts";
 import type { GateFlag } from "../../src/shared/gate.ts";
-import type { StubRole } from "../stub-claude/argv.ts";
 import { readStubLog } from "../stub-claude/log.ts";
 import { type StubScript, scriptName } from "../stub-claude/script.ts";
 import { type Observer, observe } from "./observer.ts";
@@ -20,7 +20,7 @@ import {
 const PORT = Number(process.env.HELM_HARNESS_PORT ?? 8797);
 
 export interface SpawnDeclaration {
-	role: StubRole;
+	kind: SessionKind;
 	ordinal: number;
 	exit: number;
 	// False when the spawn is expected to find no script for its ordinal.
@@ -123,6 +123,69 @@ export async function spawnRefineChat(
 	);
 	ctx.say(`refine chat ${sessionId} spawned and closed`);
 	return sessionId;
+}
+
+export async function spawnDefineChat(
+	ctx: EpisodeContext,
+	epicId: string,
+): Promise<string> {
+	return await spawnChat(ctx, "define", { epicId });
+}
+
+// A shape spawn creates its own thread from the prompt
+// (`sessions.ts:559-566`), so nothing on the board has to exist first.
+export async function spawnShapeChat(
+	ctx: EpisodeContext,
+	goal: string,
+): Promise<string> {
+	return await spawnChat(ctx, "shape", {}, goal);
+}
+
+async function spawnChat(
+	ctx: EpisodeContext,
+	kind: SessionKind,
+	attach: Record<string, string>,
+	prompt = `Open the ${kind} chat.`,
+): Promise<string> {
+	const { sessionId } = await ctx.rpc<{ sessionId: string }>("session/spawn", {
+		kind,
+		...attach,
+		prompt,
+	});
+	await ctx.obs.waitFor(`the ${kind} chat ${sessionId} to close`, () =>
+		ctx.obs.closed().find((each) => each.sessionId === sessionId),
+	);
+	ctx.say(`${kind} chat ${sessionId} spawned and closed`);
+	return sessionId;
+}
+
+// Accepts every item of the proposal the predicate picks out, once the
+// session that made it has closed. Unlike `acceptProposal` it asserts nothing
+// about the brief: a propose_stories accept writes new story files instead.
+export async function acceptEveryItem(
+	ctx: EpisodeContext,
+	describe: string,
+	match: (proposal: Proposal) => boolean,
+): Promise<Proposal> {
+	const proposal = await ctx.obs.waitFor(describe, () =>
+		ctx.obs.proposals()?.proposals.find(match),
+	);
+	// The whole closed list, not a slice from a mark: the chat kinds this
+	// helper drives spawn once, so any close of that id is the one to wait on.
+	await ctx.obs.waitFor(
+		`the proposing session ${proposal.sessionId} to close`,
+		() =>
+			ctx.obs.closed().find((each) => each.sessionId === proposal.sessionId),
+	);
+	for (let item = 0; item < proposal.items.length; item += 1) {
+		await ctx.rpc("proposal/resolve", {
+			proposalId: proposal.id,
+			item,
+			resolution: { type: "accept" },
+		});
+	}
+	ctx.say(`accepted ${proposal.items.length} items of ${describe}`);
+	return proposal;
 }
 
 export async function moveToReady(
@@ -282,17 +345,17 @@ function verifySpawnLog(episode: Episode, scratch: Scratch): void {
 	const starts = entries.filter((entry) => entry.t === "start");
 	const exits = entries.filter((entry) => entry.t === "exit");
 	for (const [index, declared] of episode.spawns.entries()) {
-		const label = `spawn ${index + 1} (${scriptName(declared.role, declared.ordinal)})`;
+		const label = `spawn ${index + 1} (${scriptName(declared.kind, declared.ordinal)})`;
 		const start = starts[index];
 		assert(start !== undefined, `${label} never ran`);
 		assert(
-			start.role === declared.role,
-			`${label}: the log resolved role ${String(start.role)}`,
+			start.kind === declared.kind,
+			`${label}: the log resolved kind ${String(start.kind)}`,
 		);
 		const expected =
 			declared.claims === false
 				? null
-				: scriptName(declared.role, declared.ordinal);
+				: scriptName(declared.kind, declared.ordinal);
 		assert(
 			start.script === expected,
 			`${label}: claimed ${String(start.script)}, expected ${String(expected)}${start.failure === undefined ? "" : ` (${start.failure})`}`,

@@ -1,6 +1,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { z } from "@fcalell/plugin-api/schema";
-import { parsedArgvSchema, stubRoleSchema } from "./argv.ts";
+import { sessionKindSchema } from "../../src/sessions/kinds.ts";
+import { parsedArgvSchema } from "./argv.ts";
 
 // The spawn ledger every episode is read from: one JSONL line per event, in
 // a file the driver never truncates mid-episode. Appends are single write()
@@ -12,7 +13,7 @@ export const stubLogEntrySchema = z.discriminatedUnion("t", [
 		t: z.literal("start"),
 		at: z.iso.datetime(),
 		pid: z.number().int(),
-		role: stubRoleSchema.nullable(),
+		kind: sessionKindSchema.nullable(),
 		script: z.string().nullable(),
 		failure: z.string().optional(),
 		env: z.object({

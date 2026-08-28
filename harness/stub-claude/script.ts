@@ -1,7 +1,10 @@
 import { closeSync, existsSync, openSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "@fcalell/plugin-api/schema";
-import { type StubRole, stubRoleSchema } from "./argv.ts";
+import {
+	type SessionKind,
+	sessionKindSchema,
+} from "../../src/sessions/kinds.ts";
 
 // A halting episode holds a turn open for an operator; nothing legitimate
 // waits longer than this.
@@ -27,7 +30,7 @@ export const stubStepSchema = z.discriminatedUnion("t", [
 export type StubStep = z.infer<typeof stubStepSchema>;
 
 export const stubScriptSchema = z.object({
-	role: stubRoleSchema,
+	kind: sessionKindSchema,
 	steps: z.array(stubStepSchema),
 });
 export type StubScript = z.infer<typeof stubScriptSchema>;
@@ -36,7 +39,7 @@ export type ClaimResult =
 	| { ok: true; name: string; script: StubScript }
 	| { ok: false; reason: string };
 
-// An episode never declares more than a handful of spawns per role; the bound
+// An episode never declares more than a handful of spawns per kind; the bound
 // only stops a runaway loop from scanning forever.
 const MAX_ORDINAL = 20;
 
@@ -44,16 +47,16 @@ function isEEXIST(error: unknown): boolean {
 	return (error as NodeJS.ErrnoException)?.code === "EEXIST";
 }
 
-export function scriptName(role: StubRole, ordinal: number): string {
-	return `${role}-${ordinal}.json`;
+export function scriptName(kind: SessionKind, ordinal: number): string {
+	return `${kind}-${ordinal}.json`;
 }
 
-// Takes the lowest unclaimed ordinal for this role. `open(…, "wx")` is the one
+// Takes the lowest unclaimed ordinal for this kind. `open(…, "wx")` is the one
 // atomic claim node exposes portably: it fails EEXIST when another spawn holds
 // the script, so two overlapping spawns can never read the same one.
-export function claimScript(dir: string, role: StubRole): ClaimResult {
+export function claimScript(dir: string, kind: SessionKind): ClaimResult {
 	for (let ordinal = 1; ordinal <= MAX_ORDINAL; ordinal += 1) {
-		const name = scriptName(role, ordinal);
+		const name = scriptName(kind, ordinal);
 		const path = join(dir, name);
 		if (!existsSync(path)) {
 			return { ok: false, reason: `no script ${name} in ${dir}` };
@@ -73,16 +76,16 @@ export function claimScript(dir: string, role: StubRole): ClaimResult {
 				reason: `unreadable script ${name}: ${String(error)}`,
 			};
 		}
-		if (script.role !== role) {
+		if (script.kind !== kind) {
 			return {
 				ok: false,
-				reason: `script ${name} declares role ${script.role}, this spawn is ${role}`,
+				reason: `script ${name} declares kind ${script.kind}, this spawn is ${kind}`,
 			};
 		}
 		return { ok: true, name, script };
 	}
 	return {
 		ok: false,
-		reason: `every ${role} script up to ordinal ${MAX_ORDINAL} is claimed`,
+		reason: `every ${kind} script up to ordinal ${MAX_ORDINAL} is claimed`,
 	};
 }

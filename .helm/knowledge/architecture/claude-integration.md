@@ -138,14 +138,22 @@ Three things reach the stub, and only these. The spawn inherits the parent envir
 in the managed repo, so nothing is discoverable by convention: the driver passes
 `HELM_STUB_SCRIPTS` (the script directory) and `HELM_STUB_LOG` (the log file), both absolute
 paths, and prepends the stub's directory to `PATH`, which is what makes `spawn("claude", …)`
-find it at all. Scripts are named `<role>-<ordinal>.json` and claimed by role, read off the
-board tools on `--allowedTools`. Nothing on the command line identifies the individual spawn, so
-the stub takes the lowest unclaimed ordinal for its role through an exclusive
-`open("<script>.claim", "wx")`, and the driver compares the log's whole sequence and every exit
-code against the episode's declaration at the end. Two absences behave in opposite ways: with no
-script directory configured the stub emits a bare init and a flagless result, while a configured
-directory with no script for this role and ordinal exits non-zero *before* init, which reaches
-the driver as a `gate-aborted` notice instead of a silent pass.
+find it at all. Scripts are named `<kind>-<ordinal>.json` and claimed by session kind, derived
+from the board tools on `--allowedTools`: those names are the kind's registry row verbatim, and
+the set of them is distinct for all eight spawnable kinds, so the stub matches the set against
+`KIND_REGISTRY` rather than against a table of its own. A registry where two kinds shared a set
+would throw at module load instead of routing both to one script. Nothing on the command line
+identifies the individual spawn, so the stub takes the lowest unclaimed ordinal for its kind
+through an exclusive `open("<script>.claim", "wx")`, and the driver compares the log's whole
+sequence and every exit code against the episode's declaration at the end. Two absences behave in
+opposite ways: with no script directory configured the stub emits a bare init and a flagless
+result, while a configured directory with no script for this kind and ordinal exits non-zero
+*before* init, which reaches the driver as a `gate-aborted` notice instead of a silent pass.
+
+An episode drives whichever kinds its beats reach, and reaching one is often not a choice: a run
+that closes to review dispatches the grader, so a run episode declares a `review` script too. The
+scratch repo directory carries the episode name because run worktrees are keyed by its basename,
+and a review close keeps its worktree for the diff.
 
 The orchestrator runs from a scratch cwd, `/tmp/helm-harness/<episode>/`, holding its own
 `helm.config.json` and a `dist/client` symlink, so the developer's gitignored config is never

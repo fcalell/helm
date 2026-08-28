@@ -8,6 +8,7 @@ import {
 	WAIT_TIMEOUT_EXIT,
 } from "../stub-claude/stub.ts";
 import {
+	acceptEveryItem,
 	acceptFix,
 	acceptProposal,
 	assert,
@@ -19,13 +20,16 @@ import {
 	moveToReady,
 	recordedRounds,
 	releaseSentinel,
+	spawnDefineChat,
 	spawnRefineChat,
+	spawnShapeChat,
 	waitForFlag,
 	waitForReady,
 	waitForRecord,
 	writeScript,
 } from "./driver.ts";
 import { RpcError } from "./rpc.ts";
+import { READY_GATE } from "./scratch.ts";
 
 const FLAG_ONE = {
 	title: "No failure-path criterion",
@@ -58,14 +62,14 @@ const FIXTURE_TITLE = "Gate harness fixture";
 const OVERRIDE_FRAMING =
 	"The user has already accepted these risks; do not re-raise them:";
 
-const SILENT_REFINE: StubScript = { role: "refine", steps: [] };
-const SILENT_ADVERSARY: StubScript = { role: "adversary", steps: [] };
+const SILENT_REFINE: StubScript = { kind: "refine", steps: [] };
+const SILENT_ADVERSARY: StubScript = { kind: "adversary", steps: [] };
 
 function flagging(
 	...flags: Array<{ title: string; detail: string }>
 ): StubScript {
 	return {
-		role: "adversary",
+		kind: "adversary",
 		steps: flags.map((flag) => ({
 			t: "call",
 			tool: "flag_risk",
@@ -80,7 +84,7 @@ function fixing(
 	resolves: string,
 ): StubScript {
 	return {
-		role: "refine",
+		kind: "refine",
 		steps: [
 			{
 				t: "call",
@@ -93,7 +97,7 @@ function fixing(
 
 function contesting(flag: string, argument: string): StubScript {
 	return {
-		role: "refine",
+		kind: "refine",
 		steps: [{ t: "call", tool: "contest_flag", payload: { flag, argument } }],
 	};
 }
@@ -129,8 +133,8 @@ const flagless: Episode = {
 	summary: "a clean brief passes the gate in one round",
 	scripts: { "refine-1": SILENT_REFINE, "adversary-1": SILENT_ADVERSARY },
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -150,10 +154,10 @@ const oneFlag: Episode = {
 		"adversary-2": SILENT_ADVERSARY,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
-		{ role: "adversary", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
+		{ kind: "adversary", ordinal: 2, exit: 0 },
 	],
 	rounds: 2,
 	run: async (ctx) => {
@@ -188,9 +192,9 @@ const contested: Episode = {
 		),
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -250,11 +254,11 @@ const exhausted: Episode = {
 		"refine-3": FIX_TWO,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
-		{ role: "adversary", ordinal: 2, exit: 0 },
-		{ role: "refine", ordinal: 3, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
+		{ kind: "adversary", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 3, exit: 0 },
 	],
 	rounds: 2,
 	run: async (ctx) => {
@@ -294,11 +298,11 @@ const exitAfterInit: Episode = {
 	summary: "a stub dying after init is invisible to the gate",
 	scripts: {
 		"refine-1": SILENT_REFINE,
-		"adversary-1": { role: "adversary", steps: [{ t: "exit", code: 3 }] },
+		"adversary-1": { kind: "adversary", steps: [{ t: "exit", code: 3 }] },
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 3 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 3 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -316,8 +320,8 @@ const missingScript: Episode = {
 	summary: "a configured directory with no script kills the spawn before init",
 	scripts: { "refine-1": SILENT_REFINE },
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: NO_SCRIPT_EXIT, claims: false },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: NO_SCRIPT_EXIT, claims: false },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -352,15 +356,15 @@ const invalidPayload: Episode = {
 	scripts: {
 		"refine-1": SILENT_REFINE,
 		"adversary-1": {
-			role: "adversary",
+			kind: "adversary",
 			steps: [
 				{ t: "call", tool: "flag_risk", payload: { title: "", detail: "" } },
 			],
 		},
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: TOOL_FAILURE_EXIT },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: TOOL_FAILURE_EXIT },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -392,9 +396,9 @@ const concession: Episode = {
 		"refine-2": SILENT_REFINE,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -463,11 +467,11 @@ const historyRestart: Episode = {
 		"refine-3": SILENT_REFINE,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
-		{ role: "adversary", ordinal: 2, exit: 0 },
-		{ role: "refine", ordinal: 3, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
+		{ kind: "adversary", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 3, exit: 0 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -512,12 +516,12 @@ const historyCleared: Episode = {
 		"adversary-3": SILENT_ADVERSARY,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
-		{ role: "adversary", ordinal: 2, exit: 0 },
-		{ role: "refine", ordinal: 3, exit: 0 },
-		{ role: "adversary", ordinal: 3, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
+		{ kind: "adversary", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 3, exit: 0 },
+		{ kind: "adversary", ordinal: 3, exit: 0 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -571,9 +575,9 @@ const historyBlockStyle: Episode = {
 		"refine-2": SILENT_REFINE,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -688,7 +692,7 @@ const historyCold: Episode = {
 // the only way a second spawn arrives while the first is still live.
 function holding(sentinel: string, timeoutMs?: number): StubScript {
 	return {
-		role: "refine",
+		kind: "refine",
 		steps: [
 			{
 				t: "wait",
@@ -751,7 +755,7 @@ async function refusal(
 const GUARD_HOLD = "guard-refine-hold";
 
 const PROPOSING_REFINE: StubScript = {
-	role: "refine",
+	kind: "refine",
 	steps: [
 		{
 			t: "call",
@@ -773,9 +777,9 @@ const refineTurnGuard: Episode = {
 		"refine-3": SILENT_REFINE,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
-		{ role: "refine", ordinal: 3, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 3, exit: 0 },
 	],
 	rounds: 0,
 	run: async (ctx) => {
@@ -849,7 +853,7 @@ const refineTurnPark: Episode = {
 	scripts: {
 		"refine-1": SILENT_REFINE,
 		"adversary-1": {
-			role: "adversary",
+			kind: "adversary",
 			steps: [
 				{
 					t: "call",
@@ -863,10 +867,10 @@ const refineTurnPark: Episode = {
 		"refine-3": SILENT_REFINE,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
-		{ role: "refine", ordinal: 3, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 3, exit: 0 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -931,9 +935,9 @@ const refineTurnFailureRelease: Episode = {
 	summary: "a pre-init death and a timed-out turn both free the story",
 	scripts: { "refine-2": SILENT_REFINE },
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: NO_SCRIPT_EXIT, claims: false },
-		{ role: "refine", ordinal: 1, exit: WAIT_TIMEOUT_EXIT },
-		{ role: "refine", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: NO_SCRIPT_EXIT, claims: false },
+		{ kind: "refine", ordinal: 1, exit: WAIT_TIMEOUT_EXIT },
+		{ kind: "refine", ordinal: 2, exit: 0 },
 	],
 	rounds: 0,
 	run: async (ctx) => {
@@ -951,7 +955,7 @@ const refineTurnFailureRelease: Episode = {
 			`the scriptless spawn died before init: ${caught.body.slice(0, 90)}`,
 		);
 		writeScript(ctx.scratch, "refine-1", {
-			role: "refine",
+			kind: "refine",
 			steps: [
 				{ t: "wait", sentinel: NEVER_RELEASED, timeoutMs: TIMEOUT_WAIT_MS },
 			],
@@ -985,7 +989,7 @@ const refineTurnLive: Episode = {
 	summary: "a live refine turn refuses the drawer's next message",
 	halts: true,
 	scripts: { "refine-1": holding(LIVE_HOLD, OPERATOR_WAIT_MS) },
-	spawns: [{ role: "refine", ordinal: 1, exit: 0 }],
+	spawns: [{ kind: "refine", ordinal: 1, exit: 0 }],
 	rounds: 0,
 	run: async (ctx) => {
 		const live = await spawnRefine(ctx, "Open the refine chat and hold it.");
@@ -1034,13 +1038,13 @@ const reseedRetry: Episode = {
 		"refine-4": SILENT_REFINE,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
-		{ role: "adversary", ordinal: 2, exit: 0 },
-		{ role: "refine", ordinal: 3, exit: 0 },
-		{ role: "adversary", ordinal: 3, exit: 0 },
-		{ role: "refine", ordinal: 4, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
+		{ kind: "adversary", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 3, exit: 0 },
+		{ kind: "adversary", ordinal: 3, exit: 0 },
+		{ kind: "refine", ordinal: 4, exit: 0 },
 	],
 	rounds: 3,
 	run: async (ctx) => {
@@ -1151,9 +1155,9 @@ const reseedNotOnRecord: Episode = {
 		"refine-2": SILENT_REFINE,
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -1198,7 +1202,7 @@ const reseedPark: Episode = {
 		"adversary-2": flagging(FLAG_TWO),
 		"refine-3": FIX_TWO,
 		"adversary-3": {
-			role: "adversary",
+			kind: "adversary",
 			steps: [
 				{
 					t: "call",
@@ -1211,14 +1215,14 @@ const reseedPark: Episode = {
 		"refine-4": holding(RESEED_REFINE_HOLD),
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
-		{ role: "adversary", ordinal: 2, exit: 0 },
-		{ role: "refine", ordinal: 3, exit: 0 },
-		{ role: "adversary", ordinal: 3, exit: 0 },
-		{ role: "refine", ordinal: 4, exit: 0 },
-		{ role: "refine", ordinal: 5, exit: NO_SCRIPT_EXIT, claims: false },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
+		{ kind: "adversary", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 3, exit: 0 },
+		{ kind: "adversary", ordinal: 3, exit: 0 },
+		{ kind: "refine", ordinal: 4, exit: 0 },
+		{ kind: "refine", ordinal: 5, exit: NO_SCRIPT_EXIT, claims: false },
 	],
 	rounds: 3,
 	run: async (ctx) => {
@@ -1252,7 +1256,7 @@ const reseedPark: Episode = {
 			() =>
 				stubStarts(ctx)
 					.slice(spawned)
-					.find((entry) => entry.role === "refine"),
+					.find((entry) => entry.kind === "refine"),
 		);
 		assert(
 			retried.parsed.resume === undefined,
@@ -1373,8 +1377,8 @@ const wrappedBrief: Episode = {
 	fixture: { body: WRAPPED_BODY },
 	scripts: { "refine-1": SILENT_REFINE, "adversary-1": SILENT_ADVERSARY },
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "adversary", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "adversary", ordinal: 1, exit: 0 },
 	],
 	rounds: 1,
 	run: async (ctx) => {
@@ -1417,7 +1421,7 @@ const wrappedQuestion: Episode = {
 	fixture: { body: QUESTION_BODY },
 	scripts: {
 		"refine-1": {
-			role: "refine",
+			kind: "refine",
 			steps: [
 				{
 					t: "call",
@@ -1427,7 +1431,7 @@ const wrappedQuestion: Episode = {
 			],
 		},
 	},
-	spawns: [{ role: "refine", ordinal: 1, exit: 0 }],
+	spawns: [{ kind: "refine", ordinal: 1, exit: 0 }],
 	rounds: 0,
 	run: async (ctx) => {
 		await ctx.rpc("session/spawn", {
@@ -1508,7 +1512,7 @@ const conversationLive: Episode = {
 	scripts: {
 		"refine-1": SILENT_REFINE,
 		"refine-2": {
-			role: "refine",
+			kind: "refine",
 			steps: [
 				{
 					t: "emit",
@@ -1587,8 +1591,8 @@ const conversationLive: Episode = {
 		},
 	},
 	spawns: [
-		{ role: "refine", ordinal: 1, exit: 0 },
-		{ role: "refine", ordinal: 2, exit: 0 },
+		{ kind: "refine", ordinal: 1, exit: 0 },
+		{ kind: "refine", ordinal: 2, exit: 0 },
 	],
 	rounds: 0,
 	run: async (ctx) => {
@@ -1607,6 +1611,343 @@ const conversationLive: Episode = {
 		);
 		await ctx.obs.waitFor("the held turn to close", () =>
 			ctx.obs.closed().find((each) => each.sessionId === live),
+		);
+	},
+};
+
+const DEFINE_DRAFTS = [
+	{
+		slug: "first-slice",
+		title: "First slice",
+		goal: "Land the thinnest path through every layer.",
+		depends: [],
+	},
+	{
+		slug: "second-slice",
+		title: "Second slice",
+		goal: "Build the surface the first slice proved out.",
+		depends: ["first-slice"],
+	},
+	{
+		slug: "third-slice",
+		title: "Third slice",
+		goal: "Close the loop the first two opened.",
+		depends: [],
+	},
+];
+
+const defineCards: Episode = {
+	name: "define-cards",
+	summary:
+		"a define session proposes three stories and accepting them writes three cards",
+	scripts: {
+		"define-1": {
+			kind: "define",
+			steps: [
+				{
+					t: "call",
+					tool: "propose_stories",
+					payload: {
+						goal: "Break the harness epic into slices.",
+						rationale: "Three slices, each demoable on its own.",
+						stories: DEFINE_DRAFTS,
+					},
+				},
+			],
+		},
+	},
+	spawns: [{ kind: "define", ordinal: 1, exit: 0 }],
+	rounds: 0,
+	async run(ctx) {
+		await spawnDefineChat(ctx, "001");
+		const proposal = await acceptEveryItem(
+			ctx,
+			"the propose_stories proposal",
+			(each) => each.tool === "propose_stories",
+		);
+		assert(
+			proposal.items.length === DEFINE_DRAFTS.length,
+			`the proposal carried ${proposal.items.length} items, not ${DEFINE_DRAFTS.length}`,
+		);
+		const created = await ctx.obs.waitFor(
+			"the three accepted drafts to land as story files",
+			() => {
+				const stories = ctx.obs
+					.board()
+					?.stories.filter((story) => story.epicId === "001");
+				return stories !== undefined && stories.length === 4
+					? stories
+					: undefined;
+			},
+		);
+		const titles = created.map((story) => story.brief.title);
+		for (const draft of DEFINE_DRAFTS) {
+			assert(
+				titles.includes(draft.title),
+				`no card titled "${draft.title}" on the board: ${titles.join(", ")}`,
+			);
+		}
+		const second = created.find(
+			(story) => story.brief.title === "Second slice",
+		);
+		assert(
+			second?.frontmatter.status === "backlog",
+			`the created card is ${String(second?.frontmatter.status)}, not backlog`,
+		);
+		assert(
+			second.frontmatter.depends.length === 1,
+			`"second-slice" depends on ${JSON.stringify(second.frontmatter.depends)}, not on its sibling`,
+		);
+		ctx.say(
+			`three cards created: ${titles.filter((title) => title !== FIXTURE_TITLE).join(", ")}`,
+		);
+	},
+};
+
+const SHAPE_DECISION = "Does the harness thread settle its own scope?";
+
+const shapeDecision: Episode = {
+	name: "shape-decision",
+	summary:
+		"a shape session raises a decision and the answer resumes the same session",
+	scripts: {
+		"shape-1": {
+			kind: "shape",
+			steps: [
+				{
+					t: "call",
+					tool: "raise_decision",
+					payload: {
+						decision: SHAPE_DECISION,
+						settledBy: "human",
+						recommendation: "Yes, the thread owns its scope.",
+						options: ["Yes", "No"],
+					},
+				},
+			],
+		},
+		"shape-2": { kind: "shape", steps: [] },
+	},
+	spawns: [
+		{ kind: "shape", ordinal: 1, exit: 0 },
+		{ kind: "shape", ordinal: 2, exit: 0 },
+	],
+	rounds: 0,
+	async run(ctx) {
+		const first = await spawnShapeChat(
+			ctx,
+			"Shape the harness thread into epics.",
+		);
+		const thread = await ctx.obs.waitFor(
+			"the shaping thread to carry the raised decision",
+			() =>
+				ctx.obs
+					.board()
+					?.shaping.find((each) =>
+						each.decisions.some((item) => item.text.includes(SHAPE_DECISION)),
+					),
+		);
+		const raised = thread.decisions.find((item) =>
+			item.text.includes(SHAPE_DECISION),
+		);
+		assert(
+			raised?.checked === false,
+			"the raised decision landed already checked off",
+		);
+		ctx.say(`decision raised into ${thread.slug}: ${raised.text}`);
+		await ctx.rpc("shaping/resolveDecision", {
+			slug: thread.slug,
+			decision: SHAPE_DECISION,
+			answer: "Yes, the thread owns its scope.",
+		});
+		const settled = await ctx.obs.waitFor(
+			"the decision to check off in the thread file",
+			() => {
+				const item = ctx.obs
+					.board()
+					?.shaping.find((each) => each.slug === thread.slug)
+					?.decisions.find((each) => each.text.includes(SHAPE_DECISION));
+				return item?.checked === true ? item : undefined;
+			},
+		);
+		ctx.say(`decision settled: ${settled.text}`);
+		const resumed = await ctx.obs.waitFor(
+			"the answer to resume the shape session",
+			() => ctx.obs.closed().filter((each) => each.sessionId === first)[1],
+		);
+		assert(
+			resumed.sessionId === first,
+			`the answer resumed ${String(resumed.sessionId)}, not the session that raised it`,
+		);
+		ctx.say(`shape session ${first} resumed with the answer`);
+	},
+};
+
+// A run closes to review on its result frame alone: `evidenceClose` reads
+// `cleanResult` before the Stop hook's POST (`runs.ts:754-783`), and the stub
+// runs no hook commands.
+const RUN_NOTE = {
+	t: "call" as const,
+	tool: "update_card",
+	payload: {
+		note: "verify: the harness drove this run without spending pool tokens",
+	},
+};
+
+const GRADING: StubScript = {
+	kind: "review",
+	steps: [
+		{
+			t: "call",
+			tool: "grade_criteria",
+			payload: {
+				grades: [
+					{
+						criterion:
+							"The story reaches Ready with a recorded gate verdict (file)",
+						verdict: "pass",
+						evidence:
+							"the fixture story carries the verdict this episode wrote",
+					},
+				],
+			},
+		},
+	],
+};
+
+const runClose: Episode = {
+	name: "run-close",
+	summary: "a run spawn claims its script and closes the story to review",
+	fixture: { status: "ready", gate: READY_GATE },
+	scripts: {
+		"run-1": { kind: "run", steps: [RUN_NOTE] },
+		// The review close dispatches the grader, so a run episode drives two
+		// kinds whether it means to or not.
+		"review-1": GRADING,
+	},
+	spawns: [
+		{ kind: "run", ordinal: 1, exit: 0 },
+		{ kind: "review", ordinal: 1, exit: 0 },
+	],
+	rounds: 0,
+	async run(ctx) {
+		await ctx.rpc("run/start", { id: ctx.storyId });
+		const reviewed = await ctx.obs.waitFor(
+			`story ${ctx.storyId} to close into review`,
+			() => {
+				const story = ctx.obs
+					.board()
+					?.stories.find((each) => each.id === ctx.storyId);
+				return story?.frontmatter.status === "review" ? story : undefined;
+			},
+		);
+		const entry = reviewed.frontmatter.runs.at(-1);
+		assert(
+			entry?.outcome === "review",
+			`the run entry closed ${String(entry?.outcome)}, not review`,
+		);
+		assert(
+			entry.error === undefined,
+			`the run closed to review carrying an error: ${String(entry.error)}`,
+		);
+		ctx.say(`run ${entry.session} closed to review with no Stop-hook POST`);
+	},
+};
+
+const RUN_HOLD = "run-live-hold";
+
+const runLive: Episode = {
+	name: "run-live",
+	summary:
+		"a live run timeline carrying markdown, a compaction and an Edit, held for a steer",
+	halts: true,
+	fixture: { status: "ready", gate: READY_GATE },
+	scripts: {
+		"run-1": {
+			kind: "run",
+			steps: [
+				{
+					t: "emit",
+					event: {
+						type: "stream_event",
+						event: {
+							type: "content_block_start",
+							index: 0,
+							content_block: { type: "text", text: "" },
+						},
+					},
+				},
+				...REPLY_CHUNKS.map((text) => ({
+					t: "emit" as const,
+					event: {
+						type: "stream_event",
+						event: {
+							type: "content_block_delta",
+							index: 0,
+							delta: { type: "text_delta", text },
+						},
+					},
+				})),
+				{
+					t: "emit",
+					event: {
+						type: "system",
+						subtype: "compact_boundary",
+						compact_metadata: {
+							trigger: "auto",
+							pre_tokens: 148000,
+							post_tokens: 32000,
+						},
+					},
+				},
+				{
+					t: "emit",
+					event: {
+						type: "assistant",
+						message: {
+							content: [
+								{
+									type: "tool_use",
+									id: "toolu_run_1",
+									name: "Edit",
+									input: {
+										file_path: "README.md",
+										old_string: "# Harness scratch",
+										new_string: "# Harness scratch\n\nEdited by the run.",
+									},
+								},
+							],
+						},
+					},
+				},
+				// Held so an operator can steer the run. The steer kills this
+				// segment (`runs.ts:1147-1161`), so the sentinel never arrives and
+				// the wait dies with the process group rather than timing out.
+				{ t: "wait", sentinel: RUN_HOLD, timeoutMs: OPERATOR_WAIT_MS },
+			],
+		},
+		"run-2": { kind: "run", steps: [RUN_NOTE] },
+		"review-1": GRADING,
+	},
+	spawns: [
+		{ kind: "run", ordinal: 1, exit: 0 },
+		{ kind: "run", ordinal: 2, exit: 0 },
+		{ kind: "review", ordinal: 1, exit: 0 },
+	],
+	rounds: 0,
+	async run(ctx) {
+		await ctx.rpc("run/start", { id: ctx.storyId });
+		await ctx.obs.waitFor(`story ${ctx.storyId} to read running`, () =>
+			ctx.obs.board()?.stories.find((each) => each.id === ctx.storyId)
+				?.frontmatter.status === "running"
+				? "running"
+				: undefined,
+		);
+		await ctx.halt(
+			`open ${ctx.storyId} and its Activity tab: the reply renders as markdown, the compaction boundary shows its line, and the Edit renders its diff. Then steer the run from the box below the timeline and press Enter`,
+		);
+		ctx.say(
+			"the steer killed the held segment and resumed the run; the steer message anchors at the top of the timeline",
 		);
 	},
 };
@@ -1634,4 +1975,8 @@ export const EPISODES: readonly Episode[] = [
 	wrappedBrief,
 	wrappedQuestion,
 	conversationLive,
+	defineCards,
+	shapeDecision,
+	runClose,
+	runLive,
 ];
