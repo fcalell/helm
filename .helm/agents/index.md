@@ -6,8 +6,8 @@ glossary and the knowledge-base navigation map; nothing below the two imports au
 @glossary.md
 @../knowledge/index.md
 
-`.helm/knowledge/` (mapped by the index above) is the source of truth for *what Helm is and why*:
-product and architecture. `.helm/agents/` holds the how-to-build rules. `.helm/research/` holds
+`.helm/knowledge/` (mapped by the index above) describes *what Helm is and why* as built: product
+and architecture, each entry the best shape known when it was written, not a verdict. `.helm/agents/` holds the how-to-build rules. `.helm/research/` holds
 working evidence (experiments, ledgers, findings) not yet settled into knowledge. **Pull a doc the
 moment your task matches it; never pre-read the whole base.**
 

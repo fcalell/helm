@@ -19,8 +19,9 @@ belongs under `.helm/board/`.
 
 ## Knowledge base
 
-`.helm/knowledge/` is the living source of truth for *what Helm is and why* (product,
-architecture). Keep it current. Its index is imported into every session through
+`.helm/knowledge/` describes *what Helm is and why* (product, architecture) as built. Keep it
+current, and when the work shows a better shape than an entry records, propose it rather than
+match the entry. Its index is imported into every session through
 `.helm/agents/index.md`.
 
 - Each entry is a standalone `.md` file in the right subfolder (`product/`, `architecture/`).
