@@ -22,6 +22,4 @@ loading its rules, and read only what the task needs.
 
 | About to…                                      | Read                                                                                    |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------- |
-| edit/create any TypeScript                     | `.helm/agents/conventions.md` (TS · Biome · naming · comments · errors)                 |
-| write any prose (docs · KB · commit/PR bodies) | `.helm/agents/writing-style.md`                                                         |
 | write or move any doc                          | `.helm/agents/docs.md` (which of the three homes it belongs in, and that home's rules)  |
