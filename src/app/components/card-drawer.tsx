@@ -1,11 +1,22 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
-import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
+import { Pair } from "@fcalell/plugin-solid-ui/components/pair";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
 import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
-import { For, Show } from "solid-js";
-import { PRESETS, type Status, type Story } from "../../board/schema.ts";
-import { boardStore, moveStory, STATUS_LABELS } from "../lib/board-store.ts";
+import { Section } from "@fcalell/plugin-solid-ui/components/section";
+import { Select } from "@fcalell/plugin-solid-ui/components/select";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
+import { Text } from "@fcalell/plugin-solid-ui/components/text";
+import { type JSX, Show } from "solid-js";
+import {
+	PRESETS,
+	type Preset,
+	presetSchema,
+	type Status,
+	type Story,
+} from "../../board/schema.ts";
+import { boardStore, STATUS_LABELS } from "../lib/board-store.ts";
 import { refineSpawnFor, setStoryPreset } from "../lib/session-store.ts";
 import { ChatDrawer, ChatDrawerTitle } from "../ui/chat-drawer.tsx";
 import { DrawerTabs } from "../ui/drawer-tabs.tsx";
@@ -14,8 +25,7 @@ import { BriefView } from "./brief-view.tsx";
 import { ChatPane } from "./chat-pane.tsx";
 import { DiffPane } from "./diff-pane.tsx";
 import { GatePanel } from "./gate-panel.tsx";
-import { ReviewExits } from "./review-exits.tsx";
-import { RunQuestionPanel } from "./run-question-panel.tsx";
+import { StageBlock } from "./stage-block.tsx";
 
 interface CardDrawerProps {
 	story: Story | undefined;
@@ -41,7 +51,7 @@ function ChatTab(props: { story: Story }) {
 		refineSpawnFor(props.story.id)?.sessionId ??
 		epic()?.frontmatter.sessions.define;
 	return (
-		<div class="flex min-h-0 flex-1 flex-col gap-stack">
+		<Section>
 			<GatePanel story={props.story} />
 			<Show
 				when={sessionId()}
@@ -50,8 +60,8 @@ function ChatTab(props: { story: Story }) {
 						when={refineSpawnFor(props.story.id)}
 						fallback={
 							<EmptyState
-								title="Chat"
-								description="Press r on a Backlog card to start refining"
+								title="No chat yet"
+								description="Start refining above to open one"
 							/>
 						}
 					>
@@ -67,42 +77,60 @@ function ChatTab(props: { story: Story }) {
 					/>
 				)}
 			</Show>
-		</div>
+		</Section>
 	);
 }
 
-const PRESET_LABELS = {
+const PRESET_LABELS: Record<Preset, string> = {
 	guarded: "Guarded",
 	auto: "Auto",
 	manual: "Manual",
-} as const;
+};
 
-// Three-way segmented selector; an absent frontmatter field reads Guarded,
-// the default. Legal at any status: the preset binds at the next spawn.
-function PresetSelector(props: { story: Story }) {
-	const active = () => props.story.frontmatter.preset ?? "guarded";
+const PRESET_OPTIONS = PRESETS.map((preset) => ({
+	value: preset,
+	label: PRESET_LABELS[preset],
+}));
+
+function Property(props: { label: string; children: JSX.Element }) {
 	return (
-		<fieldset class="flex items-center gap-pair" aria-label="Permission preset">
-			<For each={PRESETS}>
-				{(preset) => (
-					<Button
-						size="sm"
-						emphasis={active() === preset ? "primary" : "tertiary"}
-						onClick={() => void setStoryPreset(props.story.id, preset)}
-					>
-						{PRESET_LABELS[preset]}
-					</Button>
-				)}
-			</For>
-		</fieldset>
+		<Pair row>
+			<Text as="span" variant="micro" tone="ink-3">
+				{props.label}
+			</Text>
+			{props.children}
+		</Pair>
 	);
 }
 
-// The open run entry's pending question (frontmatter is the truth the panel
-// renders from).
-function openRunQuestion(story: Story) {
-	return story.frontmatter.runs.findLast((run) => run.outcome === undefined)
-		?.question;
+// The story's settings row. The preset is legal at any status: it binds at
+// the next spawn, and an absent frontmatter field reads Guarded.
+function Properties(props: { story: Story }) {
+	const epic = () => boardStore.epics[props.story.epicId];
+	const depends = () => props.story.frontmatter.depends;
+	return (
+		<Row>
+			<Property label="Epic">
+				<Badge>{epic()?.slug ?? props.story.epicId}</Badge>
+			</Property>
+			<Property label="Preset">
+				<Select
+					options={PRESET_OPTIONS}
+					value={props.story.frontmatter.preset ?? "guarded"}
+					onValueChange={(value) =>
+						void setStoryPreset(props.story.id, presetSchema.parse(value))
+					}
+				/>
+			</Property>
+			<Show when={depends().length > 0}>
+				<Property label="Depends on">
+					<Text as="span" variant="caption" mono>
+						{depends().join(", ")}
+					</Text>
+				</Property>
+			</Show>
+		</Row>
+	);
 }
 
 export function CardDrawer(props: CardDrawerProps) {
@@ -120,36 +148,13 @@ export function CardDrawer(props: CardDrawerProps) {
 						</>
 					}
 				>
-					<div class="flex shrink-0 flex-wrap items-center gap-row">
-						<Show when={story.frontmatter.status === "refining"}>
-							<Button
-								size="sm"
-								emphasis="secondary"
-								onClick={() => moveStory(story.id, "ready")}
-							>
-								Move to Ready
-							</Button>
-						</Show>
-						<PresetSelector story={story} />
-					</div>
-					<Show when={story.frontmatter.status === "review"}>
-						<div class="flex shrink-0">
-							<ReviewExits story={story} />
-						</div>
-					</Show>
-					<Show
-						when={
-							story.frontmatter.status === "needs-input"
-								? openRunQuestion(story)
-								: undefined
-						}
-					>
-						{(question) => (
-							<div class="flex shrink-0 flex-col">
-								<RunQuestionPanel storyId={story.id} question={question()} />
-							</div>
-						)}
-					</Show>
+					<Stack>
+						<Properties story={story} />
+						<StageBlock
+							story={story}
+							onOpenChat={() => props.onTabChange("chat")}
+						/>
+					</Stack>
 					<DrawerTabs
 						value={props.tab ?? defaultTab(story.frontmatter.status)}
 						onValueChange={props.onTabChange}

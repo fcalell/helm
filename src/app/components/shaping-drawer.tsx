@@ -3,6 +3,9 @@ import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Checkbox } from "@fcalell/plugin-solid-ui/components/checkbox";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
+import { Pair } from "@fcalell/plugin-solid-ui/components/pair";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
@@ -55,8 +58,8 @@ function OpenDecision(props: { slug: string; decision: DecisionItem }) {
 	const widget = () => pendingDecisionFor(props.slug, props.decision.text);
 
 	return (
-		<li class="flex flex-col gap-pair">
-			<div class="flex flex-wrap items-start gap-row">
+		<Pair>
+			<Row wrap>
 				<Checkbox checked={false} disabled aria-label="Open decision" />
 				<Text as="span" variant="caption">
 					{props.decision.text}
@@ -71,7 +74,7 @@ function OpenDecision(props: { slug: string; decision: DecisionItem }) {
 						</Match>
 					</Switch>
 				</Show>
-			</div>
+			</Row>
 			<Show when={research()?.error}>
 				{(error) => (
 					<Text variant="micro" tone="danger">
@@ -80,35 +83,36 @@ function OpenDecision(props: { slug: string; decision: DecisionItem }) {
 				)}
 			</Show>
 			<Show when={widget()}>
-				<div class="flex self-start">
+				<div class="self-start">
 					<Badge tone="interactive">answer in chat</Badge>
 				</div>
 			</Show>
 			<Show when={widget() === undefined && research()?.status !== "pending"}>
 				<form
-					class="flex gap-row"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void resolve();
 					}}
 				>
-					<Input
-						value={answer()}
-						onInput={(event) => setAnswer(event.currentTarget.value)}
-						placeholder="Settle it…"
-						aria-label={`Answer to: ${props.decision.text}`}
-					/>
-					<Button
-						type="submit"
-						size="sm"
-						emphasis="secondary"
-						disabled={inFlight() || answer().trim() === ""}
-					>
-						Resolve
-					</Button>
+					<Row>
+						<Input
+							value={answer()}
+							onInput={(event) => setAnswer(event.currentTarget.value)}
+							placeholder="Settle it…"
+							aria-label={`Answer to: ${props.decision.text}`}
+						/>
+						<Button
+							type="submit"
+							size="sm"
+							emphasis="secondary"
+							disabled={inFlight() || answer().trim() === ""}
+						>
+							Resolve
+						</Button>
+					</Row>
 				</form>
 			</Show>
-		</li>
+		</Pair>
 	);
 }
 
@@ -122,23 +126,23 @@ function DecisionsChecklist(props: { thread: ShapingThread }) {
 				</Text>
 			}
 		>
-			<ul class="flex flex-col gap-row">
+			<Stack>
 				<For each={props.thread.decisions}>
 					{(decision) => (
 						<Show
 							when={!decision.checked}
 							fallback={
-								<li class="flex items-start gap-row">
+								<Row>
 									<Checkbox checked disabled aria-label="Resolved decision" />
 									<Struck>{decision.text}</Struck>
-								</li>
+								</Row>
 							}
 						>
 							<OpenDecision slug={props.thread.slug} decision={decision} />
 						</Show>
 					)}
 				</For>
-			</ul>
+			</Stack>
 		</Show>
 	);
 }

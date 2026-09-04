@@ -1,6 +1,8 @@
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
 import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
+import { Section } from "@fcalell/plugin-solid-ui/components/section";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createResource, For, Show } from "solid-js";
 import { parseBrief } from "../../board/markdown.ts";
@@ -14,7 +16,6 @@ import {
 	DiffLineNo,
 } from "../ui/diff-grid.tsx";
 import { Disclosure } from "../ui/disclosure.tsx";
-import { Eyebrow } from "../ui/eyebrow.tsx";
 import { ChecklistSection } from "./brief-view.tsx";
 
 type ReviewData = Awaited<ReturnType<typeof api.review.get>>;
@@ -136,7 +137,7 @@ function Verification(props: { story: Story; check: ReviewData["check"] }) {
 			.map((line) => line.slice(2))
 			.filter((note) => /^verify:/i.test(note));
 	return (
-		<div class="flex flex-col gap-row">
+		<Stack>
 			<Show
 				when={notes().length > 0}
 				fallback={
@@ -145,17 +146,11 @@ function Verification(props: { story: Story; check: ReviewData["check"] }) {
 					</Text>
 				}
 			>
-				<ul class="flex flex-col gap-pair">
+				<Stack>
 					<For each={notes()}>
-						{(note) => (
-							<li>
-								<Text as="span" variant="caption">
-									{note}
-								</Text>
-							</li>
-						)}
+						{(note) => <Text variant="caption">{note}</Text>}
 					</For>
-				</ul>
+				</Stack>
 			</Show>
 			<Show
 				when={props.check}
@@ -180,7 +175,7 @@ function Verification(props: { story: Story; check: ReviewData["check"] }) {
 					</Disclosure>
 				)}
 			</Show>
-		</div>
+		</Stack>
 	);
 }
 
@@ -205,34 +200,48 @@ export function DiffPane(props: { story: Story }) {
 			}
 		>
 			{(data) => (
-				<div class="flex flex-col gap-section">
-					<div class="flex flex-col gap-row">
-						<Eyebrow>Acceptance criteria</Eyebrow>
-						<ChecklistSection
-							items={parseBrief(data().briefBody).criteria}
-							warn={false}
-						/>
-					</div>
-					<div class="flex flex-col gap-row">
-						<Eyebrow>Verification</Eyebrow>
-						<Verification story={props.story} check={data().check} />
-					</div>
-					<div class="flex flex-col gap-row">
-						<Eyebrow>Changes</Eyebrow>
-						<Show
-							when={data().files.length > 0}
-							fallback={
-								<Text variant="caption" tone="ink-3">
-									No changes against main
-								</Text>
-							}
-						>
-							<For each={data().files}>
-								{(file) => <FileSection file={file} />}
-							</For>
-						</Show>
-					</div>
-				</div>
+				<>
+					<Section>
+						<Section.Header>
+							<Section.Title>Acceptance criteria</Section.Title>
+						</Section.Header>
+						<Section.Content>
+							<ChecklistSection
+								items={parseBrief(data().briefBody).criteria}
+								warn={false}
+							/>
+						</Section.Content>
+					</Section>
+					<Section>
+						<Section.Header>
+							<Section.Title>Verification</Section.Title>
+						</Section.Header>
+						<Section.Content>
+							<Verification story={props.story} check={data().check} />
+						</Section.Content>
+					</Section>
+					<Section>
+						<Section.Header>
+							<Section.Title>Changes</Section.Title>
+						</Section.Header>
+						<Section.Content>
+							<Show
+								when={data().files.length > 0}
+								fallback={
+									<Text variant="caption" tone="ink-3">
+										No changes against main
+									</Text>
+								}
+							>
+								<Stack>
+									<For each={data().files}>
+										{(file) => <FileSection file={file} />}
+									</For>
+								</Stack>
+							</Show>
+						</Section.Content>
+					</Section>
+				</>
 			)}
 		</Show>
 	);

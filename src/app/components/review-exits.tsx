@@ -1,5 +1,8 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Dialog } from "@fcalell/plugin-solid-ui/components/dialog";
+import { Pair } from "@fcalell/plugin-solid-ui/components/pair";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
@@ -49,7 +52,7 @@ export function ReviewExits(props: { story: Story }) {
 	}
 
 	return (
-		<div class="flex items-center gap-row">
+		<Row>
 			<Button
 				size="sm"
 				disabled={busy()}
@@ -141,7 +144,7 @@ export function ReviewExits(props: { story: Story }) {
 					})
 				}
 			/>
-		</div>
+		</Row>
 	);
 }
 
@@ -184,53 +187,54 @@ function RequestChangesDialog(props: {
 					</Dialog.Description>
 				</Dialog.Header>
 				<form
-					class="flex flex-col gap-stack"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void props.onSubmit(comments());
 					}}
 				>
-					<For each={props.story.brief.criteria}>
-						{(criterion, index) => (
-							<div class="flex flex-col gap-pair">
-								<Text variant="caption" tone="ink-3">
-									{criterion.text}
-								</Text>
-								<Textarea
-									rows={1}
-									value={perCriterion()[index()] ?? ""}
-									onInput={(event) =>
-										setPerCriterion({
-											...perCriterion(),
-											[index()]: event.currentTarget.value,
-										})
-									}
-									aria-label={`Comment on: ${criterion.text}`}
-									placeholder="What is wrong with this criterion? (optional)"
-								/>
-							</div>
-						)}
-					</For>
-					<div class="flex flex-col gap-pair">
-						<Text variant="caption" tone="ink-3">
-							Anything else
-						</Text>
-						<Textarea
-							rows={3}
-							value={freeForm()}
-							onInput={(event) => setFreeForm(event.currentTarget.value)}
-							aria-label="Free-form change request"
-							placeholder="Free-form change request (optional)"
-						/>
-					</div>
-					<div class="flex self-end">
-						<Button
-							type="submit"
-							disabled={props.busy || comments().length === 0}
-						>
-							Send change requests
-						</Button>
-					</div>
+					<Stack>
+						<For each={props.story.brief.criteria}>
+							{(criterion, index) => (
+								<Pair>
+									<Text variant="caption" tone="ink-3">
+										{criterion.text}
+									</Text>
+									<Textarea
+										rows={1}
+										value={perCriterion()[index()] ?? ""}
+										onInput={(event) =>
+											setPerCriterion({
+												...perCriterion(),
+												[index()]: event.currentTarget.value,
+											})
+										}
+										aria-label={`Comment on: ${criterion.text}`}
+										placeholder="What is wrong with this criterion? (optional)"
+									/>
+								</Pair>
+							)}
+						</For>
+						<Pair>
+							<Text variant="caption" tone="ink-3">
+								Anything else
+							</Text>
+							<Textarea
+								rows={3}
+								value={freeForm()}
+								onInput={(event) => setFreeForm(event.currentTarget.value)}
+								aria-label="Free-form change request"
+								placeholder="Free-form change request (optional)"
+							/>
+						</Pair>
+						<div class="self-end">
+							<Button
+								type="submit"
+								disabled={props.busy || comments().length === 0}
+							>
+								Send change requests
+							</Button>
+						</div>
+					</Stack>
 				</form>
 			</Dialog.Content>
 		</Dialog>

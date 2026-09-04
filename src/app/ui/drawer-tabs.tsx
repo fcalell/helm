@@ -40,7 +40,7 @@ export function DrawerTabs(props: {
 		<TabsPrimitive.Root
 			value={props.value}
 			onChange={props.onValueChange}
-			class="flex min-h-0 flex-1 flex-col"
+			class="flex min-h-0 flex-1 flex-col gap-stack"
 		>
 			<TabsPrimitive.List class="relative flex shrink-0 items-center gap-row overflow-x-auto border-edge border-b">
 				<For each={props.tabs}>

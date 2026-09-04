@@ -1,3 +1,4 @@
+import { Pair } from "@fcalell/plugin-solid-ui/components/pair";
 import { Show } from "solid-js";
 import { MCP_SERVER_NAME } from "../../sessions/kinds.ts";
 import type { ChatItem } from "../lib/session-store.ts";
@@ -30,7 +31,7 @@ export function ToolCallLine(props: { item: ToolChatItem }) {
 				</>
 			}
 		>
-			<div class="flex flex-col gap-pair">
+			<Pair>
 				<CodeBlock>{JSON.stringify(props.item.input ?? {}, null, 2)}</CodeBlock>
 				<Show when={props.item.result}>
 					{(result) => (
@@ -39,7 +40,7 @@ export function ToolCallLine(props: { item: ToolChatItem }) {
 						</CodeBlock>
 					)}
 				</Show>
-			</div>
+			</Pair>
 		</Disclosure>
 	);
 }

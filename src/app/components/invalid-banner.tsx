@@ -15,7 +15,7 @@ export function InvalidBanner(props: InvalidBannerProps) {
 	return (
 		<Show when={entries().length > 0}>
 			<Banner>
-				<div class="flex items-center justify-between gap-row">
+				<div class="flex items-center justify-between">
 					<Text variant="caption" tone="warn">
 						{`${entries().length} invalid board files`}
 					</Text>

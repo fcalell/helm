@@ -1,6 +1,8 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
@@ -83,9 +85,9 @@ function QuestionRow(props: {
 	};
 
 	return (
-		<div class="flex flex-col gap-row">
+		<Stack>
 			<Text variant="caption">{props.question.question}</Text>
-			<div class="flex flex-wrap gap-row">
+			<Row wrap>
 				<For each={options()}>
 					{(option) => (
 						<AnswerChip
@@ -96,7 +98,7 @@ function QuestionRow(props: {
 						/>
 					)}
 				</For>
-			</div>
+			</Row>
 			<Input
 				value={props.value}
 				onInput={(event) => props.onAnswer(event.currentTarget.value)}
@@ -104,6 +106,6 @@ function QuestionRow(props: {
 				aria-label={`Answer to: ${props.question.question}`}
 				disabled={props.disabled}
 			/>
-		</div>
+		</Stack>
 	);
 }

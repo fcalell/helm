@@ -1,4 +1,7 @@
 import { Checkbox } from "@fcalell/plugin-solid-ui/components/checkbox";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Section } from "@fcalell/plugin-solid-ui/components/section";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { For, Match, Show, Switch } from "solid-js";
 import {
@@ -7,7 +10,6 @@ import {
 	type Story,
 } from "../../board/schema.ts";
 import { weakCriterion } from "../lib/criteria.ts";
-import { Eyebrow } from "../ui/eyebrow.tsx";
 import { PlainText } from "../ui/plain-text.tsx";
 
 // The brief renderers, in their own module because both the card drawer and
@@ -28,13 +30,13 @@ export function ChecklistSection(props: {
 				</Text>
 			}
 		>
-			<ul class="flex flex-col gap-row">
+			<Stack>
 				<For each={props.items}>
 					{(item) => {
 						const weak = () =>
 							props.warn ? weakCriterion(item.text) : undefined;
 						return (
-							<li class="flex items-start gap-row">
+							<Row>
 								<Checkbox checked={item.checked} disabled label={item.text} />
 								<Show when={weak()}>
 									{(phrase) => (
@@ -48,22 +50,24 @@ export function ChecklistSection(props: {
 										</Text>
 									)}
 								</Show>
-							</li>
+							</Row>
 						);
 					}}
 				</For>
-			</ul>
+			</Stack>
 		</Show>
 	);
 }
 
 export function BriefView(props: { story: Story }) {
 	return (
-		<div class="flex flex-col gap-section">
-			<For each={BRIEF_SECTIONS}>
-				{(section) => (
-					<div class="flex flex-col gap-row">
-						<Eyebrow>{section}</Eyebrow>
+		<For each={BRIEF_SECTIONS}>
+			{(section) => (
+				<Section>
+					<Section.Header>
+						<Section.Title>{section}</Section.Title>
+					</Section.Header>
+					<Section.Content>
 						<Switch
 							fallback={
 								<PlainText variant="caption">
@@ -81,9 +85,9 @@ export function BriefView(props: { story: Story }) {
 								/>
 							</Match>
 						</Switch>
-					</div>
-				)}
-			</For>
-		</div>
+					</Section.Content>
+				</Section>
+			)}
+		</For>
 	);
 }

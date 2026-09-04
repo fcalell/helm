@@ -1,3 +1,4 @@
+import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import {
 	DragDropProvider,
 	DragDropSensors,
@@ -8,23 +9,20 @@ import { For, Show } from "solid-js";
 import type { Epic, Story } from "../../board/schema.ts";
 import { STATUSES } from "../../board/schema.ts";
 import {
+	epicBands,
 	moveStory,
-	orphanEpicIds,
-	sortedEpics,
+	STATUS_LABELS,
 	storiesByStatus,
 } from "../lib/board-store.ts";
 import { statusFromDropId } from "../lib/dnd.ts";
-import { BoardStack, BoardStrip } from "../ui/board-surface.tsx";
-import { BoardColumn } from "./board-column.tsx";
-import { EpicLane } from "./epic-lane.tsx";
+import { BoardTable } from "../ui/board-table.tsx";
+import { EpicBand } from "./epic-band.tsx";
 import { StoryCardOverlay } from "./story-card.tsx";
 
 interface BoardGridProps {
 	epics: Record<string, Epic>;
 	stories: Record<string, Story>;
-	epicView: boolean;
 	onOpen: (id: string) => void;
-	onRefine: (id: string) => void;
 	onOpenEpicChat: (epicId: string) => void;
 }
 
@@ -43,52 +41,28 @@ export function BoardGrid(props: BoardGridProps) {
 	return (
 		<DragDropProvider onDragEnd={handleDragEnd}>
 			<DragDropSensors>
-				<Show
-					when={props.epicView}
-					fallback={
-						<BoardStrip>
-							<For each={STATUSES}>
-								{(status) => (
-									<BoardColumn
-										status={status}
-										stories={storiesByStatus(props.stories, status)}
-										epics={props.epics}
-										onOpen={props.onOpen}
-										onRefine={props.onRefine}
-									/>
-								)}
-							</For>
-						</BoardStrip>
-					}
-				>
-					<BoardStack>
-						<For each={sortedEpics(props.epics)}>
-							{(epic) => (
-								<EpicLane
-									epicId={epic.id}
-									title={epic.title}
-									epics={props.epics}
-									stories={props.stories}
-									onOpen={props.onOpen}
-									onRefine={props.onRefine}
-									onOpenChat={props.onOpenEpicChat}
-								/>
-							)}
-						</For>
-						<For each={orphanEpicIds(props.epics, props.stories)}>
-							{(epicId) => (
-								<EpicLane
-									epicId={epicId}
-									title={epicId}
-									epics={props.epics}
-									stories={props.stories}
-									onOpen={props.onOpen}
-									onRefine={props.onRefine}
-								/>
-							)}
-						</For>
-					</BoardStack>
-				</Show>
+				<BoardTable columns={STATUSES.length}>
+					<For each={STATUSES}>
+						{(status) => (
+							<BoardTable.Header
+								title={STATUS_LABELS[status]}
+								count={
+									<Badge>{storiesByStatus(props.stories, status).length}</Badge>
+								}
+							/>
+						)}
+					</For>
+					<For each={epicBands(props.epics, props.stories)}>
+						{(band) => (
+							<EpicBand
+								band={band}
+								epics={props.epics}
+								onOpen={props.onOpen}
+								onOpenChat={band.hasEpic ? props.onOpenEpicChat : undefined}
+							/>
+						)}
+					</For>
+				</BoardTable>
 				<DragOverlay>
 					{(draggable) => {
 						const story = draggable

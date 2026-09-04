@@ -1,6 +1,7 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { createSignal, For } from "solid-js";
 import type { RunQuestion } from "../../board/schema.ts";
@@ -44,7 +45,7 @@ export function RunQuestionPanel(props: {
 			<Text variant="micro" tone="ink-3">
 				Recommended: {props.question.recommendation}
 			</Text>
-			<div class="flex flex-wrap gap-row">
+			<Row wrap>
 				<For each={chips()}>
 					{(option) => (
 						<AnswerChip
@@ -55,28 +56,29 @@ export function RunQuestionPanel(props: {
 						/>
 					)}
 				</For>
-			</div>
+			</Row>
 			<form
-				class="flex gap-row"
 				onSubmit={(event) => {
 					event.preventDefault();
 					void answer(freeText());
 				}}
 			>
-				<Input
-					value={freeText()}
-					onInput={(event) => setFreeText(event.currentTarget.value)}
-					placeholder="Or answer in your own words…"
-					aria-label="Answer"
-				/>
-				<Button
-					type="submit"
-					size="sm"
-					emphasis="secondary"
-					disabled={inFlight() || freeText().trim() === ""}
-				>
-					Send
-				</Button>
+				<Row>
+					<Input
+						value={freeText()}
+						onInput={(event) => setFreeText(event.currentTarget.value)}
+						placeholder="Or answer in your own words…"
+						aria-label="Answer"
+					/>
+					<Button
+						type="submit"
+						size="sm"
+						emphasis="secondary"
+						disabled={inFlight() || freeText().trim() === ""}
+					>
+						Send
+					</Button>
+				</Row>
 			</form>
 		</Card>
 	);

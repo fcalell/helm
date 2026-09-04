@@ -1,5 +1,6 @@
 import { Prose } from "@fcalell/plugin-solid-ui/components/prose";
 import { ScrollArea } from "@fcalell/plugin-solid-ui/components/scroll-area";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import {
 	createEffect,
@@ -117,7 +118,7 @@ export function Conversation(props: ConversationProps) {
 	return (
 		<>
 			<ScrollArea pinToBottom>
-				<div class="flex flex-col gap-stack">
+				<Stack>
 					<For each={chat().items}>
 						{(item, index) => (
 							<TranscriptItem
@@ -128,7 +129,7 @@ export function Conversation(props: ConversationProps) {
 						)}
 					</For>
 					{props.children}
-				</div>
+				</Stack>
 				<Show when={spacing()}>
 					{/* A pane's height puts the anchor at the pane's top; the margin
 					    on top of it keeps the anchored position clear of the pin

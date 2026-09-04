@@ -1,7 +1,7 @@
 # Runs: autonomous implementation, supervised
 
-A **run** is one headless Claude Code execution of a Ready story. One tap on a Ready card creates a
-git worktree + branch (`helm/<epic>-<story>-<slug>`), then spawns the session with the story's
+A **run** is one headless Claude Code execution of a Ready story. **Run** in a Ready story's stage
+block ([board](./board.md) §Screen layout) creates a git worktree + branch (`helm/<epic>-<story>-<slug>`), then spawns the session with the story's
 brief as its system-prompt seed and the story's permission preset attached. Everything a run needs
 is in the brief; a run that has to ask basic scoping questions is a refinement failure, not a run
 problem.

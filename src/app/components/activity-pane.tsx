@@ -1,6 +1,8 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Section } from "@fcalell/plugin-solid-ui/components/section";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { createSignal, Match, Show, Switch } from "solid-js";
@@ -108,7 +110,7 @@ export function ActivityPane(props: { story: Story }) {
 		>
 			{(run) => {
 				return (
-					<div class="flex min-h-0 flex-1 flex-col gap-stack overflow-hidden">
+					<Section>
 						<Show when={briefEdited()}>
 							<Banner>
 								<Text variant="micro" tone="warn">
@@ -131,7 +133,7 @@ export function ActivityPane(props: { story: Story }) {
 							</Show>
 						</Conversation>
 						<Show when={openEntry() !== undefined}>
-							<div class="flex shrink-0 items-center gap-row">
+							<Row>
 								<Switch>
 									<Match when={status() === "running" && !paused()}>
 										<Button
@@ -167,39 +169,40 @@ export function ActivityPane(props: { story: Story }) {
 										Stop
 									</Button>
 								</Show>
-							</div>
+							</Row>
 						</Show>
 						<Show when={status() === "running"}>
 							<form
-								class="flex shrink-0 items-end gap-row"
 								onSubmit={(event) => {
 									event.preventDefault();
 									steer();
 								}}
 							>
-								<Textarea
-									rows={2}
-									value={draft()}
-									onInput={(event) => setDraft(event.currentTarget.value)}
-									onKeyDown={(event) => {
-										if (event.key === "Enter" && !event.shiftKey) {
-											event.preventDefault();
-											steer();
-										}
-									}}
-									placeholder="Steer the run…"
-									aria-label="Steering message"
-								/>
-								<Button
-									type="submit"
-									size="sm"
-									disabled={pending() !== undefined}
-								>
-									Steer
-								</Button>
+								<Row>
+									<Textarea
+										rows={2}
+										value={draft()}
+										onInput={(event) => setDraft(event.currentTarget.value)}
+										onKeyDown={(event) => {
+											if (event.key === "Enter" && !event.shiftKey) {
+												event.preventDefault();
+												steer();
+											}
+										}}
+										placeholder="Steer the run…"
+										aria-label="Steering message"
+									/>
+									<Button
+										type="submit"
+										size="sm"
+										disabled={pending() !== undefined}
+									>
+										Steer
+									</Button>
+								</Row>
 							</form>
 						</Show>
-					</div>
+					</Section>
 				);
 			}}
 		</Show>

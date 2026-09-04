@@ -17,7 +17,7 @@ import {
 import { boardStore, connectBoard } from "../lib/board-store.ts";
 import { connectGate } from "../lib/gate-store.ts";
 import { connectMeter } from "../lib/meter-store.ts";
-import { connectSessions, spawnRefineSession } from "../lib/session-store.ts";
+import { connectSessions } from "../lib/session-store.ts";
 
 // The docked chat panel is a single region, so the page holds one selection:
 // opening any chat surface replaces whichever one is showing.
@@ -29,7 +29,6 @@ type ChatSelection =
 export default function Home() {
 	const [selection, setSelection] = createSignal<ChatSelection | null>(null);
 	const [drawerTab, setDrawerTab] = createSignal<string>();
-	const [epicView, setEpicView] = createSignal(false);
 	const [newEpicOpen, setNewEpicOpen] = createSignal(false);
 
 	connectBoard();
@@ -40,21 +39,6 @@ export default function Home() {
 	function openStory(id: string): void {
 		setDrawerTab(undefined);
 		setSelection({ kind: "story", storyId: id });
-	}
-
-	function refineStory(id: string): void {
-		const story = boardStore.stories[id];
-		if (!story) return;
-		const status = story.frontmatter.status;
-		if (status !== "backlog" && status !== "refining") return;
-		setDrawerTab("chat");
-		setSelection({ kind: "story", storyId: id });
-		if (
-			status === "backlog" &&
-			story.frontmatter.sessions.refine === undefined
-		) {
-			void spawnRefineSession(id);
-		}
 	}
 
 	const storySelection = () => {
@@ -74,8 +58,6 @@ export default function Home() {
 		<Frame>
 			<BoardHeader
 				connected={boardStore.connected}
-				epicView={epicView()}
-				onToggleEpicView={() => setEpicView((value) => !value)}
 				onNewEpic={() => setNewEpicOpen(true)}
 				onOpenShaping={(target) => setSelection({ kind: "shaping", target })}
 			/>
@@ -84,9 +66,7 @@ export default function Home() {
 				<BoardGrid
 					epics={boardStore.epics}
 					stories={boardStore.stories}
-					epicView={epicView()}
 					onOpen={openStory}
-					onRefine={refineStory}
 					onOpenEpicChat={(epicId) =>
 						setSelection({ kind: "define", target: { epicId } })
 					}

@@ -1,17 +1,17 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
+import { Pair } from "@fcalell/plugin-solid-ui/components/pair";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Tooltip } from "@fcalell/plugin-solid-ui/components/tooltip";
 import { createDraggable } from "@thisbeyond/solid-dnd";
-import { createSignal, Match, Show, Switch } from "solid-js";
+import { Show } from "solid-js";
 import type { Epic, Story } from "../../board/schema.ts";
 import type { PermissionRequest } from "../../server/mcp/schemas.ts";
 import { gateFor } from "../lib/gate-store.ts";
-import { meterStore } from "../lib/meter-store.ts";
 import {
 	pendingPermission,
 	resolveRunPermission,
-	startStoryRun,
 } from "../lib/session-store.ts";
 import { BoardCard } from "../ui/board-card.tsx";
 import { OneLine } from "../ui/one-line.tsx";
@@ -21,7 +21,6 @@ interface StoryCardProps {
 	story: Story;
 	epics: Record<string, Epic>;
 	onOpen: () => void;
-	onRefine: () => void;
 }
 
 function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
@@ -49,7 +48,7 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 			<Text variant="caption" strong>
 				{props.story.brief.title || props.story.id}
 			</Text>
-			<div class="flex flex-wrap items-center gap-pair">
+			<Row wrap>
 				<Badge>{epicLabel()}</Badge>
 				<Show when={gateBadge()}>
 					{(label) => (
@@ -87,7 +86,7 @@ function CardContents(props: { story: Story; epics: Record<string, Epic> }) {
 						</Text>
 					)}
 				</Show>
-			</div>
+			</Row>
 		</>
 	);
 }
@@ -111,102 +110,33 @@ function permissionSummary(request: PermissionRequest): string {
 function PermissionPrompt(props: { request: PermissionRequest }) {
 	return (
 		<fieldset
-			class="flex flex-col gap-pair"
 			aria-label="Permission prompt"
 			onPointerDown={(event) => event.stopPropagation()}
 			onClick={(event) => event.stopPropagation()}
 			onKeyDown={(event) => event.stopPropagation()}
 		>
-			<OneLine title={permissionSummary(props.request)}>
-				{permissionSummary(props.request)}
-			</OneLine>
-			<div class="flex gap-pair">
-				<Button
-					size="sm"
-					emphasis="secondary"
-					onClick={() => void resolveRunPermission(props.request.id, true)}
-				>
-					Approve
-				</Button>
-				<Button
-					size="sm"
-					emphasis="secondary"
-					onClick={() => void resolveRunPermission(props.request.id, false)}
-				>
-					Deny
-				</Button>
-			</div>
+			<Pair>
+				<OneLine title={permissionSummary(props.request)}>
+					{permissionSummary(props.request)}
+				</OneLine>
+				<Pair row>
+					<Button
+						size="sm"
+						emphasis="secondary"
+						onClick={() => void resolveRunPermission(props.request.id, true)}
+					>
+						Approve
+					</Button>
+					<Button
+						size="sm"
+						emphasis="secondary"
+						onClick={() => void resolveRunPermission(props.request.id, false)}
+					>
+						Deny
+					</Button>
+				</Pair>
+			</Pair>
 		</fieldset>
-	);
-}
-
-// The status-driven footer action. Same event isolation as PermissionPrompt:
-// the card root owns pointerdown (drag), click (open), and keydown
-// (Enter/Space open), and none of the three may fire from the button.
-function CardAction(props: { story: Story; onRefine: () => void }) {
-	const status = () => props.story.frontmatter.status;
-	const [starting, setStarting] = createSignal(false);
-	const queued = () =>
-		meterStore.snapshot?.queue.queued.some(
-			(entry) => entry.kind === "run" && entry.storyId === props.story.id,
-		) === true;
-
-	async function run(): Promise<void> {
-		setStarting(true);
-		try {
-			await startStoryRun(props.story.id);
-		} finally {
-			setStarting(false);
-		}
-	}
-
-	return (
-		<Show
-			when={
-				status() === "backlog" ||
-				status() === "refining" ||
-				status() === "ready"
-			}
-		>
-			<fieldset
-				class="flex justify-end"
-				aria-label="Story action"
-				onPointerDown={(event) => event.stopPropagation()}
-				onClick={(event) => event.stopPropagation()}
-				onKeyDown={(event) => event.stopPropagation()}
-			>
-				<Switch>
-					<Match when={status() === "backlog"}>
-						<Button
-							size="sm"
-							emphasis="secondary"
-							onClick={() => props.onRefine()}
-						>
-							Refine
-						</Button>
-					</Match>
-					<Match when={status() === "refining"}>
-						<Button
-							size="sm"
-							emphasis="secondary"
-							onClick={() => props.onRefine()}
-						>
-							Chat
-						</Button>
-					</Match>
-					<Match when={status() === "ready"}>
-						<Button
-							size="sm"
-							emphasis="secondary"
-							disabled={starting() || queued()}
-							onClick={() => void run()}
-						>
-							{queued() ? "Queued" : "Run"}
-						</Button>
-					</Match>
-				</Switch>
-			</fieldset>
-		</Show>
 	);
 }
 
@@ -253,7 +183,6 @@ export function StoryCard(props: StoryCardProps) {
 			<Show when={pendingPermission(props.story.id)}>
 				{(request) => <PermissionPrompt request={request()} />}
 			</Show>
-			<CardAction story={props.story} onRefine={props.onRefine} />
 		</BoardCard>
 	);
 }

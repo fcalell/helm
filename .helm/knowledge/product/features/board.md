@@ -48,8 +48,12 @@ quality buys).
 
 ## Epics
 
-Epics render as toggleable swimlanes over the same columns. An epic card opens its own chat drawer
-(same interaction as a story, one level up) and shows rolled-up progress (stories done/total).
+The board is one grid: the status columns head it once, and each epic is a **band** of cells
+beneath them, one cell per status, so an epic's whole state reads on one row and the board scrolls
+as one pane on both axes. A band's title line shows rolled-up progress (stories done/total) and
+opens the epic's own chat drawer (same interaction as a story, one level up). A band collapses to
+its title line; an epic whose stories are all done sorts last and starts collapsed. Stories naming
+an epic with no file render in a band of their own, with no chat.
 Dependency hints between sibling stories come from the epic breakdown; v1 renders them, the
 dependency-aware queue is deferred ([roadmap](../roadmap.md) §Later).
 
@@ -64,21 +68,23 @@ begins.
 ## Screen layout
 
 One screen: board + a right-hand **drawer**, never a page navigation away. The drawer is a docked
-panel in the board's layout flow, not an overlay: drag-resizable up to 75vw with the width
-persisted across reloads, an Expand toggle in its chrome row jumping between that width and the
-75vw max, and the board scrolling on in the remaining width beside it. One chat surface is open
-at a time; selecting another replaces it, and close and expand sit together in the chrome row.
-Selecting a card opens the drawer on tabs **Brief | Chat | Activity | Diff | History**; the
-default tab follows status
-(Refining → Chat, Running → Activity, Review → Diff). Repo-level surfaces sit beside the board,
+panel in the board's layout flow, not an overlay: it opens at 90vw, leaving a strip of board
+beside it, and its drag handle resizes it up to 95vw with the width persisted across reloads.
+One chat surface is open at a time; selecting another replaces it, and close is the chrome
+row's one control. Selecting a card opens the drawer on its **properties** (epic, preset,
+dependencies), a **stage block** naming what the status means and carrying the one action that
+moves the story on (Backlog → Start refining, Refining → Move to Ready, Ready → Run, Needs input →
+the run's question, Review → the three exits), and tabs **Brief | Chat | Activity | Diff |
+History**; the default tab follows status (Refining → Chat, Running → Activity, Review → Diff). Repo-level surfaces sit beside the board,
 reached from the header rather than a card drawer: the shaping chat (§Shaping) and
 a **rules & knowledge surface** for viewing, chat-curating, and lightly editing the repo's
 `.helm/agents/` rules and `.helm/knowledge/` docs, Helm's own markdown and never the repo's code
 ([roadmap](../roadmap.md) §Later). The header carries the target repo/branch, the rate-limit meter,
 queue occupancy, and a **standing-context meter** (the tokens that load every session,
 [init](./init.md) §Migrating an existing repo). Button-first: every action is a visible control.
-Each card carries one status-driven primary action (Backlog → Refine, Ready → Run, per status),
-the header carries the board-level entries (Shape, New epic, the epic-view toggle), and no
+Cards are passive (a click opens the drawer; the only control a card ever carries is a run's
+permission prompt, [runs](./runs.md) §Permission presets), the drawer's stage block carries the
+story's one action, the header carries the board-level entries (Shape, New epic), and no
 app-level hotkey layer exists; native focus activation (Enter/Space on a focused card, a dialog's
 own Escape dismiss) is the only keyboard behavior. Narrow screens collapse to the
 mobile surface ([mobile](./mobile.md)).

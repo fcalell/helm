@@ -1,6 +1,7 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Dialog } from "@fcalell/plugin-solid-ui/components/dialog";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
 import { createSignal } from "solid-js";
@@ -57,35 +58,36 @@ export function NewEpicDialog(props: NewEpicDialogProps) {
 					</Dialog.Description>
 				</Dialog.Header>
 				<form
-					class="flex flex-col gap-stack"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void create();
 					}}
 				>
-					<Input
-						value={title()}
-						onInput={(event) => setTitle(event.currentTarget.value)}
-						placeholder="Title"
-						aria-label="Epic title"
-					/>
-					<Textarea
-						rows={4}
-						value={rough()}
-						onInput={(event) => setRough(event.currentTarget.value)}
-						placeholder="What is this epic about?"
-						aria-label="Rough description"
-					/>
-					<div class="flex self-end">
-						<Button
-							type="submit"
-							disabled={
-								creating() || title().trim() === "" || rough().trim() === ""
-							}
-						>
-							{creating() ? "Creating…" : "Create epic & start chat"}
-						</Button>
-					</div>
+					<Stack>
+						<Input
+							value={title()}
+							onInput={(event) => setTitle(event.currentTarget.value)}
+							placeholder="Title"
+							aria-label="Epic title"
+						/>
+						<Textarea
+							rows={4}
+							value={rough()}
+							onInput={(event) => setRough(event.currentTarget.value)}
+							placeholder="What is this epic about?"
+							aria-label="Rough description"
+						/>
+						<div class="self-end">
+							<Button
+								type="submit"
+								disabled={
+									creating() || title().trim() === "" || rough().trim() === ""
+								}
+							>
+								{creating() ? "Creating…" : "Create epic & start chat"}
+							</Button>
+						</div>
+					</Stack>
 				</form>
 			</Dialog.Content>
 		</Dialog>

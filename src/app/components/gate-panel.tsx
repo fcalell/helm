@@ -2,6 +2,9 @@ import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
+import { Pair } from "@fcalell/plugin-solid-ui/components/pair";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import type { BadgeTone } from "@fcalell/ui-core/variants";
@@ -48,10 +51,10 @@ function FlagWidget(props: { storyId: string; flag: GateFlag }) {
 
 	return (
 		<Card ring="warn" data-gate-flag={props.flag.title}>
-			<div class="flex items-center gap-row">
+			<Row>
 				<Eyebrow>Risk flag</Eyebrow>
 				<Badge tone="warn">Contested</Badge>
-			</div>
+			</Row>
 			<Text variant="caption" strong>
 				{props.flag.title}
 			</Text>
@@ -75,7 +78,7 @@ function FlagWidget(props: { storyId: string; flag: GateFlag }) {
 			<Show
 				when={dismissing()}
 				fallback={
-					<div class="flex gap-row">
+					<Row>
 						<Button
 							size="sm"
 							disabled={inFlight()}
@@ -91,42 +94,43 @@ function FlagWidget(props: { storyId: string; flag: GateFlag }) {
 						>
 							Dismiss
 						</Button>
-					</div>
+					</Row>
 				}
 			>
 				<form
-					class="flex flex-col gap-row"
 					onSubmit={(event) => {
 						event.preventDefault();
 						if (reason().trim() === "") return;
 						void resolve({ type: "dismiss", reason: reason().trim() });
 					}}
 				>
-					<Textarea
-						rows={2}
-						value={reason()}
-						onInput={(event) => setReason(event.currentTarget.value)}
-						placeholder="Why is this risk accepted?"
-						aria-label="Override reason"
-					/>
-					<div class="flex gap-row">
-						<Button
-							type="submit"
-							size="sm"
-							tone="danger"
-							disabled={inFlight() || reason().trim() === ""}
-						>
-							Dismiss flag
-						</Button>
-						<Button
-							type="button"
-							size="sm"
-							emphasis="tertiary"
-							onClick={() => setDismissing(false)}
-						>
-							Cancel
-						</Button>
-					</div>
+					<Stack>
+						<Textarea
+							rows={2}
+							value={reason()}
+							onInput={(event) => setReason(event.currentTarget.value)}
+							placeholder="Why is this risk accepted?"
+							aria-label="Override reason"
+						/>
+						<Row>
+							<Button
+								type="submit"
+								size="sm"
+								tone="danger"
+								disabled={inFlight() || reason().trim() === ""}
+							>
+								Dismiss flag
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								emphasis="tertiary"
+								onClick={() => setDismissing(false)}
+							>
+								Cancel
+							</Button>
+						</Row>
+					</Stack>
 				</form>
 			</Show>
 		</Card>
@@ -137,29 +141,29 @@ function FlagWidget(props: { storyId: string; flag: GateFlag }) {
 // with each flag at its last known status.
 function RoundHistory(props: { rounds: GateRecordRound[] }) {
 	return (
-		<div class="flex flex-col gap-row">
+		<Stack>
 			<For each={props.rounds}>
 				{(round) => (
-					<div class="flex flex-col gap-pair">
+					<Pair>
 						<Eyebrow>Round {round.n}</Eyebrow>
-						<ul class="flex flex-col gap-pair">
+						<Stack>
 							<For each={round.flags}>
 								{(flag) => (
-									<li class="flex items-center gap-row">
+									<Row>
 										<Badge tone={FLAG_BADGES[flag.status].tone}>
 											{FLAG_BADGES[flag.status].label}
 										</Badge>
 										<Text as="span" variant="caption">
 											{flag.title}
 										</Text>
-									</li>
+									</Row>
 								)}
 							</For>
-						</ul>
-					</div>
+						</Stack>
+					</Pair>
 				)}
 			</For>
-		</div>
+		</Stack>
 	);
 }
 
@@ -179,45 +183,41 @@ export function GatePanel(props: { story: Story }) {
 	const history = () => gateHistory(props.story);
 	return (
 		<Show when={attempt() !== undefined || history().length > 0}>
-			<div class="flex shrink-0 flex-col">
-				<Card data-gate-phase={attempt()?.phase}>
-					<Show when={attempt()}>
-						{(active) => (
-							<>
-								<Switch
-									fallback={
-										<Text variant="caption" tone="ink-3">
-											{PHASE_LINES[active().phase]}
-										</Text>
+			<Card data-gate-phase={attempt()?.phase}>
+				<Show when={attempt()}>
+					{(active) => (
+						<>
+							<Switch
+								fallback={
+									<Text variant="caption" tone="ink-3">
+										{PHASE_LINES[active().phase]}
+									</Text>
+								}
+							>
+								<Match
+									when={
+										active().phase === "queued" ||
+										active().phase === "adversary"
 									}
 								>
-									<Match
-										when={
-											active().phase === "queued" ||
-											active().phase === "adversary"
-										}
-									>
-										<Loader text={PHASE_LINES[active().phase]} />
-									</Match>
-								</Switch>
-								<For each={contested()}>
-									{(flag) => (
-										<FlagWidget storyId={props.story.id} flag={flag} />
-									)}
-								</For>
-							</>
-						)}
-					</Show>
-					<Show when={history().length > 0}>
-						<RoundHistory rounds={history()} />
-					</Show>
-					<Show when={attempt()?.phase === "exhausted"}>
-						<Text variant="micro" tone="ink-3">
-							Move the card to Ready to run another adversary pass.
-						</Text>
-					</Show>
-				</Card>
-			</div>
+									<Loader text={PHASE_LINES[active().phase]} />
+								</Match>
+							</Switch>
+							<For each={contested()}>
+								{(flag) => <FlagWidget storyId={props.story.id} flag={flag} />}
+							</For>
+						</>
+					)}
+				</Show>
+				<Show when={history().length > 0}>
+					<RoundHistory rounds={history()} />
+				</Show>
+				<Show when={attempt()?.phase === "exhausted"}>
+					<Text variant="micro" tone="ink-3">
+						Move the card to Ready to run another adversary pass.
+					</Text>
+				</Show>
+			</Card>
 		</Show>
 	);
 }

@@ -183,10 +183,6 @@ export function sortedShaping(
 	return Object.values(shaping).sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-export function sortedEpics(epics: Record<string, Epic>): Epic[] {
-	return Object.values(epics).sort((a, b) => a.id.localeCompare(b.id));
-}
-
 export function sortedStories(stories: Story[]): Story[] {
 	return [...stories].sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -202,29 +198,52 @@ export function storiesByStatus(
 	);
 }
 
-export function epicProgress(
-	epicId: string,
-	stories: Record<string, Story>,
-): { total: number; done: number } {
-	const owned = Object.values(stories).filter(
-		(story) => story.epicId === epicId,
-	);
-	return {
-		total: owned.length,
-		done: owned.filter((story) => story.frontmatter.status === "done").length,
-	};
+// One band of the board grid: an epic (or an epic id stories name with no
+// epic file behind it) and the stories it owns.
+export interface EpicBand {
+	epicId: string;
+	title: string;
+	// False on an orphan band: no epic file, so no define chat to open.
+	hasEpic: boolean;
+	stories: Story[];
+	// Every owned story is done, so the band starts collapsed.
+	completed: boolean;
 }
 
-// Epic ids that appear on stories but have no matching epic file, sorted for
-// a stable lane order. Board grid and the keyboard flat order both need this
-// to agree on layout.
-export function orphanEpicIds(
+// The board's bands in display order: epics with open work by id, then the
+// orphan ids, then the completed epics.
+export function epicBands(
 	epics: Record<string, Epic>,
 	stories: Record<string, Story>,
-): string[] {
-	const ids = new Set<string>();
+): EpicBand[] {
+	const owned = new Map<string, Story[]>();
 	for (const story of Object.values(stories)) {
-		if (!(story.epicId in epics)) ids.add(story.epicId);
+		const list = owned.get(story.epicId) ?? [];
+		list.push(story);
+		owned.set(story.epicId, list);
 	}
-	return [...ids].sort((a, b) => a.localeCompare(b));
+	const band = (epicId: string, title: string, hasEpic: boolean): EpicBand => {
+		const own = sortedStories(owned.get(epicId) ?? []);
+		return {
+			epicId,
+			title,
+			hasEpic,
+			stories: own,
+			completed:
+				own.length > 0 &&
+				own.every((story) => story.frontmatter.status === "done"),
+		};
+	};
+	const known = Object.values(epics)
+		.sort((a, b) => a.id.localeCompare(b.id))
+		.map((epic) => band(epic.id, epic.title, true));
+	const orphans = [...owned.keys()]
+		.filter((epicId) => !(epicId in epics))
+		.sort((a, b) => a.localeCompare(b))
+		.map((epicId) => band(epicId, epicId, false));
+	return [
+		...known.filter((each) => !each.completed),
+		...orphans,
+		...known.filter((each) => each.completed),
+	];
 }

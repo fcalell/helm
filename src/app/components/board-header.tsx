@@ -5,6 +5,8 @@ import {
 	DropdownMenu,
 	type MenuItem,
 } from "@fcalell/plugin-solid-ui/components/dropdown-menu";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { toast } from "@fcalell/plugin-solid-ui/components/toast";
@@ -21,8 +23,6 @@ import type { ShapingTarget } from "./shaping-drawer.tsx";
 
 interface BoardHeaderProps {
 	connected: boolean;
-	epicView: boolean;
-	onToggleEpicView: () => void;
 	onNewEpic: () => void;
 	onOpenShaping: (target: ShapingTarget) => void;
 }
@@ -93,27 +93,28 @@ function ShapeEntry(props: {
 						</Dialog.Description>
 					</Dialog.Header>
 					<form
-						class="flex flex-col gap-stack"
 						onSubmit={(event) => {
 							event.preventDefault();
 							void start();
 						}}
 					>
-						<Textarea
-							rows={4}
-							value={goal()}
-							onInput={(event) => setGoal(event.currentTarget.value)}
-							placeholder="What should this feature or roadmap slice achieve?"
-							aria-label="Rough goal"
-						/>
-						<div class="flex self-end">
-							<Button
-								type="submit"
-								disabled={spawning() || goal().trim() === ""}
-							>
-								{spawning() ? "Starting…" : "Start shaping"}
-							</Button>
-						</div>
+						<Stack>
+							<Textarea
+								rows={4}
+								value={goal()}
+								onInput={(event) => setGoal(event.currentTarget.value)}
+								placeholder="What should this feature or roadmap slice achieve?"
+								aria-label="Rough goal"
+							/>
+							<div class="self-end">
+								<Button
+									type="submit"
+									disabled={spawning() || goal().trim() === ""}
+								>
+									{spawning() ? "Starting…" : "Start shaping"}
+								</Button>
+							</div>
+						</Stack>
 					</form>
 				</Dialog.Content>
 			</Dialog>
@@ -227,34 +228,26 @@ export function BoardHeader(props: BoardHeaderProps) {
 
 	return (
 		<AppBar>
-			<div class="flex items-center gap-stack">
+			<Row>
 				<Text as="span" variant="h3">
 					Helm
 				</Text>
 				<Show when={repo()}>
 					{(info) => (
-						<div class="flex items-center gap-row">
+						<>
 							<Badge>{info().name}</Badge>
 							<Text as="span" variant="caption" tone="ink-3">
 								{info().branch}
 							</Text>
-						</div>
+						</>
 					)}
 				</Show>
-			</div>
-			<div class="flex items-center gap-gutter">
+			</Row>
+			<Row>
 				<ShapeEntry
 					onOpenShaping={props.onOpenShaping}
 					onNewEpic={props.onNewEpic}
 				/>
-				<Button
-					size="sm"
-					emphasis={props.epicView ? "primary" : "secondary"}
-					aria-pressed={props.epicView}
-					onClick={() => props.onToggleEpicView()}
-				>
-					Epic view
-				</Button>
 				<QueueStatus />
 				<RateMeter />
 				<Tooltip>
@@ -265,7 +258,7 @@ export function BoardHeader(props: BoardHeaderProps) {
 						{props.connected ? "Live" : "Reconnecting"}
 					</Tooltip.Content>
 				</Tooltip>
-			</div>
+			</Row>
 		</AppBar>
 	);
 }

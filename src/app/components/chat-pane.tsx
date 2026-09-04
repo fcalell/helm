@@ -1,5 +1,7 @@
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Loader } from "@fcalell/plugin-solid-ui/components/loader";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Section } from "@fcalell/plugin-solid-ui/components/section";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import {
 	createEffect,
@@ -128,7 +130,7 @@ export function ChatPane(props: ChatPaneProps) {
 	}
 
 	return (
-		<div class="flex min-h-0 flex-1 flex-col gap-stack overflow-hidden">
+		<Section>
 			<ArtifactPanel title={props.artifactTitle ?? "Artifact"}>
 				{props.artifact ?? <p>Nothing under construction yet.</p>}
 			</ArtifactPanel>
@@ -161,36 +163,37 @@ export function ChatPane(props: ChatPaneProps) {
 				</CommandList>
 			</Show>
 			<form
-				class="flex shrink-0 items-end gap-row"
 				onSubmit={(event) => {
 					event.preventDefault();
 					send();
 				}}
 			>
-				<Textarea
-					rows={2}
-					value={draft()}
-					disabled={deferred()}
-					onInput={(event) => setDraft(event.currentTarget.value)}
-					onKeyDown={(event) => {
-						if (event.key === "Enter" && !event.shiftKey) {
-							event.preventDefault();
-							send();
+				<Row>
+					<Textarea
+						rows={2}
+						value={draft()}
+						disabled={deferred()}
+						onInput={(event) => setDraft(event.currentTarget.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter" && !event.shiftKey) {
+								event.preventDefault();
+								send();
+							}
+						}}
+						placeholder={
+							deferred()
+								? "Answer the question above to continue…"
+								: chat().busy
+									? "Waiting for the assistant…"
+									: "Message the chat…"
 						}
-					}}
-					placeholder={
-						deferred()
-							? "Answer the question above to continue…"
-							: chat().busy
-								? "Waiting for the assistant…"
-								: "Message the chat…"
-					}
-					aria-label="Chat message"
-				/>
-				<Button type="submit" size="sm" disabled={chat().busy || deferred()}>
-					Send
-				</Button>
+						aria-label="Chat message"
+					/>
+					<Button type="submit" size="sm" disabled={chat().busy || deferred()}>
+						Send
+					</Button>
+				</Row>
 			</form>
-		</div>
+		</Section>
 	);
 }

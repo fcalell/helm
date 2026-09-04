@@ -1,5 +1,7 @@
 import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { EmptyState } from "@fcalell/plugin-solid-ui/components/empty-state";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { For, Show } from "solid-js";
 import {
@@ -65,10 +67,10 @@ export function DefineDrawer(props: DefineDrawerProps) {
 									</Text>
 								}
 							>
-								<ul class="flex flex-col gap-pair">
+								<Stack>
 									<For each={stories()}>
 										{(story) => (
-											<li class="flex items-center gap-row">
+											<Row>
 												<Text as="span" variant="micro" tone="ink-3" mono>
 													{story.id}
 												</Text>
@@ -76,10 +78,10 @@ export function DefineDrawer(props: DefineDrawerProps) {
 													{story.brief.title || story.id}
 												</Text>
 												<Badge>{STATUS_LABELS[story.frontmatter.status]}</Badge>
-											</li>
+											</Row>
 										)}
 									</For>
-								</ul>
+								</Stack>
 							</Show>
 						}
 					/>

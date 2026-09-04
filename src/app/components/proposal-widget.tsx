@@ -2,6 +2,9 @@ import { Badge } from "@fcalell/plugin-solid-ui/components/badge";
 import { Button } from "@fcalell/plugin-solid-ui/components/button";
 import { Card } from "@fcalell/plugin-solid-ui/components/card";
 import { Input } from "@fcalell/plugin-solid-ui/components/input";
+import { Pair } from "@fcalell/plugin-solid-ui/components/pair";
+import { Row } from "@fcalell/plugin-solid-ui/components/row";
+import { Stack } from "@fcalell/plugin-solid-ui/components/stack";
 import { Text } from "@fcalell/plugin-solid-ui/components/text";
 import { Textarea } from "@fcalell/plugin-solid-ui/components/textarea";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
@@ -49,20 +52,20 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 				{(() => {
 					const draft = payload() as StoryDraft;
 					return (
-						<div class="flex flex-col gap-pair">
+						<Pair>
 							<Text variant="caption" strong>
 								{draft.title}
 							</Text>
 							<Text variant="caption" tone="ink-3">
 								{draft.goal}
 							</Text>
-							<div class="flex flex-wrap items-center gap-pair">
+							<Row wrap>
 								<Badge>{draft.slug}</Badge>
 								<For each={draft.depends}>
 									{(dep) => <Badge>needs {dep}</Badge>}
 								</For>
-							</div>
-						</div>
+							</Row>
+						</Pair>
 					);
 				})()}
 			</Match>
@@ -70,7 +73,7 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 				{(() => {
 					const draft = payload() as EpicDraft;
 					return (
-						<div class="flex flex-col gap-pair">
+						<Pair>
 							<Text variant="caption" strong>
 								{draft.title}
 							</Text>
@@ -82,13 +85,13 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 									{draft.rationale}
 								</Text>
 							</Show>
-							<div class="flex flex-wrap items-center gap-pair">
+							<Row wrap>
 								<Badge>{draft.slug}</Badge>
 								<Show when={draft.stories.length > 0}>
 									<Badge>{draft.stories.length} draft stories</Badge>
 								</Show>
-							</div>
-						</div>
+							</Row>
+						</Pair>
 					);
 				})()}
 			</Match>
@@ -96,15 +99,15 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 				{(() => {
 					const draft = payload() as UpdateBriefPayload;
 					return (
-						<div class="flex flex-col gap-pair">
-							<div class="flex items-center gap-pair">
+						<Pair>
+							<Pair row>
 								<Badge>{draft.section}</Badge>
 								<Show when={draft.resolves}>
 									{(flag) => <Badge tone="warn">resolves: {flag()}</Badge>}
 								</Show>
-							</div>
+							</Pair>
 							<PlainText variant="caption">{draft.content}</PlainText>
-						</div>
+						</Pair>
 					);
 				})()}
 			</Match>
@@ -112,14 +115,14 @@ function ItemSummary(props: { proposal: LoggedProposal; item: Item }) {
 				{(() => {
 					const draft = payload() as ResolveQuestionPayload;
 					return (
-						<div class="flex flex-col gap-pair">
+						<Pair>
 							<Text variant="caption" strong>
 								{draft.question}
 							</Text>
 							<PlainText variant="caption" tone="ink-3">
 								{draft.answer}
 							</PlainText>
-						</div>
+						</Pair>
 					);
 				})()}
 			</Match>
@@ -139,7 +142,7 @@ interface EditFormProps {
 
 function EditActions(props: { onCancel: () => void }) {
 	return (
-		<div class="flex gap-row">
+		<Row>
 			<Button type="submit" size="sm">
 				Send edit
 			</Button>
@@ -151,7 +154,7 @@ function EditActions(props: { onCancel: () => void }) {
 			>
 				Cancel
 			</Button>
-		</div>
+		</Row>
 	);
 }
 
@@ -164,7 +167,6 @@ function StoryEditForm(props: EditFormProps) {
 	const [note, setNote] = createSignal("");
 	return (
 		<form
-			class="flex flex-col gap-row"
 			onSubmit={(event) => {
 				event.preventDefault();
 				props.onSubmit(
@@ -181,38 +183,40 @@ function StoryEditForm(props: EditFormProps) {
 				);
 			}}
 		>
-			<Input
-				value={slug()}
-				onInput={(event) => setSlug(event.currentTarget.value)}
-				placeholder="slug"
-				aria-label="Slug"
-			/>
-			<Input
-				value={title()}
-				onInput={(event) => setTitle(event.currentTarget.value)}
-				placeholder="Title"
-				aria-label="Title"
-			/>
-			<Textarea
-				rows={2}
-				value={goal()}
-				onInput={(event) => setGoal(event.currentTarget.value)}
-				placeholder="Goal"
-				aria-label="Goal"
-			/>
-			<Input
-				value={depends()}
-				onInput={(event) => setDepends(event.currentTarget.value)}
-				placeholder="Depends on (slugs, comma-separated)"
-				aria-label="Depends on"
-			/>
-			<Input
-				value={note()}
-				onInput={(event) => setNote(event.currentTarget.value)}
-				placeholder="Note for the assistant (optional)"
-				aria-label="Note"
-			/>
-			<EditActions onCancel={props.onCancel} />
+			<Stack>
+				<Input
+					value={slug()}
+					onInput={(event) => setSlug(event.currentTarget.value)}
+					placeholder="slug"
+					aria-label="Slug"
+				/>
+				<Input
+					value={title()}
+					onInput={(event) => setTitle(event.currentTarget.value)}
+					placeholder="Title"
+					aria-label="Title"
+				/>
+				<Textarea
+					rows={2}
+					value={goal()}
+					onInput={(event) => setGoal(event.currentTarget.value)}
+					placeholder="Goal"
+					aria-label="Goal"
+				/>
+				<Input
+					value={depends()}
+					onInput={(event) => setDepends(event.currentTarget.value)}
+					placeholder="Depends on (slugs, comma-separated)"
+					aria-label="Depends on"
+				/>
+				<Input
+					value={note()}
+					onInput={(event) => setNote(event.currentTarget.value)}
+					placeholder="Note for the assistant (optional)"
+					aria-label="Note"
+				/>
+				<EditActions onCancel={props.onCancel} />
+			</Stack>
 		</form>
 	);
 }
@@ -223,7 +227,6 @@ function BriefEditForm(props: EditFormProps) {
 	const [note, setNote] = createSignal("");
 	return (
 		<form
-			class="flex flex-col gap-row"
 			onSubmit={(event) => {
 				event.preventDefault();
 				props.onSubmit(
@@ -236,22 +239,24 @@ function BriefEditForm(props: EditFormProps) {
 				);
 			}}
 		>
-			<div class="flex self-start">
-				<Badge>{draft.section}</Badge>
-			</div>
-			<Textarea
-				rows={6}
-				value={content()}
-				onInput={(event) => setContent(event.currentTarget.value)}
-				aria-label="Section content"
-			/>
-			<Input
-				value={note()}
-				onInput={(event) => setNote(event.currentTarget.value)}
-				placeholder="Note for the assistant (optional)"
-				aria-label="Note"
-			/>
-			<EditActions onCancel={props.onCancel} />
+			<Stack>
+				<div class="self-start">
+					<Badge>{draft.section}</Badge>
+				</div>
+				<Textarea
+					rows={6}
+					value={content()}
+					onInput={(event) => setContent(event.currentTarget.value)}
+					aria-label="Section content"
+				/>
+				<Input
+					value={note()}
+					onInput={(event) => setNote(event.currentTarget.value)}
+					placeholder="Note for the assistant (optional)"
+					aria-label="Note"
+				/>
+				<EditActions onCancel={props.onCancel} />
+			</Stack>
 		</form>
 	);
 }
@@ -266,7 +271,6 @@ function JsonEditForm(props: EditFormProps) {
 	const [parseError, setParseError] = createSignal<string>();
 	return (
 		<form
-			class="flex flex-col gap-row"
 			onSubmit={(event) => {
 				event.preventDefault();
 				try {
@@ -281,25 +285,27 @@ function JsonEditForm(props: EditFormProps) {
 				}
 			}}
 		>
-			<Textarea
-				rows={6}
-				value={raw()}
-				onInput={(event) => setRaw(event.currentTarget.value)}
-				aria-label="Payload JSON"
-				aria-invalid={parseError() !== undefined}
-			/>
-			<Show when={parseError()}>
-				<Text variant="micro" tone="danger">
-					{parseError()}
-				</Text>
-			</Show>
-			<Input
-				value={note()}
-				onInput={(event) => setNote(event.currentTarget.value)}
-				placeholder="Note for the assistant (optional)"
-				aria-label="Note"
-			/>
-			<EditActions onCancel={props.onCancel} />
+			<Stack>
+				<Textarea
+					rows={6}
+					value={raw()}
+					onInput={(event) => setRaw(event.currentTarget.value)}
+					aria-label="Payload JSON"
+					aria-invalid={parseError() !== undefined}
+				/>
+				<Show when={parseError()}>
+					<Text variant="micro" tone="danger">
+						{parseError()}
+					</Text>
+				</Show>
+				<Input
+					value={note()}
+					onInput={(event) => setNote(event.currentTarget.value)}
+					placeholder="Note for the assistant (optional)"
+					aria-label="Note"
+				/>
+				<EditActions onCancel={props.onCancel} />
+			</Stack>
 		</form>
 	);
 }
@@ -333,7 +339,7 @@ function ProposalItem(props: {
 				fallback={
 					<Switch>
 						<Match when={mode() === "view"}>
-							<div class="flex gap-row">
+							<Row>
 								<Button
 									size="sm"
 									disabled={inFlight()}
@@ -357,7 +363,7 @@ function ProposalItem(props: {
 								>
 									Reject
 								</Button>
-							</div>
+							</Row>
 						</Match>
 						<Match when={mode() === "edit"}>
 							<Switch
@@ -396,7 +402,6 @@ function ProposalItem(props: {
 						</Match>
 						<Match when={mode() === "reject"}>
 							<form
-								class="flex flex-col gap-row"
 								onSubmit={(event) => {
 									event.preventDefault();
 									if (reason().trim() === "") return;
@@ -406,31 +411,33 @@ function ProposalItem(props: {
 									});
 								}}
 							>
-								<Textarea
-									rows={2}
-									value={reason()}
-									onInput={(event) => setReason(event.currentTarget.value)}
-									placeholder="Why is this rejected?"
-									aria-label="Rejection reason"
-								/>
-								<div class="flex gap-row">
-									<Button
-										type="submit"
-										size="sm"
-										tone="danger"
-										disabled={inFlight() || reason().trim() === ""}
-									>
-										Reject
-									</Button>
-									<Button
-										type="button"
-										size="sm"
-										emphasis="tertiary"
-										onClick={() => setMode("view")}
-									>
-										Cancel
-									</Button>
-								</div>
+								<Stack>
+									<Textarea
+										rows={2}
+										value={reason()}
+										onInput={(event) => setReason(event.currentTarget.value)}
+										placeholder="Why is this rejected?"
+										aria-label="Rejection reason"
+									/>
+									<Row>
+										<Button
+											type="submit"
+											size="sm"
+											tone="danger"
+											disabled={inFlight() || reason().trim() === ""}
+										>
+											Reject
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											emphasis="tertiary"
+											onClick={() => setMode("view")}
+										>
+											Cancel
+										</Button>
+									</Row>
+								</Stack>
 							</form>
 						</Match>
 					</Switch>
@@ -447,7 +454,7 @@ export function ProposalWidget(props: { proposal: LoggedProposal }) {
 		props.proposal.items.filter((item) => item.resolution === undefined).length;
 	return (
 		<Card>
-			<div class="flex items-center justify-between gap-row">
+			<div class="flex items-center justify-between">
 				<Eyebrow>{TOOL_LABELS[props.proposal.tool]}</Eyebrow>
 				<Show when={props.proposal.pending && unresolvedCount() > 1}>
 					<Button
