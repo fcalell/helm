@@ -1,8 +1,10 @@
 ---
 id: 004-07
 status: backlog
-depends: [004-05, 005-08]
+depends: [ 004-05, 005-08 ]
+preset: guarded
 sessions: {}
+runs: []
 ---
 # Acceptance feedback
 

@@ -1,8 +1,9 @@
 ---
 id: 002-09
-status: backlog
-depends: [002-06]
-sessions: {}
+status: refining
+depends: [ 002-06 ]
+sessions: { refine: 7c60ca9a-e57d-4327-a744-acb18c2caeb6 }
+runs: []
 ---
 # Diff fetch failure
 
