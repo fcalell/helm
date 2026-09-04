@@ -32,3 +32,10 @@ instance of the layout Helm scaffolds
   Built as a `@fcalell/stack` consumer (SolidJS UI); the stack lives in the sibling `../stack`
   repo and gets improved as Helm needs, never worked around. **No tests in this repo**; stack
   changes follow `../stack`'s own rules.
+
+## Verify
+
+`pnpm check` (`tsc --noEmit` + Biome) is the per-change gate. It does not run the design system's
+geometry gate, which only `pnpm build` does through `stack build`, so a change under `src/app/`
+is unverified until that build passes. Loop and orchestrator behaviour runs through `harness/`,
+which spends nothing from the pool.

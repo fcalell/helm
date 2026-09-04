@@ -18,6 +18,8 @@ docs get deleted**: a triage list with nothing left to triage is git history, no
 ## Open
 
 - [loop-findings](./loop-findings.md): triaging defects the dogfood loop surfaced into stories; delete once drained
+- [loop-hardening](./loop-hardening.md): changing what a stage verifies, or asking why a graded run still shipped a broken product; triage into shaping, delete once drained
+- [ux-feedback](./ux-feedback.md): picking up observed first-use friction before shaping a fix; delete once drained
 
 ## Experiments
 
